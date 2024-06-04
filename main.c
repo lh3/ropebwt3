@@ -2,7 +2,7 @@
 #include <string.h>
 #include "rb3priv.h"
 
-#define RB3_VERSION "3.0pre-r4"
+#define RB3_VERSION "3.0pre-r5"
 
 int main_sais(int argc, char *argv[]);
 
@@ -16,6 +16,7 @@ static int usage(FILE *fp)
 
 int main(int argc, char *argv[])
 {
+	rb3_realtime();
 	if (argc == 1) return usage(stdout);
 	else if (strcmp(argv[1], "sais") == 0) main_sais(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
@@ -26,7 +27,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	if (rb3_verbose >= 3) {
+	if (rb3_verbose >= 3 && argc > 2) {
 		int i;
 		fprintf(stderr, "[M::%s] Version: %s\n", __func__, RB3_VERSION);
 		fprintf(stderr, "[M::%s] CMD:", __func__);

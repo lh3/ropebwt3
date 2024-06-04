@@ -3,7 +3,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include "rld0.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,8 +38,6 @@ typedef struct __kstring_t {
 		} \
 	} while (0)
 
-typedef enum { RB3_PLAIN, RB3_FMD, RB3_FMR } rb3_fmt_t;
-
 extern int rb3_verbose;
 
 // in sys.c
@@ -48,9 +45,6 @@ double rb3_cputime(void);
 double rb3_realtime(void);
 double rb3_percent_cpu(void);
 long rb3_peakrss(void);
-
-// in encode.c
-rld_t *rb3_enc_plain2rld(int64_t len, const uint8_t *bwt);
 
 #ifdef __cplusplus
 }

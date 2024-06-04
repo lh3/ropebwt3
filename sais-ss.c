@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include "rb3priv.h"
+#include "encode.h"
 #include "io.h"
 #include "rld0.h"
 #include "libsais.h"
@@ -63,13 +64,15 @@ static int usage(FILE *fp)
 {
 	fprintf(fp, "Usage: ropebwt3 sais [options] <arguments>\n");
 	fprintf(fp, "Options:\n");
+#ifdef LIBSAIS_OPENMP
+	fprintf(fp, "  -t INT     number of threads\n");
+#endif
 	fprintf(fp, "  -F         no forward strand\n");
 	fprintf(fp, "  -R         no reverse strand\n");
 	fprintf(fp, "  -6         force to use 64-bit integers\n");
 	fprintf(fp, "  -o FILE    output to FILE [stdout]\n");
-#ifdef LIBSAIS_OPENMP
-	fprintf(fp, "  -t INT     number of threads\n");
-#endif
+	fprintf(fp, "  -d         dump in the fermi-delta format (FMD)\n");
+	fprintf(fp, "  -b         dump in the ropebwt format (FMR)\n");
 	return fp == stdout? 0 : 1;
 }
 
@@ -82,13 +85,14 @@ int main_sais(int argc, char *argv[])
 	kstring_t seq = {0,0,0};
 	int64_t n_seq = 0;
 
-	while ((c = ketopt(&o, argc, argv, 1, "t:FRL6o:d", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "t:FRL6o:db", 0)) >= 0) {
 		if (c == 't') n_threads = atoi(o.arg);
 		else if (c == 'o') freopen(o.arg, "wb", stdout);
 		else if (c == 'F') is_for = 0;
 		else if (c == 'R') is_rev = 0;
 		else if (c == 'L') is_line = 1;
 		else if (c == 'd') fmt = RB3_FMD;
+		else if (c == 'b') fmt = RB3_FMR;
 		else if (c == '6') use64 = 1;
 	}
 	if (argc == o.ind) return usage(stdout);
@@ -108,6 +112,11 @@ int main_sais(int argc, char *argv[])
 		e = rb3_enc_plain2rld(seq.l, (uint8_t*)seq.s);
 		rld_dump(e, "-");
 		rld_destroy(e);
+	} else if (fmt == RB3_FMR) {
+		mrope_t *r;
+		r = rb3_enc_plain2fmr(seq.l, (uint8_t*)seq.s, 0, 0);
+		mr_dump(r, stdout);
+		mr_destroy(r);
 	}
 	free(seq.s);
 	rb3_seq_close(fp);
