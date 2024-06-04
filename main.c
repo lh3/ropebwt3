@@ -2,7 +2,7 @@
 #include <string.h>
 #include "rb3priv.h"
 
-#define RB3_VERSION "3.0pre-r3"
+#define RB3_VERSION "3.0pre-r4"
 
 int main_sais(int argc, char *argv[]);
 

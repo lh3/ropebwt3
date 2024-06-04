@@ -3,6 +3,7 @@
 #include <assert.h>
 #include "rb3priv.h"
 #include "io.h"
+#include "rld0.h"
 #include "libsais.h"
 #include "libsais64.h"
 #include "ketopt.h"
@@ -65,6 +66,7 @@ static int usage(FILE *fp)
 	fprintf(fp, "  -F         no forward strand\n");
 	fprintf(fp, "  -R         no reverse strand\n");
 	fprintf(fp, "  -6         force to use 64-bit integers\n");
+	fprintf(fp, "  -o FILE    output to FILE [stdout]\n");
 #ifdef LIBSAIS_OPENMP
 	fprintf(fp, "  -t INT     number of threads\n");
 #endif
@@ -80,11 +82,13 @@ int main_sais(int argc, char *argv[])
 	kstring_t seq = {0,0,0};
 	int64_t n_seq = 0;
 
-	while ((c = ketopt(&o, argc, argv, 1, "t:FRL6", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "t:FRL6o:d", 0)) >= 0) {
 		if (c == 't') n_threads = atoi(o.arg);
+		else if (c == 'o') freopen(o.arg, "wb", stdout);
 		else if (c == 'F') is_for = 0;
 		else if (c == 'R') is_rev = 0;
 		else if (c == 'L') is_line = 1;
+		else if (c == 'd') fmt = RB3_FMD;
 		else if (c == '6') use64 = 1;
 	}
 	if (argc == o.ind) return usage(stdout);
@@ -99,6 +103,11 @@ int main_sais(int argc, char *argv[])
 		for (i = 0; i < seq.l; ++i)
 			seq.s[i] = "$ACGTN"[(uint8_t)seq.s[i]];
 		puts(seq.s);
+	} else if (fmt == RB3_FMD) {
+		rld_t *e;
+		e = rb3_enc_plain2rld(seq.l, (uint8_t*)seq.s);
+		rld_dump(e, "-");
+		rld_destroy(e);
 	}
 	free(seq.s);
 	rb3_seq_close(fp);
