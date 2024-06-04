@@ -68,30 +68,43 @@ void rb3_seq_close(rb3_seqio_t *fp)
 	free(fp);
 }
 
+static int64_t rb3_seq_add(kstring_t *seq, int is_for, int is_rev, int64_t l, char *s)
+{
+	int64_t n_added = 0;
+	rb3_char2nt6(l, (uint8_t*)s);
+	if (is_for) {
+		RB3_GROW(char, seq->s, seq->l + l + 1, seq->m);
+		memcpy(&seq->s[seq->l], s, l + 1); // this includes the trailing NULL
+		seq->l += l + 1;
+		++n_added;
+	}
+	if (is_rev) {
+		rb3_revcomp6(l, (uint8_t*)s);
+		RB3_GROW(char, seq->s, seq->l + l + 1, seq->m);
+		memcpy(&seq->s[seq->l], s, l + 1);
+		seq->l += l + 1;
+		++n_added;
+	}
+	return n_added;
+}
+
 int64_t rb3_seq_read(rb3_seqio_t *fp, kstring_t *seq, int64_t max_len, int is_for, int is_rev)
 {
 	int64_t n_seq = 0;
+	int32_t ret;
 	assert(is_for || is_rev);
 	seq->l = 0;
-	if (fp->is_line) { // TODO: implement this
-		abort();
+	if (fp->is_line) {
+		kstring_t buf = {0,0,0};
+		int dret;
+		while ((ret = ks_getuntil(fp->fl, KS_SEP_LINE, &buf, &dret)) >= 0) {
+			n_seq += rb3_seq_add(seq, is_for, is_rev, buf.l, buf.s);
+			if (max_len > 0 && seq->l > max_len) break;
+		}
+		free(buf.s);
 	} else {
-		int32_t ret;
 		while ((ret = kseq_read(fp->fx)) >= 0) {
-			rb3_char2nt6(fp->fx->seq.l, (uint8_t*)fp->fx->seq.s);
-			if (is_for) {
-				RB3_GROW(char, seq->s, seq->l + fp->fx->seq.l + 1, seq->m);
-				memcpy(&seq->s[seq->l], fp->fx->seq.s, fp->fx->seq.l + 1);
-				seq->l += fp->fx->seq.l + 1;
-				++n_seq;
-			}
-			if (is_rev) {
-				rb3_revcomp6(fp->fx->seq.l, (uint8_t*)fp->fx->seq.s);
-				RB3_GROW(char, seq->s, seq->l + fp->fx->seq.l + 1, seq->m);
-				memcpy(&seq->s[seq->l], fp->fx->seq.s, fp->fx->seq.l + 1);
-				seq->l += fp->fx->seq.l + 1;
-				++n_seq;
-			}
+			n_seq += rb3_seq_add(seq, is_for, is_rev, fp->fx->seq.l, fp->fx->seq.s);
 			if (max_len > 0 && seq->l > max_len) break;
 		}
 		if (ret < -1 && rb3_verbose >= 1)

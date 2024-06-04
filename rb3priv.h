@@ -38,6 +38,8 @@ typedef struct __kstring_t {
 		} \
 	} while (0)
 
+typedef enum { RB3_PLAIN, RB3_FMD, RB3_FMR } rb3_fmt_t;
+
 extern int rb3_verbose;
 
 double rb3_cputime(void);

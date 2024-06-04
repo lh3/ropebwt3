@@ -75,6 +75,7 @@ int main_sais(int argc, char *argv[])
 {
 	ketopt_t o = KETOPT_INIT;
 	int32_t c, n_threads = 1, is_for = 1, is_rev = 1, is_line = 0, use64 = 0;
+	rb3_fmt_t fmt = RB3_PLAIN;
 	rb3_seqio_t *fp;
 	kstring_t seq = {0,0,0};
 	int64_t n_seq = 0;
@@ -88,11 +89,17 @@ int main_sais(int argc, char *argv[])
 	}
 	if (argc == o.ind) return usage(stdout);
 
-	fp = rb3_seq_open(o.arg, is_line);
+	fp = rb3_seq_open(argv[o.ind], is_line);
 	n_seq = rb3_seq_read(fp, &seq, 0, is_for, is_rev);
 	if (use64 == 0 && seq.l + sais_extra_len >= INT32_MAX) use64 = 1;
 	if (use64) rb3_build_sais64(n_seq, seq.l, seq.s, n_threads);
 	else rb3_build_sais32(n_seq, seq.l, seq.s, n_threads);
+	if (fmt == RB3_PLAIN) {
+		int64_t i;
+		for (i = 0; i < seq.l; ++i)
+			seq.s[i] = "$ACGTN"[(uint8_t)seq.s[i]];
+		puts(seq.s);
+	}
 	free(seq.s);
 	rb3_seq_close(fp);
 	return 0;
