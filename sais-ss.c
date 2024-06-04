@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include "rb3priv.h"
-#include "encode.h"
+#include "fm-index.h"
 #include "io.h"
 #include "rld0.h"
 #include "libsais.h"

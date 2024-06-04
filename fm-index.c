@@ -1,7 +1,7 @@
 #include <string.h>
 #include <assert.h>
 #include "rb3priv.h"
-#include "encode.h"
+#include "fm-index.h"
 
 rld_t *rb3_enc_plain2rld(int64_t len, const uint8_t *bwt)
 {
