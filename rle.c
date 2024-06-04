@@ -131,15 +131,15 @@ void rle_print(const uint8_t *block, int expand)
 	putchar('\n');
 }
 
-void rle_rank2a(const uint8_t *block, int64_t x, int64_t y, int64_t *cx, int64_t *cy, const int64_t ec[6])
+int rle_rank2a(const uint8_t *block, int64_t x, int64_t y, int64_t *cx, int64_t *cy, const int64_t ec[6])
 {
-	int a;
+	int a, ret = -1;
 	int64_t tot, cnt[6];
 	const uint8_t *p;
 
 	y = y >= x? y : x;
 	tot = ec[0] + ec[1] + ec[2] + ec[3] + ec[4] + ec[5];
-	if (tot == 0) return;
+	if (tot == 0) return ret;
 	if (x <= (tot - y) + (tot>>3)) {
 		int c = 0;
 		int64_t l, z = 0;
@@ -151,6 +151,7 @@ void rle_rank2a(const uint8_t *block, int64_t x, int64_t y, int64_t *cx, int64_t
 		}
 		for (a = 0; a != 6; ++a) cx[a] += cnt[a];
 		cx[c] -= z - x;
+		ret = c;
 		if (cy) {
 			while (z < y) {
 				rle_dec1(p, c, l);
@@ -185,7 +186,9 @@ void rle_rank2a(const uint8_t *block, int64_t x, int64_t y, int64_t *cx, int64_t
 		move_backward(x)
 		for (a = 0; a != 6; ++a) cx[a] += cnt[a];
 		cx[*p&7] += x - z;
+		ret = *p & 7;
 
 #undef move_backward
 	}
+	return ret;
 }

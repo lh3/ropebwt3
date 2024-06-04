@@ -8,6 +8,8 @@
 extern "C" {
 #endif
 
+#define RB3_ASIZE 6
+
 typedef enum { RB3_PLAIN, RB3_FMD, RB3_FMR } rb3_fmt_t;
 
 rld_t *rb3_enc_plain2rld(int64_t len, const uint8_t *bwt);

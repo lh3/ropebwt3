@@ -41,7 +41,7 @@ extern "C" {
 	rope_t *rope_init(int max_nodes, int block_len);
 	void rope_destroy(rope_t *rope);
 	int64_t rope_insert_run(rope_t *rope, int64_t x, int a, int64_t rl, rpcache_t *cache);
-	void rope_rank2a(const rope_t *rope, int64_t x, int64_t y, int64_t *cx, int64_t *cy);
+	int rope_rank2a(const rope_t *rope, int64_t x, int64_t y, int64_t *cx, int64_t *cy);
 	#define rope_rank1a(rope, x, cx) rope_rank2a(rope, x, -1, cx, 0)
 
 	void rope_itr_first(const rope_t *rope, rpitr_t *i);

@@ -67,9 +67,9 @@ int64_t mr_insert1(mrope_t *r, const uint8_t *str)
 	return rope_insert_run(r->r[b], l, 0, 1, 0);
 }
 
-void mr_rank2a(const mrope_t *mr, int64_t x, int64_t y, int64_t *cx, int64_t *cy)
+int mr_rank2a(const mrope_t *mr, int64_t x, int64_t y, int64_t *cx, int64_t *cy)
 {
-	int a, b;
+	int a, b, ret = -1;
 	int64_t z, c[6], l;
 	memset(c, 0, 48);
 	for (a = 0, z = 0; a < 6; ++a) {
@@ -81,16 +81,16 @@ void mr_rank2a(const mrope_t *mr, int64_t x, int64_t y, int64_t *cx, int64_t *cy
 	}
 	assert(a != 6);
 	if (y >= 0 && z + l >= y) { // [x,y) is in the same bucket
-		rope_rank2a(mr->r[a], x - z, y - z, cx, cy);
+		ret = rope_rank2a(mr->r[a], x - z, y - z, cx, cy);
 		for (b = 0; b < 6; ++b)
 			cx[b] += c[b], cy[b] += c[b];
-		return;
+		return ret;
 	}
-	if (x != z) rope_rank1a(mr->r[a], x - z, cx);
+	if (x != z) ret = rope_rank1a(mr->r[a], x - z, cx);
 	else memset(cx, 0, 48);
 	for (b = 0; b < 6; ++b)
 		cx[b] += c[b], c[b] += mr->r[a]->c[b];
-	if (y < 0) return;
+	if (y < 0) return ret;
 	for (++a, z += l; a < 6; ++a) {
 		const int64_t *ca = mr->r[a]->c;
 		l = ca[0] + ca[1] + ca[2] + ca[3] + ca[4] + ca[5];
@@ -102,6 +102,7 @@ void mr_rank2a(const mrope_t *mr, int64_t x, int64_t y, int64_t *cx, int64_t *cy
 	if (y != z + l) rope_rank1a(mr->r[a], y - z, cy);
 	else for (b = 0; b < 6; ++b) cy[b] = mr->r[a]->c[b];
 	for (b = 0; b < 6; ++b) cy[b] += c[b];
+	return ret;
 }
 
 /**********************

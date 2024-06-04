@@ -176,21 +176,23 @@ static rpnode_t *rope_count_to_leaf(const rope_t *rope, int64_t x, int64_t cx[6]
 	return v;
 }
 
-void rope_rank2a(const rope_t *rope, int64_t x, int64_t y, int64_t *cx, int64_t *cy)
+int rope_rank2a(const rope_t *rope, int64_t x, int64_t y, int64_t *cx, int64_t *cy)
 {
 	rpnode_t *v;
 	int64_t rest;
+	int c = -1;
 	v = rope_count_to_leaf(rope, x, cx, &rest);
 	if (y < x || cy == 0) {
-		rle_rank1a((const uint8_t*)v->p, rest, cx, v->c);
+		c = rle_rank1a((const uint8_t*)v->p, rest, cx, v->c);
 	} else if (rest + (y - x) <= v->l) {
 		memcpy(cy, cx, 48);
-		rle_rank2a((const uint8_t*)v->p, rest, rest + (y - x), cx, cy, v->c);
+		c = rle_rank2a((const uint8_t*)v->p, rest, rest + (y - x), cx, cy, v->c);
 	} else {
-		rle_rank1a((const uint8_t*)v->p, rest, cx, v->c);
+		c = rle_rank1a((const uint8_t*)v->p, rest, cx, v->c);
 		v = rope_count_to_leaf(rope, y, cy, &rest);
 		rle_rank1a((const uint8_t*)v->p, rest, cy, v->c);
 	}
+	return c;
 }
 
 /*********************
