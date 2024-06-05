@@ -6,14 +6,14 @@
 
 #define RB3_VERSION "3.0pre-r14"
 
-int main_sais(int argc, char *argv[]);
+int main_build(int argc, char *argv[]);
 int main_merge(int argc, char *argv[]);
 
 static int usage(FILE *fp)
 {
 	fprintf(fp, "Usage: ropebwt3 <command> <arguments>\n");
 	fprintf(fp, "Commands:\n");
-	fprintf(fp, "  sais       construct multi-string SA with libsais\n");
+	fprintf(fp, "  build      construct fm-indices\n");
 	fprintf(fp, "  merge      merge fm-indices\n");
 	return fp == stdout? 0 : 1;
 }
@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
 {
 	rb3_realtime();
 	if (argc == 1) return usage(stdout);
-	else if (strcmp(argv[1], "sais") == 0) main_sais(argc-1, argv+1);
+	else if (strcmp(argv[1], "build") == 0) main_build(argc-1, argv+1);
 	else if (strcmp(argv[1], "merge") == 0) main_merge(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
 		printf("%s\n", RB3_VERSION);

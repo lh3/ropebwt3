@@ -46,6 +46,9 @@ double rb3_realtime(void);
 double rb3_percent_cpu(void);
 long rb3_peakrss(void);
 
+// in sais-ss.c
+void rb3_build_sais(int64_t n_seq, int64_t len, char *seq, int n_threads, int force64);
+
 #ifdef __cplusplus
 }
 #endif
