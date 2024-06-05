@@ -4,7 +4,7 @@
 #include "fm-index.h"
 #include "ketopt.h"
 
-#define RB3_VERSION "3.0pre-r9"
+#define RB3_VERSION "3.0pre-r10"
 
 int main_sais(int argc, char *argv[]);
 int main_merge_fmi(int argc, char *argv[]);

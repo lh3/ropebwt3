@@ -60,7 +60,7 @@ extern "C" {
 	uint64_t rld_enc_finish(rld_t *e, rlditr_t *itr);
 
 	uint64_t rld_rank11(const rld_t *e, uint64_t k, int c);
-	int rld_rank1a(const rld_t *e, uint64_t k, uint64_t *ok);
+	int rld_rank1a(const rld_t *e, uint64_t k, uint64_t *ok); // on return, ok[c]=|i<k:B[i]=c|; return B[k]
 	void rld_rank21(const rld_t *e, uint64_t k, uint64_t l, int c, uint64_t *ok, uint64_t *ol);
 	void rld_rank2a(const rld_t *e, uint64_t k, uint64_t l, uint64_t *ok, uint64_t *ol);
 
