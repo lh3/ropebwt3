@@ -7,14 +7,14 @@
 #define RB3_VERSION "3.0pre-r14"
 
 int main_sais(int argc, char *argv[]);
-int main_merge_fmi(int argc, char *argv[]);
+int main_merge(int argc, char *argv[]);
 
 static int usage(FILE *fp)
 {
 	fprintf(fp, "Usage: ropebwt3 <command> <arguments>\n");
 	fprintf(fp, "Commands:\n");
 	fprintf(fp, "  sais       construct multi-string SA with libsais\n");
-	fprintf(fp, "  merge-fmi  merge fm-indices\n");
+	fprintf(fp, "  merge      merge fm-indices\n");
 	return fp == stdout? 0 : 1;
 }
 
@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
 	rb3_realtime();
 	if (argc == 1) return usage(stdout);
 	else if (strcmp(argv[1], "sais") == 0) main_sais(argc-1, argv+1);
-	else if (strcmp(argv[1], "merge-fmi") == 0) main_merge_fmi(argc-1, argv+1);
+	else if (strcmp(argv[1], "merge") == 0) main_merge(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
 		printf("%s\n", RB3_VERSION);
 		return 0;
@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-int main_merge_fmi(int argc, char *argv[])
+int main_merge(int argc, char *argv[])
 {
 	int32_t c, i, n_threads = 1;
 	ketopt_t o = KETOPT_INIT;
@@ -54,7 +54,7 @@ int main_merge_fmi(int argc, char *argv[])
 		else if (c == 'o') freopen(o.arg, "wb", stdout);
 	}
 	if (argc - o.ind < 2) {
-		fprintf(stdout, "Usage: ropebwt3 merge-fmi [options] <base.fmr> <other1.fmd> [...]\n");
+		fprintf(stdout, "Usage: ropebwt3 merge [options] <base.fmr> <other1.fmd> [...]\n");
 		fprintf(stdout, "Options:\n");
 		fprintf(stdout, "  -t INT     number of threads [%d]\n", n_threads);
 		fprintf(stdout, "  -o FILE    output FMR to FILE [stdout]\n");
