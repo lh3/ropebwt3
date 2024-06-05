@@ -2,7 +2,7 @@ CC=			gcc
 CFLAGS=		-std=c99 -g -Wall -O3
 CPPFLAGS=
 INCLUDES=
-OBJS=		libsais.o libsais64.o sys.o misc.o io.o rld0.o rle.o rope.o mrope.o \
+OBJS=		libsais.o libsais64.o sys.o kthread.o misc.o io.o rld0.o rle.o rope.o mrope.o \
 			fm-index.o sais-ss.o
 PROG=		ropebwt3
 LIBS=		-lpthread -lz -lm
@@ -37,13 +37,12 @@ depend:
 
 # DO NOT DELETE
 
-fm-index.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h
+fm-index.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h kthread.h
 io.o: rb3priv.h io.h kseq.h
 kthread.o: kthread.h
 libsais.o: libsais.h
 libsais64.o: libsais.h libsais64.h
 main.o: rb3priv.h
-merge.o: fm-index.h rld0.h mrope.h rope.h rb3priv.h
 misc.o: rb3priv.h
 mrope.o: mrope.h rope.h
 rld0.o: rld0.h

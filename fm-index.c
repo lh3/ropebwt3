@@ -2,6 +2,11 @@
 #include <assert.h>
 #include "rb3priv.h"
 #include "fm-index.h"
+#include "kthread.h"
+
+/***********************
+ * Encoding conversion *
+ ***********************/
 
 rld_t *rb3_enc_plain2rld(int64_t len, const uint8_t *bwt)
 {
@@ -48,3 +53,59 @@ mrope_t *rb3_enc_plain2fmr(int64_t len, const uint8_t *bwt, int max_nodes, int b
 	}
 	return r;
 }
+
+/*********
+ * Merge *
+ *********/
+
+void rb3_mg_rank1(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int64_t p)
+{
+	int64_t aca[RB3_ASIZE+1], acb[RB3_ASIZE+1], ka, kb;
+	int c = 0;
+	rb3_fmi_get_acc(fa, aca);
+	rb3_fmi_get_acc(fb, acb);
+	ka = aca[1], kb = p;
+	while (1) {
+		int64_t oa[RB3_ASIZE], ob[RB3_ASIZE];
+		c = rb3_fmi_rank1a(fb, kb, ob);
+		rb[kb] = (ka + kb) << 3 | c;
+		if (c == 0) break;
+		kb = acb[c] + ob[c];
+		rb3_fmi_rank1a(fa, ka, oa);
+		ka = aca[c] + oa[c];
+	}
+}
+
+typedef struct {
+	const rb3_fmi_t *fa, *fb;
+	int64_t *rb;
+} mgaux_t;
+
+static void worker(void *data, long k, int tid)
+{
+	mgaux_t *a = (mgaux_t*)data;
+	rb3_mg_rank1(a->fa, a->fb, a->rb, k);
+}
+
+void rb3_mg_rank(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int n_threads)
+{
+	int64_t k, acb[RB3_ASIZE+1];
+	rb3_fmi_get_acc(fb, acb);
+	if (n_threads > 1) {
+		mgaux_t a;
+		a.fa = fa, a.fb = fb, a.rb = rb;
+		kt_for(n_threads, worker, &a, acb[1]);
+	} else {
+		for (k = 0; k < acb[1]; ++k)
+			rb3_mg_rank1(fa, fb, rb, k);
+	}
+}
+/*
+void rb3_merge1(mrope_t *r, rld_t *e, int n_threads)
+{
+	int64_t *rb_l;
+	rb_l = RB3_MALLOC(int64_t, e->cnt[e->asize]);
+	rb3_cal_rb_rd(r, e, n_threads, rb_l);
+	free(rb_l);
+}
+*/
