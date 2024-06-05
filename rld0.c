@@ -406,7 +406,13 @@ int rld_rank1a(const rld_t *e, uint64_t k, uint64_t *ok)
 	rlditr_t itr;
 	if (k == 0) {
 		for (a = 0; a < e->asize; ++a) ok[a] = 0;
-		return -1;
+		rld_itr_init(e, &itr, 0);
+#ifdef _DNA_ONLY
+		l = rld_dec0_fast_dna(e, &itr, &a);
+#else
+		l = rld_dec0(e, &itr, &a);
+#endif
+		return a;
 	}
 	rld_locate_blk(e, &itr, k-1, ok, &z);
 	while (1) {
@@ -419,6 +425,8 @@ int rld_rank1a(const rld_t *e, uint64_t k, uint64_t *ok)
 		z += l; ok[a] += l;
 	}
 	ok[a] += k - z;
+	if (z + l == k)
+		l = rld_dec(e, &itr, &a, 0);
 	return a;
 }
 

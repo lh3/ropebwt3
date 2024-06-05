@@ -68,8 +68,8 @@ void rb3_mg_rank1(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int64_t
 	/*kb = 0;
 	while (1) {
 		int64_t ob[RB3_ASIZE];
-		c = rb3_fmi_rank1a(fa, kb, ob);
-		fprintf(stderr, "* kb=%ld,c=%c\n", (long)kb, "$ACGTN"[c]);
+		c = rb3_fmi_rank1a(fb, kb, ob);
+		fprintf(stderr, "* kb=%ld,c=%d\n", (long)kb, c);
 		if (c == 0) break;
 		kb = acb[c] + ob[c];
 	}*/
@@ -77,12 +77,12 @@ void rb3_mg_rank1(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int64_t
 	ka = aca[1], kb = p;
 	while (1) {
 		int64_t oa[RB3_ASIZE], ob[RB3_ASIZE];
-		c = rb3_fmi_rank1a(fb, kb + 1, ob);
+		c = rb3_fmi_rank1a(fb, kb, ob);
 		rb[kb] = (ka + kb) << 6 | c << 3 | last_c;
 		//fprintf(stderr, "c=%d,kb=%ld,ka=%ld\n", c, (long)kb, (long)ka);
 		last_c = c;
 		if (c == 0) break;
-		kb = acb[c] + ob[c] - 1;
+		kb = acb[c] + ob[c];
 		rb3_fmi_rank1a(fa, ka, oa);
 		ka = aca[c] + oa[c];
 	}
