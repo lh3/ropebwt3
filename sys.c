@@ -2,6 +2,8 @@
 #include <string.h>
 #include "rb3priv.h"
 
+int rb3_verbose = 3;
+
 #if defined(WIN32) || defined(_WIN32)
 #include <windows.h>
 
