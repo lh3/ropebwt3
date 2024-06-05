@@ -64,22 +64,13 @@ void rb3_mg_rank1(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int64_t
 	int c, last_c = 0;
 	rb3_fmi_get_acc(fa, aca);
 	rb3_fmi_get_acc(fb, acb);
-
-	/*kb = 0;
-	while (1) {
-		int64_t ob[RB3_ASIZE];
-		c = rb3_fmi_rank1a(fb, kb, ob);
-		fprintf(stderr, "* kb=%ld,c=%d\n", (long)kb, c);
-		if (c == 0) break;
-		kb = acb[c] + ob[c];
-	}*/
-
 	ka = aca[1], kb = p;
+	long x = 0;
 	while (1) {
 		int64_t oa[RB3_ASIZE], ob[RB3_ASIZE];
 		c = rb3_fmi_rank1a(fb, kb, ob);
+		//int c2 = rb3_fmi_rank1a(fa, kb, ob); if (c != c2) fprintf(stderr, "c=%d, c2=%d, k=%ld, x=%ld\n", c, c2, (long)kb, x); ++x; //if (x == 3) exit(1);
 		rb[kb] = (ka + kb) << 6 | c << 3 | last_c;
-		//fprintf(stderr, "c=%d,kb=%ld,ka=%ld\n", c, (long)kb, (long)ka);
 		last_c = c;
 		if (c == 0) break;
 		kb = acb[c] + ob[c];

@@ -86,8 +86,11 @@ int mr_rank2a(const mrope_t *mr, int64_t x, int64_t y, int64_t *cx, int64_t *cy)
 			cx[b] += c[b], cy[b] += c[b];
 		return ret;
 	}
+	/*
 	if (x != z) ret = rope_rank1a(mr->r[a], x - z, cx);
 	else memset(cx, 0, 48);
+	*/
+	ret = rope_rank1a(mr->r[a], x - z, cx);
 	for (b = 0; b < 6; ++b)
 		cx[b] += c[b], c[b] += mr->r[a]->c[b];
 	if (y < 0) return ret;
@@ -150,6 +153,7 @@ mrope_t *mr_restore(FILE *fp)
 	int64_t c[6];
 	int i;
 	fread(magic, 1, 4, fp);
+	if (strncmp((char*)magic, "RB\2", 3) != 0) return 0;
 	mr = calloc(1, sizeof(mrope_t));
 	mr->so = magic[3];
 	for (i = 0; i < 6; ++i)
