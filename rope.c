@@ -156,15 +156,15 @@ static rpnode_t *rope_count_to_leaf(const rope_t *rope, int64_t x, int64_t cx[6]
 	memset(cx, 0, 48);
 	do {
 		u = p;
-		if (v && x - y > v->l>>1) {
+		if (v && x - y > v->l>>1) { // search from the end
 			p += p->n - 1; y += v->l;
 			for (a = 0; a != 6; ++a) cx[a] += v->c[a];
-			for (; y >= x; --p) {
+			for (; y > x; --p) {
 				y -= p->l;
 				for (a = 0; a != 6; ++a) cx[a] -= p->c[a];
 			}
 			++p;
-		} else {
+		} else { // search from the beginning
 			for (; y + p->l < x; ++p) {
 				y += p->l;
 				for (a = 0; a != 6; ++a) cx[a] += p->c[a];
@@ -184,15 +184,30 @@ int rope_rank2a(const rope_t *rope, int64_t x, int64_t y, int64_t *cx, int64_t *
 	v = rope_count_to_leaf(rope, x, cx, &rest);
 	if (y < x || cy == 0) {
 		c = rle_rank1a((const uint8_t*)v->p, rest, cx, v->c);
-	} else if (rest + (y - x) <= v->l) {
+	} else if (rest + (y - x) <= v->l) { // x and y are in the same block
 		memcpy(cy, cx, 48);
 		c = rle_rank2a((const uint8_t*)v->p, rest, rest + (y - x), cx, cy, v->c);
-	} else {
+	} else { // in two different blocks
 		c = rle_rank1a((const uint8_t*)v->p, rest, cx, v->c);
 		v = rope_count_to_leaf(rope, y, cy, &rest);
 		rle_rank1a((const uint8_t*)v->p, rest, cy, v->c);
 	}
+	if (c < 0) c = rope_bwt_get(rope, x);
 	return c;
+}
+
+int rope_bwt_get(const rope_t *rope, int64_t x)
+{
+	rpnode_t *u, *v, *p = rope->root;
+	int64_t y = 0, tmp[6] = {0,0,0,0,0,0};
+	if (x >= rope->c[0] + rope->c[1] + rope->c[2] + rope->c[3] + rope->c[4] + rope->c[5])
+		return -1;
+	do {
+		u = p;
+		for (; y + p->l <= x; ++p) y += p->l;
+		v = p, p = p->p;
+	} while (!u->is_bottom);
+	return rle_rank1a((const uint8_t*)v->p, x - y, tmp, v->c);
 }
 
 /*********************

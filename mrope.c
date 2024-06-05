@@ -72,28 +72,24 @@ int mr_rank2a(const mrope_t *mr, int64_t x, int64_t y, int64_t *cx, int64_t *cy)
 	int a, b, ret = -1;
 	int64_t z, c[6], l;
 	memset(c, 0, 48);
-	for (a = 0, z = 0; a < 6; ++a) {
+	for (a = 0, z = l = 0; a < 6 && z < x; ++a) {
 		const int64_t *ca = mr->r[a]->c;
 		l = ca[0] + ca[1] + ca[2] + ca[3] + ca[4] + ca[5];
-		if (z + l >= x) break;
+		if (z + l > x) break;
 		for (b = 0; b < 6; ++b) c[b] += ca[b];
 		z += l;
 	}
-	assert(a != 6);
-	if (y >= 0 && z + l >= y) { // [x,y) is in the same bucket
+	if (a == 6) return -1; // in this case, x >= mr_get_tot(mr)
+	if (y >= x && z + l >= y) { // [x,y) is in the same rope
 		ret = rope_rank2a(mr->r[a], x - z, y - z, cx, cy);
 		for (b = 0; b < 6; ++b)
 			cx[b] += c[b], cy[b] += c[b];
 		return ret;
 	}
-	/*
-	if (x != z) ret = rope_rank1a(mr->r[a], x - z, cx);
-	else memset(cx, 0, 48);
-	*/
 	ret = rope_rank1a(mr->r[a], x - z, cx);
 	for (b = 0; b < 6; ++b)
 		cx[b] += c[b], c[b] += mr->r[a]->c[b];
-	if (y < 0) return ret;
+	if (y < x) return ret;
 	for (++a, z += l; a < 6; ++a) {
 		const int64_t *ca = mr->r[a]->c;
 		l = ca[0] + ca[1] + ca[2] + ca[3] + ca[4] + ca[5];
@@ -106,6 +102,19 @@ int mr_rank2a(const mrope_t *mr, int64_t x, int64_t y, int64_t *cx, int64_t *cy)
 	else for (b = 0; b < 6; ++b) cy[b] = mr->r[a]->c[b];
 	for (b = 0; b < 6; ++b) cy[b] += c[b];
 	return ret;
+}
+
+int mr_bwt_get(const mrope_t *mr, int64_t x)
+{
+	int a;
+	int64_t z, l;
+	for (a = 0, z = 0; a < 6; ++a) {
+		const int64_t *ca = mr->r[a]->c;
+		l = ca[0] + ca[1] + ca[2] + ca[3] + ca[4] + ca[5];
+		if (z + l > x) break;
+		z += l;
+	}
+	return a == 6? -1 : rope_bwt_get(mr->r[a], x - z);
 }
 
 /**********************

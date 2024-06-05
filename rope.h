@@ -10,7 +10,7 @@
 
 typedef struct rpnode_s {
 	struct rpnode_s *p; // child; at the bottom level, $p points to a string with the first 2 bytes giving the number of runs (#runs)
-	uint64_t l:54, n:9, is_bottom:1; // $n and $is_bottom are only set for the first node in a bucket
+	uint64_t l:54, n:9, is_bottom:1; // $n and $is_bottom are only set for the first node in a bucket (a bucket has up to ROPE_DEF_MAX_NODES nodes)
 	int64_t c[6]; // marginal counts
 } rpnode_t;
 
@@ -41,6 +41,7 @@ extern "C" {
 	rope_t *rope_init(int max_nodes, int block_len);
 	void rope_destroy(rope_t *rope);
 	int64_t rope_insert_run(rope_t *rope, int64_t x, int a, int64_t rl, rpcache_t *cache);
+	int rope_bwt_get(const rope_t *rope, int64_t x);
 	int rope_rank2a(const rope_t *rope, int64_t x, int64_t y, int64_t *cx, int64_t *cy);
 	#define rope_rank1a(rope, x, cx) rope_rank2a(rope, x, -1, cx, 0)
 

@@ -404,6 +404,10 @@ int rld_rank1a(const rld_t *e, uint64_t k, uint64_t *ok)
 	uint64_t z, l;
 	int a = -1;
 	rlditr_t itr;
+	if (k >= e->cnt[e->asize]) {
+		memcpy(ok, e->mcnt, e->asize * sizeof(int64_t));
+		return -1;
+	}
 	rld_locate_blk(e, &itr, k, ok, &z);
 	while (1) {
 #ifdef _DNA_ONLY
