@@ -61,16 +61,28 @@ mrope_t *rb3_enc_plain2fmr(int64_t len, const uint8_t *bwt, int max_nodes, int b
 void rb3_mg_rank1(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int64_t p)
 {
 	int64_t aca[RB3_ASIZE+1], acb[RB3_ASIZE+1], ka, kb;
-	int c = 0;
+	int c, last_c = 0;
 	rb3_fmi_get_acc(fa, aca);
 	rb3_fmi_get_acc(fb, acb);
+
+	/*kb = 0;
+	while (1) {
+		int64_t ob[RB3_ASIZE];
+		c = rb3_fmi_rank1a(fa, kb, ob);
+		fprintf(stderr, "* kb=%ld,c=%c\n", (long)kb, "$ACGTN"[c]);
+		if (c == 0) break;
+		kb = acb[c] + ob[c];
+	}*/
+
 	ka = aca[1], kb = p;
 	while (1) {
 		int64_t oa[RB3_ASIZE], ob[RB3_ASIZE];
-		c = rb3_fmi_rank1a(fb, kb, ob);
-		rb[kb] = (ka + kb) << 3 | c;
+		c = rb3_fmi_rank1a(fb, kb + 1, ob);
+		rb[kb] = (ka + kb) << 6 | c << 3 | last_c;
+		//fprintf(stderr, "c=%d,kb=%ld,ka=%ld\n", c, (long)kb, (long)ka);
+		last_c = c;
 		if (c == 0) break;
-		kb = acb[c] + ob[c];
+		kb = acb[c] + ob[c] - 1;
 		rb3_fmi_rank1a(fa, ka, oa);
 		ka = aca[c] + oa[c];
 	}
@@ -100,12 +112,26 @@ void rb3_mg_rank(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int n_th
 			rb3_mg_rank1(fa, fb, rb, k);
 	}
 }
-/*
-void rb3_merge1(mrope_t *r, rld_t *e, int n_threads)
+
+void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb)
 {
-	int64_t *rb_l;
-	rb_l = RB3_MALLOC(int64_t, e->cnt[e->asize]);
-	rb3_cal_rb_rd(r, e, n_threads, rb_l);
-	free(rb_l);
+	rb3_fmi_t fa;
+	rpcache_t cache;
+	int64_t *rb, i, aca[RB3_ASIZE+1], acb[RB3_ASIZE+1];
+	int c;
+
+	rb3_fmi_init(&fa, 0, r);
+	rb3_fmi_get_acc(&fa, aca);
+	rb3_fmi_get_acc(fb, acb);
+	rb = RB3_MALLOC(int64_t, acb[RB3_ASIZE]);
+	rb3_mg_rank(&fa, fb, rb, n_threads);
+	if (free_fb) rb3_fmi_destroy(fb);
+
+	memset(&cache, 0, sizeof(rpcache_t));
+	for (i = 0, c = 0; i < acb[RB3_ASIZE]; ++i) {
+		int64_t k = rb[i]>>6;
+		int b = rb[i]&7, c = rb[i]>>3&7;
+		rope_insert_run(r->r[b], k - (aca[b] + acb[b]), c, 1, &cache);
+	}
+	free(rb);
 }
-*/

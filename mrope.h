@@ -78,6 +78,7 @@ extern "C" {
 	void mr_print_tree(const mrope_t *mr);
 	void mr_dump(mrope_t *mr, FILE *fp);
 	mrope_t *mr_restore(FILE *fp);
+	mrope_t *mr_restore_file(const char *fn);
 
 #ifdef __cplusplus
 }

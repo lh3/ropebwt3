@@ -160,6 +160,14 @@ mrope_t *mr_restore(FILE *fp)
 	return mr;
 }
 
+mrope_t *mr_restore_file(const char *fn)
+{
+	FILE *fp;
+	fp = strcmp(fn, "-") == 0? stdin : fopen(fn, "rb");
+	if (fp == 0) return 0;
+	return mr_restore(fp);
+}
+
 void mr_print_tree(const mrope_t *mr)
 {
 	int a;

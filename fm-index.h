@@ -16,12 +16,21 @@ typedef enum { RB3_PLAIN, RB3_FMD, RB3_FMR } rb3_fmt_t;
 
 typedef struct {
 	int32_t is_fmd;
-	mrope_t *r;
 	rld_t *e;
+	mrope_t *r;
 } rb3_fmi_t;
 
 rld_t *rb3_enc_plain2rld(int64_t len, const uint8_t *bwt);
 mrope_t *rb3_enc_plain2fmr(int64_t len, const uint8_t *bwt, int max_nodes, int block_len);
+
+void rb3_mg_rank(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int n_threads);
+void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb);
+
+static inline void rb3_fmi_init(rb3_fmi_t *f, rld_t *e, mrope_t *r)
+{
+	if (e) f->is_fmd = 1, f->e = e, f->r = 0;
+	else f->is_fmd = 0, f->e = 0, f->r = r;
+}
 
 static inline void rb3_fmi_rank2a(const rb3_fmi_t *fmi, int64_t k, int64_t l, int64_t *ok, int64_t *ol)
 {
@@ -40,6 +49,21 @@ static inline int64_t rb3_fmi_get_acc(const rb3_fmi_t *fmi, int64_t acc[RB3_ASIZ
 		memcpy(acc, fmi->e->cnt, (RB3_ASIZE+1) * sizeof(int64_t));
 		return fmi->e->cnt[RB3_ASIZE];
 	} else return mr_get_ac(fmi->r, acc);
+}
+
+static inline void rb3_fmi_destroy(rb3_fmi_t *fmi)
+{
+	if (fmi->is_fmd) rld_destroy(fmi->e);
+	else mr_destroy(fmi->r);
+}
+
+static inline void rb3_fmi_restore(rb3_fmi_t *fmi, const char *fn)
+{
+	fmi->e = rld_restore(fn);
+	if (fmi->e == 0) {
+		fmi->is_fmd = 0;
+		fmi->r = mr_restore_file(fn);
+	} else fmi->is_fmd = 1;
 }
 
 #ifdef __cplusplus
