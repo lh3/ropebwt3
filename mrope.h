@@ -54,7 +54,19 @@ extern "C" {
 	 */
 	void mr_insert_multi(mrope_t *mr, int64_t len, const uint8_t *s, int is_thr);
 
+	/**
+	 * Count occurrences and retrieve a BWT symbol
+	 *
+	 * @param mr       multi-rope
+	 * @param x        SA offset
+	 * @param y        SA offset; ignored if y<x
+	 * @param cx       occurrence array: cx[c] = |i<x:B[i]=c| (out)
+	 * @param cy       occurrence array: cy[c] = |i<y:B[i]=c| (out)
+	 *
+	 * @return B[x] if x<mr_get_tot(mr); -1 otherwise
+	 */
 	int mr_rank2a(const mrope_t *mr, int64_t x, int64_t y, int64_t *cx, int64_t *cy);
+
 	#define mr_rank1a(mr, x, cx) mr_rank2a(mr, x, -1, cx, 0)
 
 	/**

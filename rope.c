@@ -165,7 +165,7 @@ static rpnode_t *rope_count_to_leaf(const rope_t *rope, int64_t x, int64_t cx[6]
 			}
 			++p;
 		} else { // search from the beginning
-			for (; y + p->l < x; ++p) {
+			for (; y + p->l <= x; ++p) {
 				y += p->l;
 				for (a = 0; a != 6; ++a) cx[a] += p->c[a];
 			}
@@ -181,6 +181,11 @@ int rope_rank2a(const rope_t *rope, int64_t x, int64_t y, int64_t *cx, int64_t *
 	rpnode_t *v;
 	int64_t rest;
 	int c = -1;
+	if (x >= rope->c[0] + rope->c[1] + rope->c[2] + rope->c[3] + rope->c[4] + rope->c[5]) {
+		memcpy(cx, rope->c, 48);
+		if (cy) memcpy(cy, cx, 48);
+		return -1;
+	}
 	v = rope_count_to_leaf(rope, x, cx, &rest);
 	if (y < x || cy == 0) {
 		c = rle_rank1a((const uint8_t*)v->p, rest, cx, v->c);
@@ -192,22 +197,8 @@ int rope_rank2a(const rope_t *rope, int64_t x, int64_t y, int64_t *cx, int64_t *
 		v = rope_count_to_leaf(rope, y, cy, &rest);
 		rle_rank1a((const uint8_t*)v->p, rest, cy, v->c);
 	}
-	if (c < 0) c = rope_bwt_get(rope, x);
+	assert(c >= 0);
 	return c;
-}
-
-int rope_bwt_get(const rope_t *rope, int64_t x)
-{
-	rpnode_t *u, *v, *p = rope->root;
-	int64_t y = 0, tmp[6] = {0,0,0,0,0,0};
-	if (x >= rope->c[0] + rope->c[1] + rope->c[2] + rope->c[3] + rope->c[4] + rope->c[5])
-		return -1;
-	do {
-		u = p;
-		for (; y + p->l <= x; ++p) y += p->l;
-		v = p, p = p->p;
-	} while (!u->is_bottom);
-	return rle_rank1a((const uint8_t*)v->p, x - y, tmp, v->c);
 }
 
 /*********************
