@@ -13,8 +13,9 @@ static int usage(FILE *fp)
 {
 	fprintf(fp, "Usage: ropebwt3 <command> <arguments>\n");
 	fprintf(fp, "Commands:\n");
-	fprintf(fp, "  build      construct fm-indices\n");
-	fprintf(fp, "  merge      merge fm-indices\n");
+	fprintf(fp, "  build      build an FM-index\n");
+	fprintf(fp, "  merge      merge FM-indices\n");
+	fprintf(fp, "  version    print the version number\n");
 	return fp == stdout? 0 : 1;
 }
 

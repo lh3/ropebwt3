@@ -54,6 +54,37 @@ mrope_t *rb3_enc_plain2fmr(int64_t len, const uint8_t *bwt, int max_nodes, int b
 	return r;
 }
 
+mrope_t *rb3_enc_fmd2fmr(rld_t *e, int max_nodes, int block_len, int is_free)
+{
+	mrope_t *r;
+	rlditr_t itr;
+	int64_t l, off;
+	int c, a;
+	rpcache_t cache;
+
+	if (max_nodes <= 0) max_nodes = ROPE_DEF_MAX_NODES;
+	if (block_len <= 0) block_len = ROPE_DEF_BLOCK_LEN;
+	r = mr_init(max_nodes, block_len, MR_SO_IO);
+	memset(&cache, 0, sizeof(rpcache_t));
+
+	rld_itr_init(e, &itr, 0);
+	a = 0, off = 0;
+	while ((l = rld_dec(e, &itr, &c, is_free)) > 0) {
+		if (off + l <= e->cnt[a+1]) { // <= is important
+			rope_insert_run(r->r[a], off - e->cnt[a], c, l, &cache);
+			off += l;
+		} else {
+			while (off < e->cnt[a+1]) {
+				int64_t t = e->cnt[a+1] - off;
+				rope_insert_run(r->r[a], off - e->cnt[a], c, t, &cache);
+				off += t, l -= off, ++a;
+			}
+		}
+	}
+	if (is_free) rld_destroy(e);
+	return r;
+}
+
 /*********
  * Merge *
  *********/
