@@ -1,5 +1,5 @@
 CC=			gcc
-CFLAGS=		-std=c99 -g -Wall -O3
+CFLAGS=		-std=c99 -g -Wall #-O3
 CPPFLAGS=
 INCLUDES=
 OBJS=		libsais.o libsais64.o sys.o kthread.o io.o rld0.o rle.o rope.o mrope.o \
@@ -37,15 +37,14 @@ depend:
 
 # DO NOT DELETE
 
-build.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h io.h libsais.h
-build.o: libsais64.h ketopt.h
-fm-index.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h kthread.h
+build.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h io.h ketopt.h
+fm-index.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h rle.h kthread.h
 io.o: rb3priv.h io.h kseq.h
 kthread.o: kthread.h
 libsais.o: libsais.h
 libsais64.o: libsais.h libsais64.h
 main.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h ketopt.h
-mrope.o: mrope.h rope.h
+mrope.o: mrope.h rope.h rle.h
 rld0.o: rld0.h
 rle.o: rle.h
 rope.o: rle.h rope.h
