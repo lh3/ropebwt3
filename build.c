@@ -128,6 +128,8 @@ int main_build(int argc, char *argv[])
 					fprintf(stderr, "[M::%s::%.3f*%.2f] constructed partial BWT for %ld symbols in file '%s'\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)seq.l, argv[i]);
 				if (r == 0) {
 					r = rb3_enc_plain2fmr(seq.l, (uint8_t*)seq.s, opt.max_nodes, opt.block_len);
+					if (rb3_verbose >= 3)
+						fprintf(stderr, "[M::%s::%.3f*%.2f] encoded the partial BWT for %ld symbols in file '%s'\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)seq.l, argv[i]);
 				} else {
 					mrope_t *p;
 					rb3_fmi_t fmi;
