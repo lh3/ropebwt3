@@ -111,7 +111,7 @@ int main_build(int argc, char *argv[])
 	for (i = o.ind; i < argc; ++i) {
 		rb3_seqio_t *fp;
 		int64_t n_seq = 0;
-		fp = rb3_seq_open(argv[o.ind], !!(opt.flag&RB3_BF_LINE));
+		fp = rb3_seq_open(argv[i], !!(opt.flag&RB3_BF_LINE));
 		if (fp == 0) {
 			if (rb3_verbose >= 1)
 				fprintf(stderr, "ERROR: failed to open file '%s'\n", argv[i]);
