@@ -300,8 +300,8 @@ void mr_insert_multi(mrope_t *mr, int64_t len, const uint8_t *s, int is_thr)
 	int b, is_srt = (mr->so != MR_SO_IO), is_comp = (mr->so == MR_SO_RCLO), stop_thr = 0;
 	volatile int n_fin_workers = 0;
 	triple64_t *a[2], *curr, *prev, *swap;
-	pthread_t *tid = 0;
-	worker_t *w = 0;
+	pthread_t tid[4];
+	worker_t w[4];
 
 	if (mr->thr_min < 0) mr->thr_min = 0;
 	assert(len > 0 && s[len-1] == 0);
@@ -324,8 +324,6 @@ void mr_insert_multi(mrope_t *mr, int64_t len, const uint8_t *s, int is_thr)
 	mr_insert_multi_aux(mr->r[0], m, prev, is_comp); // insert the first (actually the last) column
 
 	if (is_thr) {
-		tid = alloca(4 * sizeof(pthread_t));
-		w = alloca(4 * sizeof(worker_t));
 		memset(w, 0, 4 * sizeof(worker_t));
 		for (b = 0; b < 4; ++b) {
 			w[b].mr = mr, w[b].b = b + 1, w[b].is_comp = is_comp;

@@ -105,7 +105,7 @@ static inline int64_t mr_get_c(const mrope_t *mr, int64_t c[6])
 	for (a = 0; a < 6; ++a) {
 		for (b = 0; b < 6; ++b)
 			c[b] += mr->r[a]->c[b];
-		tot += c[b];
+		tot += c[a];
 	}
 	return tot;
 }

@@ -165,7 +165,6 @@ void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb)
 	rb3_fmi_t fa;
 	rpcache_t cache;
 	int64_t *rb, i, aca[RB3_ASIZE+1], acb[RB3_ASIZE+1];
-	int c;
 
 	rb3_fmi_init(&fa, 0, r);
 	rb3_fmi_get_acc(&fa, aca);
@@ -175,7 +174,7 @@ void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb)
 	if (free_fb) rb3_fmi_destroy(fb);
 
 	memset(&cache, 0, sizeof(rpcache_t));
-	for (i = 0, c = 0; i < acb[RB3_ASIZE]; ++i) {
+	for (i = 0; i < acb[RB3_ASIZE]; ++i) {
 		int64_t k = rb[i]>>6;
 		int b = rb[i]&7, c = rb[i]>>3&7;
 		rope_insert_run(r->r[b], k - (aca[b] + acb[b]), c, 1, &cache);

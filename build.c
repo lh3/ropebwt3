@@ -145,6 +145,7 @@ int main_build(int argc, char *argv[])
 		e = rb3_enc_fmr2fmd(r, 0, 1); // most of r is deallocated here
 		rld_dump(e, "-");
 		rld_destroy(e);
+		r = 0;
 	} else if (opt.fmt == RB3_PLAIN) {
 		mr_print_bwt(r, stdout);
 	} else if (opt.fmt == RB3_TREE) {

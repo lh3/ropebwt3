@@ -162,12 +162,11 @@ int rld_enc(rld_t *e, rlditr_t *itr, int64_t l, uint8_t c)
 
 void rld_rank_index(rld_t *e)
 {
-	uint64_t last, n_blks, i, k, *cnt;
+	uint64_t last, n_blks, i, k, cnt[RLD_MAX_ASIZE];
 	int j;
 
 	n_blks = e->n_bytes * 8 / 64 / e->ssize + 1;
 	last = rld_last_blk(e);
-	cnt = alloca(e->asize * 8);
 	e->ibits = ilog2(e->mcnt[0] / n_blks) + RLD_IBITS_PLUS;
 	e->n_frames = ((e->mcnt[0] + (1ll<<e->ibits) - 1) >> e->ibits) + 1;
 	e->frame = xcalloc(e->n_frames * e->asize1, 8);
@@ -226,7 +225,7 @@ int rld_dump(const rld_t *e, const char *fn)
 	int i;
 	uint32_t a;
 	FILE *fp;
-	fp = strcmp(fn, "-")? fopen(fn, "wb") : fdopen(fileno(stdout), "wb");
+	fp = strcmp(fn, "-")? fopen(fn, "wb") : stdin;
 	if (fp == 0) return -1;
 	a = e->asize<<16 | e->sbits;
 	fwrite("RLD\3", 1, 4, fp); // write magic
@@ -424,9 +423,8 @@ int rld_rank1a(const rld_t *e, uint64_t k, uint64_t *ok)
 
 uint64_t rld_rank11(const rld_t *e, uint64_t k, int c)
 {
-	uint64_t *ok;
+	uint64_t ok[RLD_MAX_ASIZE+1];
 	if (k == (uint64_t)-1) return 0;
-	ok = alloca(e->asize1 * 8);
 	rld_rank1a(e, k, ok);
 	return ok[c];
 }

@@ -12,6 +12,12 @@
 #define RLD_LSIZE (1<<RLD_LBITS)
 #define RLD_LMASK (RLD_LSIZE - 1)
 
+#ifdef _DNA_ONLY
+#define RLD_MAX_ASIZE 6
+#else
+#define RLD_MAX_ASIZE 31
+#endif
+
 typedef struct {
 	int r, c; // $r: bits remained in the last 64-bit integer; $c: pending symbol
 	int64_t l; // $l: pending length
