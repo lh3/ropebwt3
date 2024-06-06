@@ -4,7 +4,7 @@
 #include "fm-index.h"
 #include "ketopt.h"
 
-#define RB3_VERSION "3.0pre-r14"
+#define RB3_VERSION "3.0pre-r23"
 
 int main_build(int argc, char *argv[]);
 int main_merge(int argc, char *argv[]);

@@ -103,7 +103,6 @@ int main_build(int argc, char *argv[])
 			return 1;
 		} else if (fmi.is_fmd) {
 			r = rb3_enc_fmd2fmr(fmi.e, opt.max_nodes, opt.block_len, 1);
-			rld_destroy(fmi.e);
 		} else r = fmi.r;
 	}
 

@@ -1,5 +1,5 @@
 CC=			gcc
-CFLAGS=		-std=c99 -g -Wall #-O3
+CFLAGS=		-std=c99 -g -Wall -O3
 CPPFLAGS=
 INCLUDES=
 OBJS=		libsais.o libsais64.o sys.o kthread.o io.o rld0.o rle.o rope.o mrope.o \
