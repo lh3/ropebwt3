@@ -4,6 +4,17 @@
 
 int rb3_verbose = 3;
 
+int64_t rb3_parse_num(const char *str)
+{
+	double x;
+	char *p;
+	x = strtod(str, &p);
+	if (*p == 'G' || *p == 'g') x *= 1e9, ++p;
+	else if (*p == 'M' || *p == 'm') x *= 1e6, ++p;
+	else if (*p == 'K' || *p == 'k') x *= 1e3, ++p;
+	return (int64_t)(x + .499);
+}
+
 #if defined(WIN32) || defined(_WIN32)
 #include <windows.h>
 
