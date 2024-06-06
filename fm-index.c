@@ -172,6 +172,8 @@ void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb)
 	rb = RB3_MALLOC(int64_t, acb[RB3_ASIZE]);
 	rb3_mg_rank(&fa, fb, rb, n_threads);
 	if (free_fb) rb3_fmi_destroy(fb);
+	if (rb3_verbose >= 3)
+		fprintf(stderr, "[M::%s::%.3f*%.2f] caculated ranks for %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)acb[RB3_ASIZE]);
 
 	memset(&cache, 0, sizeof(rpcache_t));
 	for (i = 0; i < acb[RB3_ASIZE]; ++i) {
@@ -179,5 +181,7 @@ void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb)
 		int b = rb[i]&7, c = rb[i]>>3&7;
 		rope_insert_run(r->r[b], k - (aca[b] + acb[b]), c, 1, &cache);
 	}
+	if (rb3_verbose >= 3)
+		fprintf(stderr, "[M::%s::%.3f*%.2f] inserted %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)acb[RB3_ASIZE]);
 	free(rb);
 }

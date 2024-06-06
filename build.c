@@ -104,6 +104,8 @@ int main_build(int argc, char *argv[])
 		} else if (fmi.is_fmd) {
 			r = rb3_enc_fmd2fmr(fmi.e, opt.max_nodes, opt.block_len, 1);
 		} else r = fmi.r;
+		if (rb3_verbose >= 3)
+			fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the index from file '%s'\n", __func__, rb3_realtime(), rb3_percent_cpu(), fn_in);
 	}
 
 	for (i = o.ind; i < argc; ++i) {
