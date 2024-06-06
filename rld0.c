@@ -225,7 +225,7 @@ int rld_dump(const rld_t *e, const char *fn)
 	int i;
 	uint32_t a;
 	FILE *fp;
-	fp = strcmp(fn, "-")? fopen(fn, "wb") : stdin;
+	fp = strcmp(fn, "-")? fopen(fn, "wb") : stdout;
 	if (fp == 0) return -1;
 	a = e->asize<<16 | e->sbits;
 	fwrite("RLD\3", 1, 4, fp); // write magic
