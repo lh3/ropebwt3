@@ -56,6 +56,7 @@ static int usage_build(FILE *fp, const rb3_bopt_t *opt)
 	fprintf(fp, "    -o FILE     output to FILE [stdout]\n");
 	fprintf(fp, "    -d          dump in the fermi-delta format (FMD)\n");
 	fprintf(fp, "    -b          dump in the ropebwt format (FMR)\n");
+	fprintf(fp, "    -T          output the index in the Newick format (for debugging)\n");
 	return fp == stdout? 0 : 1;
 }
 
@@ -68,7 +69,7 @@ int main_build(int argc, char *argv[])
 	mrope_t *r = 0;
 
 	rb3_bopt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "l:n:m:t:62srLFRo:db", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "l:n:m:t:62srLFRo:dbT", 0)) >= 0) {
 		// algorithm
 		if (c == 'm') opt.batch_size = rb3_parse_num(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
@@ -86,6 +87,7 @@ int main_build(int argc, char *argv[])
 		else if (c == 'o') freopen(o.arg, "wb", stdout);
 		else if (c == 'd') opt.fmt = RB3_FMD;
 		else if (c == 'b') opt.fmt = RB3_FMR;
+		else if (c == 'T') opt.fmt = RB3_TREE;
 	}
 	if (argc == o.ind) return usage_build(stdout, &opt);
 
@@ -120,7 +122,18 @@ int main_build(int argc, char *argv[])
 	free(seq.s);
 	if (r == 0) return 1;
 
-	if (opt.fmt == RB3_FMR) mr_dump(r, stdout);
-	mr_destroy(r);
+	if (opt.fmt == RB3_FMR) {
+		mr_dump(r, stdout);
+	} else if (opt.fmt == RB3_FMD) {
+		rld_t *e;
+		e = rb3_enc_fmr2fmd(r, 0, 1); // most of r is deallocated here
+		rld_dump(e, "-");
+		rld_destroy(e);
+	} else if (opt.fmt == RB3_PLAIN) {
+		mr_print_bwt(r, stdout);
+	} else if (opt.fmt == RB3_TREE) {
+		mr_print_tree(r, stdout);
+	}
+	if (r) mr_destroy(r);
 	return 0;
 }

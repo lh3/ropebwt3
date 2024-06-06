@@ -87,7 +87,8 @@ extern "C" {
 	 */
 	const uint8_t *mr_itr_next_block(mritr_t *i);
 
-	void mr_print_tree(const mrope_t *mr);
+	void mr_print_bwt(const mrope_t *mr, FILE *fp);
+	void mr_print_tree(const mrope_t *mr, FILE *fp);
 	void mr_dump(mrope_t *mr, FILE *fp);
 	mrope_t *mr_restore(FILE *fp);
 	mrope_t *mr_restore_file(const char *fn);

@@ -47,7 +47,7 @@ extern "C" {
 	void rope_itr_first(const rope_t *rope, rpitr_t *i);
 	const uint8_t *rope_itr_next_block(rpitr_t *i);
 
-	void rope_print_node(const rpnode_t *p);
+	void rope_print_node(const rpnode_t *p, FILE *fp);
 	void rope_dump(const rope_t *r, FILE *fp);
 	rope_t *rope_restore(FILE *fp);
 	

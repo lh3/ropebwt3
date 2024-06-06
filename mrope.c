@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <time.h>
 #include "mrope.h"
+#include "rle.h"
 
 /*******************************
  *** Single-string insertion ***
@@ -173,12 +174,29 @@ mrope_t *mr_restore_file(const char *fn)
 	return mr_restore(fp);
 }
 
-void mr_print_tree(const mrope_t *mr)
+void mr_print_tree(const mrope_t *mr, FILE *fp)
 {
 	int a;
 	for (a = 0; a < 6; ++a)
-		rope_print_node(mr->r[a]->root);
-	putchar('\n');
+		rope_print_node(mr->r[a]->root, fp);
+	fputc('\n', fp);
+}
+
+void mr_print_bwt(const mrope_t *mr, FILE *fp)
+{
+	mritr_t ri;
+	const uint8_t *block;
+	mr_itr_first((mrope_t*)mr, &ri, 0);
+	while ((block = mr_itr_next_block(&ri)) != 0) {
+		const uint8_t *q = block + 2, *end = block + 2 + *rle_nptr(block);
+		while (q < end) {
+			int c = 0;
+			int64_t j, l;
+			rle_dec1(q, c, l);
+			for (j = 0; j < l; ++j) fputc("$ACGTN"[c], fp);
+		}
+	}
+	fputc('\n', fp);
 }
 
 /*****************************************

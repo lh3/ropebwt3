@@ -12,7 +12,7 @@ extern "C" {
 
 #define RB3_ASIZE 6
 
-typedef enum { RB3_PLAIN, RB3_FMD, RB3_FMR } rb3_fmt_t;
+typedef enum { RB3_PLAIN, RB3_FMD, RB3_FMR, RB3_TREE } rb3_fmt_t;
 
 typedef struct {
 	int32_t is_fmd;
@@ -20,7 +20,8 @@ typedef struct {
 	mrope_t *r;
 } rb3_fmi_t;
 
-rld_t *rb3_enc_plain2rld(int64_t len, const uint8_t *bwt);
+rld_t *rb3_enc_plain2rld(int64_t len, const uint8_t *bwt, int cbits);
+rld_t *rb3_enc_fmr2fmd(mrope_t *r, int cbits, int is_free);
 mrope_t *rb3_enc_plain2fmr(int64_t len, const uint8_t *bwt, int max_nodes, int block_len);
 mrope_t *rb3_enc_fmd2fmr(rld_t *e, int max_nodes, int block_len, int is_free);
 

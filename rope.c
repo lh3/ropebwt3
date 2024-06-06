@@ -230,11 +230,11 @@ const uint8_t *rope_itr_next_block(rpitr_t *i)
  *** I/O ***
  ***********/
 
-void rope_print_node(const rpnode_t *p)
+void rope_print_node(const rpnode_t *p, FILE *fp)
 {
 	if (p->is_bottom) {
 		int i;
-		putchar('(');
+		fputc('(', fp);
 		for (i = 0; i < p->n; ++i) {
 			uint8_t *block = (uint8_t*)p[i].p;
 			const uint8_t *q = block + 2, *end = block + 2 + *rle_nptr(block);
@@ -243,18 +243,18 @@ void rope_print_node(const rpnode_t *p)
 				int c = 0;
 				int64_t j, l;
 				rle_dec1(q, c, l);
-				for (j = 0; j < l; ++j) putchar("$ACGTN"[c]);
+				for (j = 0; j < l; ++j) fputc("$ACGTN"[c], fp);
 			}
 		}
-		putchar(')');
+		fputc(')', fp);
 	} else {
 		int i;
-		putchar('(');
+		fputc('(', fp);
 		for (i = 0; i < p->n; ++i) {
-			if (i) putchar(',');
-			rope_print_node(p[i].p);
+			if (i) fputc(',', fp);
+			rope_print_node(p[i].p, fp);
 		}
-		putchar(')');
+		fputc(')', fp);
 	}
 }
 
