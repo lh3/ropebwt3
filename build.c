@@ -49,6 +49,7 @@ static int usage_build(FILE *fp, const rb3_bopt_t *opt)
 	fprintf(fp, "    -s          build BWT in the reverse lexicographical order (RLO; force -2)\n");
 	fprintf(fp, "    -r          build BWT in RCLO (force -2)\n");
 	fprintf(fp, "  Input:\n");
+	fprintf(fp, "    -i FILE     read existing index from FILE []");
 	fprintf(fp, "    -L          one sequence per line in the input\n");
 	fprintf(fp, "    -F          no forward strand\n");
 	fprintf(fp, "    -R          no reverse strand\n");
@@ -67,9 +68,10 @@ int main_build(int argc, char *argv[])
 	int32_t c, i;
 	ketopt_t o = KETOPT_INIT;
 	mrope_t *r = 0;
+	char *fn_in = 0;
 
 	rb3_bopt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "l:n:m:t:62srLFRo:dbT", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "l:n:m:t:62sri:LFRo:dbT", 0)) >= 0) {
 		// algorithm
 		if (c == 'm') opt.batch_size = rb3_parse_num(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
@@ -80,6 +82,7 @@ int main_build(int argc, char *argv[])
 		else if (c == 's') opt.flag |= RB3_BF_USE_RB2, opt.sort_order = MR_SO_RLO;
 		else if (c == 'r') opt.flag |= RB3_BF_USE_RB2, opt.sort_order = MR_SO_RCLO;
 		// input
+		else if (c == 'i') fn_in = o.arg;
 		else if (c == 'L') opt.flag |= RB3_BF_LINE;
 		else if (c == 'F') opt.flag |= RB3_BF_NO_FOR;
 		else if (c == 'R') opt.flag |= RB3_BF_NO_REV;
@@ -90,6 +93,19 @@ int main_build(int argc, char *argv[])
 		else if (c == 'T') opt.fmt = RB3_TREE;
 	}
 	if (argc == o.ind) return usage_build(stdout, &opt);
+
+	if (fn_in) {
+		rb3_fmi_t fmi;
+		rb3_fmi_restore(&fmi, fn_in);
+		if (fmi.e == 0 && fmi.r == 0) {
+			if (rb3_verbose >= 1)
+				fprintf(stderr, "ERROR: failed to open index file '%s'\n", fn_in);
+			return 1;
+		} else if (fmi.is_fmd) {
+			r = rb3_enc_fmd2fmr(fmi.e, opt.max_nodes, opt.block_len, 1);
+			rld_destroy(fmi.e);
+		} else r = fmi.r;
+	}
 
 	for (i = o.ind; i < argc; ++i) {
 		rb3_seqio_t *fp;
