@@ -38,6 +38,16 @@ static inline void rb3_revcomp6(int64_t l, uint8_t *s)
 	if (l&1) s[i] = (s[i] >= 1 && s[i] <= 4)? 5 - s[i] : s[i];
 }
 
+static inline void rb3_reverse(int64_t l, uint8_t *s)
+{
+	int64_t i;
+	for (i = 0; i < l>>1; ++i) {
+		int tmp = s[l-1-i];
+		s[l-1-i] = s[i];
+		s[i] = tmp;
+	}
+}
+
 struct rb3_seqio_s {
 	int32_t is_line;
 	kseq_t *fx;
@@ -111,4 +121,15 @@ int64_t rb3_seq_read(rb3_seqio_t *fp, kstring_t *seq, int64_t max_len, int is_fo
 			fprintf(stderr, "ERROR: FASTX parsing error (code %d)\n", ret);
 	}
 	return n_seq;
+}
+
+void rb3_reverse_all(int64_t len, uint8_t *seq)
+{
+	int64_t i, j;
+	for (i = j = 0; j < len; ++j) {
+		if (seq[j] == 0) {
+			if (j > i) rb3_reverse(j - i, &seq[i]);
+			i = j + 1;
+		}
+	}
 }

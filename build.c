@@ -49,7 +49,7 @@ static int usage_build(FILE *fp, const rb3_bopt_t *opt)
 	fprintf(fp, "    -s          build BWT in the reverse lexicographical order (RLO; force -2)\n");
 	fprintf(fp, "    -r          build BWT in RCLO (force -2)\n");
 	fprintf(fp, "  Input:\n");
-	fprintf(fp, "    -i FILE     read existing index from FILE []");
+	fprintf(fp, "    -i FILE     read existing index from FILE []\n");
 	fprintf(fp, "    -L          one sequence per line in the input\n");
 	fprintf(fp, "    -F          no forward strand\n");
 	fprintf(fp, "    -R          no reverse strand\n");
@@ -92,7 +92,7 @@ int main_build(int argc, char *argv[])
 		else if (c == 'b') opt.fmt = RB3_FMR;
 		else if (c == 'T') opt.fmt = RB3_TREE;
 	}
-	if (argc == o.ind) return usage_build(stdout, &opt);
+	if (argc == o.ind && fn_in == 0) return usage_build(stdout, &opt);
 
 	if (fn_in) {
 		rb3_fmi_t fmi;
@@ -118,6 +118,7 @@ int main_build(int argc, char *argv[])
 		while ((n_seq = rb3_seq_read(fp, &seq, opt.batch_size, !(opt.flag&RB3_BF_NO_FOR), !(opt.flag&RB3_BF_NO_REV))) > 0) {
 			if (opt.flag & RB3_BF_USE_RB2) { // use the ropebwt2 algorithm
 				if (r == 0) r = mr_init(opt.max_nodes, opt.block_len, opt.sort_order);
+				rb3_reverse_all(seq.l, (uint8_t*)seq.s);
 				mr_insert_multi(r, seq.l, (uint8_t*)seq.s, (opt.n_threads > 1));
 			} else { // use libsais
 				rb3_build_sais(n_seq, seq.l, seq.s, opt.n_threads, !!(opt.flag&RB3_BF_SAIS64));
