@@ -129,13 +129,13 @@ int main_build(int argc, char *argv[])
 				if (rb3_verbose >= 3)
 					fprintf(stderr, "[M::%s::%.3f*%.2f] constructed partial BWT for %ld symbols in file '%s'\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)seq.l, argv[i]);
 				if (r == 0) {
-					r = rb3_enc_plain2fmr(seq.l, (uint8_t*)seq.s, opt.max_nodes, opt.block_len);
+					r = rb3_enc_plain2fmr(seq.l, (uint8_t*)seq.s, opt.max_nodes, opt.block_len, opt.n_threads);
 					if (rb3_verbose >= 3)
 						fprintf(stderr, "[M::%s::%.3f*%.2f] encoded the partial BWT for %ld symbols in file '%s'\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)seq.l, argv[i]);
 				} else {
 					mrope_t *p;
 					rb3_fmi_t fmi;
-					p = rb3_enc_plain2fmr(seq.l, (uint8_t*)seq.s, opt.max_nodes, opt.block_len);
+					p = rb3_enc_plain2fmr(seq.l, (uint8_t*)seq.s, opt.max_nodes, opt.block_len, opt.n_threads);
 					rb3_fmi_init(&fmi, 0, p);
 					rb3_fmi_merge(r, &fmi, opt.n_threads, 1);
 					if (rb3_verbose >= 3)

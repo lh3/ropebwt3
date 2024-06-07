@@ -52,34 +52,6 @@ rld_t *rb3_enc_fmr2fmd(mrope_t *r, int cbits, int is_free)
 	return e;
 }
 
-mrope_t *rb3_enc_plain2fmr(int64_t len, const uint8_t *bwt, int max_nodes, int block_len)
-{
-	int64_t i, i0, off, cnt[256], c6;
-	int32_t c;
-	mrope_t *r;
-	rpcache_t cache;
-
-	if (max_nodes <= 0) max_nodes = ROPE_DEF_MAX_NODES;
-	if (block_len <= 0) block_len = ROPE_DEF_BLOCK_LEN;
-	memset(cnt, 0, 256 * sizeof(int64_t));
-	for (i = 0; i < len; ++i) ++cnt[bwt[i]];
-	for (c = 6, c6 = 0; c < 256; ++c) c6 += cnt[c];
-	assert(c6 == 0);
-
-	memset(&cache, 0, sizeof(rpcache_t));
-	r = mr_init(max_nodes, block_len, MR_SO_IO);
-	for (c = 0, off = 0; c < 6; ++c) {
-		for (i0 = 0, i = 1; i <= cnt[c]; ++i) {
-			if (i == cnt[c] || bwt[off+i0] != bwt[off+i]) {
-				rope_insert_run(r->r[c], i0, bwt[off+i0], i - i0, &cache);
-				i0 = i;
-			}
-		}
-		off += cnt[c];
-	}
-	return r;
-}
-
 mrope_t *rb3_enc_fmd2fmr(rld_t *e, int max_nodes, int block_len, int is_free)
 {
 	mrope_t *r;
@@ -112,6 +84,58 @@ mrope_t *rb3_enc_fmd2fmr(rld_t *e, int max_nodes, int block_len, int is_free)
 	return r;
 }
 
+/**********************
+ * Parallel plain2fmr *
+ **********************/
+
+typedef struct {
+	const uint8_t *bwt;
+	const int64_t *cnt;
+	mrope_t *r;
+} p2fmr_aux_t;
+
+static void worker_p2fmr(void *data, long c, int tid)
+{
+	p2fmr_aux_t *a = (p2fmr_aux_t*)data;
+	int64_t i, i0, off;
+	rope_t *r = a->r->r[c];
+	rpcache_t cache;
+	memset(&cache, 0, sizeof(rpcache_t));
+	for (i = 0, off = 0; i < c; ++i)
+		off += a->cnt[i];
+	for (i0 = 0, i = 1; i <= a->cnt[c]; ++i) {
+		if (i == a->cnt[c] || a->bwt[off+i0] != a->bwt[off+i]) {
+			rope_insert_run(r, i0, a->bwt[off+i0], i - i0, &cache);
+			i0 = i;
+		}
+	}
+}
+
+mrope_t *rb3_enc_plain2fmr(int64_t len, const uint8_t *bwt, int max_nodes, int block_len, int32_t n_threads)
+{
+	p2fmr_aux_t aux;
+	int64_t i, cnt[256], c6;
+	int32_t c;
+
+	if (max_nodes <= 0) max_nodes = ROPE_DEF_MAX_NODES;
+	if (block_len <= 0) block_len = ROPE_DEF_BLOCK_LEN;
+	memset(cnt, 0, 256 * sizeof(int64_t));
+	for (i = 0; i < len; ++i) ++cnt[bwt[i]];
+	for (c = 6, c6 = 0; c < 256; ++c) c6 += cnt[c];
+	assert(c6 == 0);
+
+	aux.bwt = bwt, aux.cnt = cnt;
+	aux.r = mr_init(max_nodes, block_len, MR_SO_IO);
+	if (n_threads > 6) n_threads = 6; // up to 6 threads
+	if (n_threads > 1) {
+		kt_for(n_threads, worker_p2fmr, &aux, 6);
+	} else {
+		for (c = 0; c < 6; ++c)
+			worker_p2fmr(&aux, c, c);
+	}
+	return aux.r;
+}
+
 /*********
  * Merge *
  *********/
@@ -140,7 +164,7 @@ typedef struct {
 	int64_t *rb;
 } mgaux_t;
 
-static void worker(void *data, long k, int tid)
+static void worker_cal_rank(void *data, long k, int tid)
 {
 	mgaux_t *a = (mgaux_t*)data;
 	rb3_mg_rank1(a->fa, a->fb, a->rb, k);
@@ -153,7 +177,7 @@ void rb3_mg_rank(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int n_th
 	if (n_threads > 1) {
 		mgaux_t a;
 		a.fa = fa, a.fb = fb, a.rb = rb;
-		kt_for(n_threads, worker, &a, acb[1]);
+		kt_for(n_threads, worker_cal_rank, &a, acb[1]);
 	} else {
 		for (k = 0; k < acb[1]; ++k)
 			rb3_mg_rank1(fa, fb, rb, k);
