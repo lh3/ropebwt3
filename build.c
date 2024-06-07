@@ -58,6 +58,7 @@ static int usage_build(FILE *fp, const rb3_bopt_t *opt)
 	fprintf(fp, "    -d          dump in the fermi-delta format (FMD)\n");
 	fprintf(fp, "    -b          dump in the ropebwt format (FMR)\n");
 	fprintf(fp, "    -T          output the index in the Newick format (for debugging)\n");
+	fprintf(fp, "    -S FILE     save the current index to FILE after each input file []\n");
 	return fp == stdout? 0 : 1;
 }
 
@@ -68,10 +69,10 @@ int main_build(int argc, char *argv[])
 	int32_t c, i;
 	ketopt_t o = KETOPT_INIT;
 	mrope_t *r = 0;
-	char *fn_in = 0;
+	char *fn_in = 0, *fn_tmp = 0;
 
 	rb3_bopt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "l:n:m:t:62sri:LFRo:dbT", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "l:n:m:t:62sri:LFRo:dbTS:", 0)) >= 0) {
 		// algorithm
 		if (c == 'm') opt.batch_size = rb3_parse_num(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
@@ -91,6 +92,7 @@ int main_build(int argc, char *argv[])
 		else if (c == 'd') opt.fmt = RB3_FMD;
 		else if (c == 'b') opt.fmt = RB3_FMR;
 		else if (c == 'T') opt.fmt = RB3_TREE;
+		else if (c == 'S') fn_tmp = o.arg;
 	}
 	if (argc == o.ind && fn_in == 0) return usage_build(stdout, &opt);
 
@@ -142,6 +144,13 @@ int main_build(int argc, char *argv[])
 			}
 		}
 		rb3_seq_close(fp);
+		if (fn_tmp) {
+			FILE *fp;
+			fp = fopen(fn_tmp, "w");
+			if (fp != 0) mr_dump(r, fp);
+			fclose(fp);
+			if (rb3_verbose >= 3) fprintf(stderr, "[M::%s::%.3f*%.2f] wrote current index to '%s'\n", __func__, rb3_realtime(), rb3_percent_cpu(), fn_tmp);
+		}
 	}
 	free(seq.s);
 	if (r == 0) return 1;
