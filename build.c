@@ -149,7 +149,7 @@ int main_build(int argc, char *argv[])
 			fp = fopen(fn_tmp, "w");
 			if (fp != 0) mr_dump(r, fp);
 			fclose(fp);
-			if (rb3_verbose >= 3) fprintf(stderr, "[M::%s::%.3f*%.2f] wrote current index to '%s'\n", __func__, rb3_realtime(), rb3_percent_cpu(), fn_tmp);
+			if (rb3_verbose >= 3) fprintf(stderr, "[M::%s::%.3f*%.2f] saved the current index to '%s'\n", __func__, rb3_realtime(), rb3_percent_cpu(), fn_tmp);
 		}
 	}
 	free(seq.s);
