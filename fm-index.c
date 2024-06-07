@@ -136,9 +136,9 @@ mrope_t *rb3_enc_plain2fmr(int64_t len, const uint8_t *bwt, int max_nodes, int b
 	return aux.r;
 }
 
-/*********
- * Merge *
- *********/
+/******************************
+ * Calculate rank for merging *
+ ******************************/
 
 void rb3_mg_rank1(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int64_t p)
 {
@@ -162,11 +162,11 @@ void rb3_mg_rank1(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int64_t
 typedef struct {
 	const rb3_fmi_t *fa, *fb;
 	int64_t *rb;
-} mgaux_t;
+} mgrank_aux_t;
 
 static void worker_cal_rank(void *data, long k, int tid)
 {
-	mgaux_t *a = (mgaux_t*)data;
+	mgrank_aux_t *a = (mgrank_aux_t*)data;
 	rb3_mg_rank1(a->fa, a->fb, a->rb, k);
 }
 
@@ -175,7 +175,7 @@ void rb3_mg_rank(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int n_th
 	int64_t k, acb[RB3_ASIZE+1];
 	rb3_fmi_get_acc(fb, acb);
 	if (n_threads > 1) {
-		mgaux_t a;
+		mgrank_aux_t a;
 		a.fa = fa, a.fb = fb, a.rb = rb;
 		kt_for(n_threads, worker_cal_rank, &a, acb[1]);
 	} else {
@@ -184,11 +184,36 @@ void rb3_mg_rank(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int n_th
 	}
 }
 
+/*********
+ * Merge *
+ *********/
+
+typedef struct {
+	const int64_t *rank;
+	const int64_t *aca, *acb;
+	mrope_t *r;
+} mgins_aux_t;
+
+static void worker_mgins(void *data, long c, int tid)
+{
+	mgins_aux_t *a = (mgins_aux_t*)data;
+	int64_t i;
+	rope_t *r = a->r->r[c];
+	rpcache_t cache;
+	memset(&cache, 0, sizeof(rpcache_t));
+	for (i = a->acb[c]; i < a->acb[c+1]; ++i) {
+		int64_t x = a->rank[i];
+		assert((x&7) == c);
+		rope_insert_run(r, (x>>6) - (a->aca[c] + a->acb[c]), x>>3&7, 1, &cache);
+	}
+}
+
 void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb)
 {
 	rb3_fmi_t fa;
-	rpcache_t cache;
-	int64_t *rb, i, aca[RB3_ASIZE+1], acb[RB3_ASIZE+1];
+	int64_t *rb, aca[RB3_ASIZE+1], acb[RB3_ASIZE+1];
+	int c;
+	mgins_aux_t aux;
 
 	rb3_fmi_init(&fa, 0, r);
 	rb3_fmi_get_acc(&fa, aca);
@@ -199,11 +224,12 @@ void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb)
 	if (rb3_verbose >= 3)
 		fprintf(stderr, "[M::%s::%.3f*%.2f] caculated ranks for %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)acb[RB3_ASIZE]);
 
-	memset(&cache, 0, sizeof(rpcache_t));
-	for (i = 0; i < acb[RB3_ASIZE]; ++i) {
-		int64_t k = rb[i]>>6;
-		int b = rb[i]&7, c = rb[i]>>3&7;
-		rope_insert_run(r->r[b], k - (aca[b] + acb[b]), c, 1, &cache);
+	aux.rank = rb, aux.aca = aca, aux.acb = acb, aux.r = r;
+	if (n_threads > 1) {
+		kt_for(n_threads < 6? n_threads : 6, worker_mgins, &aux, 6);
+	} else {
+		for (c = 0; c < 6; ++c)
+			worker_mgins(&aux, c, c);
 	}
 	if (rb3_verbose >= 3)
 		fprintf(stderr, "[M::%s::%.3f*%.2f] inserted %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)acb[RB3_ASIZE]);
