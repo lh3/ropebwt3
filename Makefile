@@ -1,5 +1,5 @@
 CC=			gcc
-CFLAGS=		-g -Wall -O3
+CFLAGS=		-g -Wall -Wc++-compat -O3
 CPPFLAGS=
 INCLUDES=
 OBJS=		libsais.o libsais64.o sys.o kthread.o io.o rld0.o rle.o rope.o mrope.o \

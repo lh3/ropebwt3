@@ -17,7 +17,7 @@ mrope_t *mr_init(int max_nodes, int block_len, int sorting_order)
 	int a;
 	mrope_t *r;
 	assert(sorting_order >= 0 && sorting_order <= 2);
-	r = calloc(1, sizeof(mrope_t));
+	r = (mrope_t*)calloc(1, sizeof(mrope_t));
 	r->so = sorting_order;
 	r->thr_min = 1000;
 	for (a = 0; a != 6; ++a)
@@ -163,7 +163,7 @@ mrope_t *mr_restore(FILE *fp)
 	int i;
 	fread(magic, 1, 4, fp);
 	if (strncmp((char*)magic, "RB\2", 3) != 0) return 0;
-	mr = calloc(1, sizeof(mrope_t));
+	mr = (mrope_t*)calloc(1, sizeof(mrope_t));
 	mr->so = magic[3];
 	for (i = 0; i < 6; ++i)
 		mr->r[i] = rope_restore(fp);
@@ -309,8 +309,8 @@ void mr_insert_multi(mrope_t *mr, int64_t len, const uint8_t *s, int is_thr)
 		cstr_t p, q, end = s + len;
 		for (p = s, m = 0; p != end; ++p) // count #sentinels
 			if (*p == 0) ++m;
-		curr = a[0] = malloc(m * sizeof(triple64_t));
-		prev = a[1] = malloc(m * sizeof(triple64_t));
+		curr = a[0] = (triple64_t*)malloc(m * sizeof(triple64_t));
+		prev = a[1] = (triple64_t*)malloc(m * sizeof(triple64_t));
 		for (p = q = s, k = 0; p != end; ++p) // find the start of each string
 			if (*p == 0) prev[k++].p = q, q = p + 1;
 	}
