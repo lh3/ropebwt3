@@ -12,7 +12,7 @@ ifneq ($(asan),)
 	LIBS+=-fsanitize=address -ldl
 endif
 
-ifneq ($(omp),)
+ifneq ($(omp),0)
 	CPPFLAGS=-DLIBSAIS_OPENMP
 	CFLAGS+=-fopenmp
 	LIBS+=-fopenmp

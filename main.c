@@ -4,7 +4,7 @@
 #include "fm-index.h"
 #include "ketopt.h"
 
-#define RB3_VERSION "3.0pre-r32"
+#define RB3_VERSION "3.0pre-r33"
 
 int main_build(int argc, char *argv[]);
 int main_merge(int argc, char *argv[]);
@@ -55,7 +55,7 @@ int main_merge(int argc, char *argv[])
 		else if (c == 'o') freopen(o.arg, "wb", stdout);
 	}
 	if (argc - o.ind < 2) {
-		fprintf(stdout, "Usage: ropebwt3 merge [options] <base.fmr> <other1.fmd> [...]\n");
+		fprintf(stdout, "Usage: ropebwt3 merge [options] <base.fmr> <other1.fmr> [...]\n");
 		fprintf(stdout, "Options:\n");
 		fprintf(stdout, "  -t INT     number of threads [%d]\n", n_threads);
 		fprintf(stdout, "  -o FILE    output FMR to FILE [stdout]\n");
