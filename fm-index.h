@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include "rb3priv.h"
 #include "rld0.h"
 #include "mrope.h"
 
@@ -27,6 +28,8 @@ mrope_t *rb3_enc_fmd2fmr(rld_t *e, int max_nodes, int block_len, int is_free);
 
 void rb3_mg_rank(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int n_threads);
 void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb);
+
+int64_t rb3_fmi_retrieve(const rb3_fmi_t *f, int64_t k, kstring_t *s);
 
 static inline void rb3_fmi_init(rb3_fmi_t *f, rld_t *e, mrope_t *r)
 {

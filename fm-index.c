@@ -235,3 +235,25 @@ void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb)
 		fprintf(stderr, "[M::%s::%.3f*%.2f] inserted %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)acb[RB3_ASIZE]);
 	free(rb);
 }
+
+/*******************
+ * Other utilities *
+ *******************/
+
+int64_t rb3_fmi_retrieve(const rb3_fmi_t *f, int64_t k, kstring_t *s)
+{
+	int64_t i, ok[RB3_ASIZE], acc[RB3_ASIZE+1];
+	int c;
+	s->l = 0;
+	rb3_fmi_get_acc(f, acc);
+	if (k < 0 || k >= acc[RB3_ASIZE]) return -1;
+	while ((c = rb3_fmi_rank1a(f, k, ok)) > 0) {
+		RB3_GROW(char, s->s, s->l + 1, s->m);
+		s->s[s->l++] = "$ACGTN"[c];
+		k = acc[c] + ok[c];
+	}
+	s->s[s->l] = 0;
+	for (i = 0; i < s->l>>1; ++i) // reverse
+		c = s->s[i], s->s[i] = s->s[s->l - 1 - i], s->s[s->l - 1 - i] = c;
+	return k;
+}

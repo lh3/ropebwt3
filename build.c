@@ -94,7 +94,7 @@ int main_build(int argc, char *argv[])
 		else if (c == 'T') opt.fmt = RB3_TREE;
 		else if (c == 'S') fn_tmp = o.arg;
 	}
-	if (argc == o.ind && fn_in == 0) return usage_build(stdout, &opt);
+	if (argc == o.ind && fn_in == 0) return usage_build(stderr, &opt);
 
 	if (fn_in) {
 		rb3_fmi_t fmi;
