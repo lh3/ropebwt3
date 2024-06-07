@@ -4,7 +4,7 @@
 #include "fm-index.h"
 #include "ketopt.h"
 
-#define RB3_VERSION "3.0pre-r35"
+#define RB3_VERSION "3.0pre-r37"
 
 int main_build(int argc, char *argv[]);
 int main_merge(int argc, char *argv[]);
@@ -49,16 +49,19 @@ int main_merge(int argc, char *argv[])
 	int32_t c, i, n_threads = 1;
 	ketopt_t o = KETOPT_INIT;
 	mrope_t *r;
+	char *fn_tmp = 0;
 
-	while ((c = ketopt(&o, argc, argv, 1, "t:o:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "t:o:S:", 0)) >= 0) {
 		if (c == 't') n_threads = atoi(o.arg);
 		else if (c == 'o') freopen(o.arg, "wb", stdout);
+		else if (c == 'S') fn_tmp = o.arg;
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stdout, "Usage: ropebwt3 merge [options] <base.fmr> <other1.fmr> [...]\n");
 		fprintf(stdout, "Options:\n");
 		fprintf(stdout, "  -t INT     number of threads [%d]\n", n_threads);
 		fprintf(stdout, "  -o FILE    output FMR to FILE [stdout]\n");
+		fprintf(stderr, "  -S FILE    save the current index to FILE after each input file []\n");
 		return 0;
 	}
 
@@ -77,6 +80,13 @@ int main_merge(int argc, char *argv[])
 			break;
 		}
 		rb3_fmi_merge(r, &fb, n_threads, 1);
+		if (fn_tmp) {
+			FILE *fp;
+			fp = fopen(fn_tmp, "w");
+			if (fp != 0) mr_dump(r, fp);
+			fclose(fp);
+			if (rb3_verbose >= 3) fprintf(stderr, "[M::%s::%.3f*%.2f] saved the current index to '%s'\n", __func__, rb3_realtime(), rb3_percent_cpu(), fn_tmp);
+		}
 	}
 	mr_dump(r, stdout);
 	mr_destroy(r);
