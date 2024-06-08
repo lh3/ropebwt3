@@ -269,21 +269,8 @@ rld_t *rld_restore(const char *fn)
 	uint64_t k, n_blks;
 	int32_t i;
 
-	if ((e = rld_restore_header(fn, &fp)) == 0) { // then load as plain DNA rle
-		uint8_t *buf;
-		int l;
-		rlditr_t itr;
-		buf = RLD_MALLOC(uint8_t, 0x10000);
-		e = rld_init(6, 3);
-		rld_itr_init(e, &itr, 0);
-		while ((l = fread(buf, 1, 0x10000, fp)) != 0)
-			for (i = 0; i < l; ++i)
-				if (buf[i]>>3) rld_enc(e, &itr, buf[i]>>3, buf[i]&7);
-		fclose(fp);
-		free(buf);
-		rld_enc_finish(e, &itr);
-		return e;
-	}
+	e = rld_restore_header(fn, &fp);
+	if (e == 0) return 0;
 	if (e->n_bytes / 8 > RLD_LSIZE) { // allocate enough memory
 		e->n = (e->n_bytes / 8 + RLD_LSIZE - 1) / RLD_LSIZE;
 		e->z = RLD_REALLOC(uint64_t*, e->z, e->n);
