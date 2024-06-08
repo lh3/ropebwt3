@@ -23,9 +23,12 @@ typedef struct {
 } rb3_fmi_t;
 
 typedef struct {
-	int64_t x[3]; // 0: start of the interval, backward; 1: forward; 2: size of the interval
+	int64_t x[2]; // 0: start of the interval, backward; 1: forward
+	int64_t size;
 	int64_t info;
 } rb3_sai_t;
+
+typedef struct { size_t n, m; rb3_sai_t *a; } rb3_sai_v;
 
 rld_t *rb3_enc_plain2rld(int64_t len, const uint8_t *bwt, int cbits);
 rld_t *rb3_enc_fmr2fmd(mrope_t *r, int cbits, int is_free);
@@ -36,6 +39,17 @@ void rb3_mg_rank(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int n_th
 void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb);
 
 int64_t rb3_fmi_retrieve(const rb3_fmi_t *f, int64_t k, kstring_t *s);
+void rb3_fmd_extend(const rb3_fmi_t *f, const rb3_sai_t *ik, rb3_sai_t ok[RB3_ASIZE], int is_back);
+
+static inline int rb3_comp(int c)
+{
+	return c >= 1 && c <= 4? 5 - c : c;
+}
+
+static inline void rb3_fmd_set_intv(const rb3_fmi_t *f, rb3_sai_t *ik)
+{
+	ik->x[0] = ik->x[1] = 0, ik->size = f->acc[RB3_ASIZE], ik->info = 0;
+}
 
 static inline int64_t rb3_fmi_get_acc(const rb3_fmi_t *fmi, int64_t acc[RB3_ASIZE+1])
 {

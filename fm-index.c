@@ -4,6 +4,7 @@
 #include "fm-index.h"
 #include "rle.h"
 #include "kthread.h"
+#include "kalloc.h"
 
 /***********************
  * Encoding conversion *
@@ -236,6 +237,105 @@ void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb)
 	free(rb);
 }
 
+/***************
+ * Exact match *
+ ***************/
+
+void rb3_fmd_extend(const rb3_fmi_t *f, const rb3_sai_t *ik, rb3_sai_t ok[RB3_ASIZE], int is_back)
+{
+	int64_t tk[RB3_ASIZE], tl[RB3_ASIZE];
+	int c;
+	is_back = !!is_back; // 0 or 1
+	rb3_fmi_rank2a(f, ik->x[!is_back], ik->x[!is_back] + ik->size, tk, tl);
+	for (c = 0; c < RB3_ASIZE; ++c) {
+		ok[c].x[!is_back] = f->acc[c] + tk[c];
+		ok[c].size = (tl[c] -= tk[c]);
+	}
+	ok[0].x[is_back] = ik->x[is_back];
+	ok[4].x[is_back] = ok[0].x[is_back] + tl[0];
+	ok[3].x[is_back] = ok[4].x[is_back] + tl[4];
+	ok[2].x[is_back] = ok[3].x[is_back] + tl[3];
+	ok[1].x[is_back] = ok[2].x[is_back] + tl[2];
+	ok[5].x[is_back] = ok[1].x[is_back] + tl[1];
+}
+
+static void rb3_sai_reverse(rb3_sai_t *a, int64_t l)
+{
+	int64_t i;
+	rb3_sai_t t;
+	for (i = 0; i < l>>1; ++i)
+		t = a[i], a[i] = a[l - 1 - i], a[l - 1 - i] = t;
+}
+
+int64_t rb3_fmd_smem1(void *km, const rb3_fmi_t *f, int64_t min_occ, int64_t min_len, int64_t len, const uint8_t *q, int64_t x, rb3_sai_v *mem, rb3_sai_v *curr, rb3_sai_v *prev)
+{
+	int64_t i, j, ret;
+	rb3_sai_t ik, ok[6];
+	rb3_sai_v *swap;
+	size_t oldn = mem->n;
+
+	assert(len <= INT32_MAX); // this can be relaxed if we define a new struct for mem
+	rb3_fmd_set_intv(f, &ik);
+	ik.info = x;
+	for (i = x, curr->n = 0; i < len; ++i) { // forward extension
+		int c = rb3_comp(q[i]);
+		rb3_fmd_extend(f, &ik, ok, 0);
+		if (ok[c].size != ik.size) {
+			Kgrow(km, rb3_sai_t, curr->a, curr->n, curr->m);
+			curr->a[curr->n++] = ik;
+			if (ok[c].size < min_occ) break;
+		}
+		ik = ok[c]; ik.info = i + 1;
+	}
+	if (i == len) {
+		Kgrow(km, rb3_sai_t, curr->a, curr->n, curr->m);
+		curr->a[curr->n++] = ik;
+	}
+	rb3_sai_reverse(curr->a, curr->n);
+	ret = curr->a[0].info;
+	swap = curr; curr = prev; prev = swap;
+
+	for (i = x - 1; i >= -1; --i) { // backward extension
+		int c = i < 0? 0 : q[i];
+		for (j = 0, curr->n = 0; j < prev->n; ++j) {
+			rb3_sai_t *p = &prev->a[j];
+			rb3_fmd_extend(f, p, ok, 1);
+			if (c == 0 || ok[c].size < min_occ) {
+				if (curr->n == 0) {
+					if ((mem->n == oldn || i + 1 < mem->a[mem->n-1].info>>32) && (int32_t)p->info - i - 1 >= min_len) {
+						rb3_sai_t *q;
+						Kgrow(km, rb3_sai_t, mem->a, mem->n, mem->m);
+						q = &mem->a[mem->n++];
+						*q = *p; q->info |= (int64_t)(i + 1)<<32;
+					}
+				}
+			} else if (curr->n == 0 || ok[c].size != curr->a[curr->n-1].size) {
+				ok[c].info = p->info;
+				Kgrow(km, rb3_sai_t, curr->a, curr->n, curr->m);
+				curr->a[curr->n++] = ok[c];
+			}
+		}
+		if (curr->n == 0) break;
+		swap = curr; curr = prev; prev = swap;
+	}
+
+	rb3_sai_reverse(&mem->a[oldn], mem->n - oldn);
+	return ret;
+}
+
+int64_t rb3_fmd_smem(void *km, const rb3_fmi_t *f, int64_t len, const uint8_t *q, rb3_sai_v *mem, int64_t min_occ, int64_t min_len)
+{
+	int64_t x = 0;
+	rb3_sai_v curr = {0,0,0}, prev = {0,0,0};
+	mem->n = 0;
+	do {
+		x = rb3_fmd_smem1(km, f, min_occ, min_len, len, q, x, mem, &curr, &prev);
+	} while (x < len);
+	kfree(km, curr.a);
+	kfree(km, prev.a);
+	return mem->n;
+}
+
 /*******************
  * Other utilities *
  *******************/
@@ -256,22 +356,4 @@ int64_t rb3_fmi_retrieve(const rb3_fmi_t *f, int64_t k, kstring_t *s)
 	for (i = 0; i < s->l>>1; ++i) // reverse
 		c = s->s[i], s->s[i] = s->s[s->l - 1 - i], s->s[s->l - 1 - i] = c;
 	return k;
-}
-
-void rb3_fmd_extend(const rb3_fmi_t *f, const rb3_sai_t *ik, rb3_sai_t ok[RB3_ASIZE], int is_back)
-{
-	int64_t tk[RB3_ASIZE], tl[RB3_ASIZE];
-	int c;
-	is_back = !!is_back; // 0 or 1
-	rb3_fmi_rank2a(f, ik->x[!is_back], ik->x[!is_back] + ik->x[2], tk, tl);
-	for (c = 0; c < RB3_ASIZE; ++c) {
-		ok[c].x[!is_back] = f->acc[c] + tk[c];
-		ok[c].x[2] = (tl[c] -= tk[c]);
-	}
-	ok[0].x[is_back] = ik->x[is_back];
-	ok[4].x[is_back] = ok[0].x[is_back] + tl[0];
-	ok[3].x[is_back] = ok[4].x[is_back] + tl[4];
-	ok[2].x[is_back] = ok[3].x[is_back] + tl[3];
-	ok[1].x[is_back] = ok[2].x[is_back] + tl[2];
-	ok[5].x[is_back] = ok[1].x[is_back] + tl[1];
 }
