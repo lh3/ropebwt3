@@ -179,9 +179,9 @@ static rpnode_t *rope_count_to_leaf(const rope_t *rope, int64_t x, int64_t cx[6]
 int rope_rank2a(const rope_t *rope, int64_t x, int64_t y, int64_t *cx, int64_t *cy)
 {
 	rpnode_t *v;
-	int64_t rest;
+	int64_t rest, tot = rope->c[0] + rope->c[1] + rope->c[2] + rope->c[3] + rope->c[4] + rope->c[5];
 	int c = -1;
-	if (x >= rope->c[0] + rope->c[1] + rope->c[2] + rope->c[3] + rope->c[4] + rope->c[5]) {
+	if (x >= tot) {
 		memcpy(cx, rope->c, 48);
 		if (cy) memcpy(cy, cx, 48);
 		return -1;
@@ -194,8 +194,12 @@ int rope_rank2a(const rope_t *rope, int64_t x, int64_t y, int64_t *cx, int64_t *
 		c = rle_rank2a((const uint8_t*)v->p, rest, rest + (y - x), cx, cy, v->c);
 	} else { // in two different blocks
 		c = rle_rank1a((const uint8_t*)v->p, rest, cx, v->c);
-		v = rope_count_to_leaf(rope, y, cy, &rest);
-		rle_rank1a((const uint8_t*)v->p, rest, cy, v->c);
+		if (y >= tot) {
+			memcpy(cy, rope->c, 48);
+		} else {
+			v = rope_count_to_leaf(rope, y, cy, &rest);
+			rle_rank1a((const uint8_t*)v->p, rest, cy, v->c);
+		}
 	}
 	assert(c >= 0);
 	return c;

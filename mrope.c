@@ -106,11 +106,14 @@ int mr_rank2a(const mrope_t *mr, int64_t x, int64_t y, int64_t *cx, int64_t *cy)
 	for (++a, z += l; a < 6; ++a) {
 		const int64_t *ca = mr->r[a]->c;
 		l = ca[0] + ca[1] + ca[2] + ca[3] + ca[4] + ca[5];
-		if (z + l >= y) break;
+		if (z + l > y) break;
 		for (b = 0; b < 6; ++b) c[b] += ca[b];
 		z += l;
 	}
-	assert(a != 6);
+	if (a == 6) { // special case: y >= mr_get_tot(mr)
+		memcpy(cy, c, 48);
+		return ret;
+	}
 	if (y != z + l) rope_rank1a(mr->r[a], y - z, cy);
 	else for (b = 0; b < 6; ++b) cy[b] = mr->r[a]->c[b];
 	for (b = 0; b < 6; ++b) cy[b] += c[b];

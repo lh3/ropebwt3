@@ -401,7 +401,7 @@ int rld_rank1a(const rld_t *e, uint64_t k, uint64_t *ok)
 	int a = -1;
 	rlditr_t itr;
 	if (k >= e->cnt[e->asize]) {
-		memcpy(ok, e->mcnt, e->asize * sizeof(int64_t));
+		memcpy(ok, e->mcnt + 1, e->asize * sizeof(int64_t));
 		return -1;
 	}
 	rld_locate_blk(e, &itr, k, ok, &z);

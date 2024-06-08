@@ -19,7 +19,13 @@ typedef struct {
 	int32_t is_fmd;
 	rld_t *e;
 	mrope_t *r;
+	int64_t acc[RB3_ASIZE+1];
 } rb3_fmi_t;
+
+typedef struct {
+	int64_t x[3]; // 0: start of the interval, backward; 1: forward; 2: size of the interval
+	int64_t info;
+} rb3_sai_t;
 
 rld_t *rb3_enc_plain2rld(int64_t len, const uint8_t *bwt, int cbits);
 rld_t *rb3_enc_fmr2fmd(mrope_t *r, int cbits, int is_free);
@@ -31,10 +37,19 @@ void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb);
 
 int64_t rb3_fmi_retrieve(const rb3_fmi_t *f, int64_t k, kstring_t *s);
 
+static inline int64_t rb3_fmi_get_acc(const rb3_fmi_t *fmi, int64_t acc[RB3_ASIZE+1])
+{
+	if (fmi->is_fmd) {
+		memcpy(acc, fmi->e->cnt, (RB3_ASIZE+1) * sizeof(int64_t));
+		return fmi->e->cnt[RB3_ASIZE];
+	} else return mr_get_ac(fmi->r, acc);
+}
+
 static inline void rb3_fmi_init(rb3_fmi_t *f, rld_t *e, mrope_t *r)
 {
 	if (e) f->is_fmd = 1, f->e = e, f->r = 0;
 	else f->is_fmd = 0, f->e = 0, f->r = r;
+	rb3_fmi_get_acc(f, f->acc);
 }
 
 static inline void rb3_fmi_rank2a(const rb3_fmi_t *fmi, int64_t k, int64_t l, int64_t *ok, int64_t *ol)
@@ -46,14 +61,6 @@ static inline void rb3_fmi_rank2a(const rb3_fmi_t *fmi, int64_t k, int64_t l, in
 static inline int rb3_fmi_rank1a(const rb3_fmi_t *fmi, int64_t k, int64_t *ok)
 {
 	return fmi->is_fmd? rld_rank1a(fmi->e, k, (uint64_t*)ok) : mr_rank1a(fmi->r, k, ok);
-}
-
-static inline int64_t rb3_fmi_get_acc(const rb3_fmi_t *fmi, int64_t acc[RB3_ASIZE+1])
-{
-	if (fmi->is_fmd) {
-		memcpy(acc, fmi->e->cnt, (RB3_ASIZE+1) * sizeof(int64_t));
-		return fmi->e->cnt[RB3_ASIZE];
-	} else return mr_get_ac(fmi->r, acc);
 }
 
 static inline void rb3_fmi_destroy(rb3_fmi_t *fmi)
@@ -69,6 +76,16 @@ static inline void rb3_fmi_restore(rb3_fmi_t *fmi, const char *fn)
 		fmi->e = rld_restore(fn);
 		fmi->is_fmd = 1;
 	} else fmi->is_fmd = 0;
+	rb3_fmi_get_acc(fmi, fmi->acc);
+}
+
+static inline int64_t rb3_fmi_extend1(const rb3_fmi_t *f, int64_t *k, int64_t *l, int c)
+{
+	int64_t tk[RB3_ASIZE], tl[RB3_ASIZE];
+	rb3_fmi_rank2a(f, *k, *l, tk, tl);
+	*k = f->acc[c] + tk[c];
+	*l = f->acc[c] + tl[c];
+	return *l - *k;
 }
 
 #ifdef __cplusplus
