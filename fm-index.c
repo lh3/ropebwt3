@@ -275,9 +275,10 @@ int64_t rb3_fmd_smem1(void *km, const rb3_fmi_t *f, int64_t min_occ, int64_t min
 	size_t oldn = mem->n;
 
 	assert(len <= INT32_MAX); // this can be relaxed if we define a new struct for mem
-	rb3_fmd_set_intv(f, &ik);
-	ik.info = x;
-	for (i = x, curr->n = 0; i < len; ++i) { // forward extension
+	rb3_fmd_set_intv(f, q[x], &ik);
+	ik.info = x + 1;
+	if (ik.size == 0) return x + 1;
+	for (i = x + 1, curr->n = 0; i < len; ++i) { // forward extension
 		int c = rb3_comp(q[i]);
 		rb3_fmd_extend(f, &ik, ok, 0);
 		if (ok[c].size != ik.size) {
@@ -301,13 +302,11 @@ int64_t rb3_fmd_smem1(void *km, const rb3_fmi_t *f, int64_t min_occ, int64_t min
 			rb3_sai_t *p = &prev->a[j];
 			rb3_fmd_extend(f, p, ok, 1);
 			if (c == 0 || ok[c].size < min_occ) {
-				if (curr->n == 0) {
-					if ((mem->n == oldn || i + 1 < mem->a[mem->n-1].info>>32) && (int32_t)p->info - i - 1 >= min_len) {
-						rb3_sai_t *q;
-						Kgrow(km, rb3_sai_t, mem->a, mem->n, mem->m);
-						q = &mem->a[mem->n++];
-						*q = *p; q->info |= (int64_t)(i + 1)<<32;
-					}
+				if (curr->n == 0 && (int32_t)p->info - i - 1 >= min_len && (mem->n == oldn || i + 1 < mem->a[mem->n-1].info>>32)) {
+					rb3_sai_t *q;
+					Kgrow(km, rb3_sai_t, mem->a, mem->n, mem->m);
+					q = &mem->a[mem->n++];
+					*q = *p; q->info |= (int64_t)(i + 1)<<32;
 				}
 			} else if (curr->n == 0 || ok[c].size != curr->a[curr->n-1].size) {
 				ok[c].info = p->info;

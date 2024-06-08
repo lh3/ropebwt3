@@ -40,15 +40,16 @@ void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb);
 
 int64_t rb3_fmi_retrieve(const rb3_fmi_t *f, int64_t k, kstring_t *s);
 void rb3_fmd_extend(const rb3_fmi_t *f, const rb3_sai_t *ik, rb3_sai_t ok[RB3_ASIZE], int is_back);
+int64_t rb3_fmd_smem(void *km, const rb3_fmi_t *f, int64_t len, const uint8_t *q, rb3_sai_v *mem, int64_t min_occ, int64_t min_len);
 
 static inline int rb3_comp(int c)
 {
 	return c >= 1 && c <= 4? 5 - c : c;
 }
 
-static inline void rb3_fmd_set_intv(const rb3_fmi_t *f, rb3_sai_t *ik)
+static inline void rb3_fmd_set_intv(const rb3_fmi_t *f, int c, rb3_sai_t *ik)
 {
-	ik->x[0] = ik->x[1] = 0, ik->size = f->acc[RB3_ASIZE], ik->info = 0;
+	ik->x[0] = f->acc[c], ik->size = f->acc[c+1] - f->acc[c], ik->x[1] = f->acc[rb3_comp(c)], ik->info = 0;
 }
 
 static inline int64_t rb3_fmi_get_acc(const rb3_fmi_t *fmi, int64_t acc[RB3_ASIZE+1])

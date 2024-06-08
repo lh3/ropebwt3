@@ -124,10 +124,10 @@ int64_t rb3_seq_read(rb3_seqio_t *fp, kstring_t *seq, int64_t max_len, int is_fo
 	return n_seq;
 }
 
-const char *rb3_seq_read1(rb3_seqio_t *fp, int64_t *len, const char **name)
+char *rb3_seq_read1(rb3_seqio_t *fp, int64_t *len, const char **name)
 {
 	int ret, dret;
-	const char *s = 0;
+	char *s = 0;
 	*len = 0;
 	if (fp->is_line) {
 		ret = ks_getuntil(fp->fl, KS_SEP_LINE, &fp->line_buf, &dret);
