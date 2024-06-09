@@ -86,6 +86,7 @@ static inline void rb3_fmi_destroy(rb3_fmi_t *fmi)
 
 static inline void rb3_fmi_restore(rb3_fmi_t *fmi, const char *fn)
 {
+	fmi->r = 0, fmi->e = 0;
 	fmi->r = mr_restore_file(fn);
 	if (fmi->r == 0) {
 		fmi->e = rld_restore(fn);

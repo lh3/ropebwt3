@@ -5,7 +5,7 @@
 #include "io.h"
 #include "ketopt.h"
 
-#define RB3_VERSION "3.0pre-r43"
+#define RB3_VERSION "3.0pre-r44"
 
 int main_build(int argc, char *argv[]);
 int main_merge(int argc, char *argv[]);
@@ -273,12 +273,12 @@ int main_fa2line(int argc, char *argv[])
 		while ((seq = rb3_seq_read1(fp, &len, &name)) != 0) {
 			int64_t i;
 			rb3_char2nt6(len, (uint8_t*)seq);
-			for (i = 0; i < len; ++i) seq[i] = "\nACGTN"[(uint8_t)seq[i]];
+			for (i = 0; i < len; ++i) seq[i] = "\nACGTX"[(uint8_t)seq[i]];
 			puts(seq);
 			if (!no_rev) {
 				rb3_char2nt6(len, (uint8_t*)seq);
 				rb3_revcomp6(len, (uint8_t*)seq);
-				for (i = 0; i < len; ++i) seq[i] = "\nACGTN"[(uint8_t)seq[i]];
+				for (i = 0; i < len; ++i) seq[i] = "\nACGTX"[(uint8_t)seq[i]];
 				puts(seq);
 			}
 		}
