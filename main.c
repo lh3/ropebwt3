@@ -5,7 +5,7 @@
 #include "io.h"
 #include "ketopt.h"
 
-#define RB3_VERSION "3.0pre-r44"
+#define RB3_VERSION "3.0pre-r45"
 
 int main_build(int argc, char *argv[]);
 int main_merge(int argc, char *argv[]);
@@ -169,6 +169,7 @@ int main_suffix(int argc, char *argv[])
 		fp = rb3_seq_open(argv[j], is_line);
 		while ((s = rb3_seq_read1(fp, &len, &name)) != 0) {
 			int64_t k = 0, l = fmi.acc[RB3_ASIZE], last_size = 0;
+			++rec_num;
 			out.l = 0;
 			for (i = len - 1; i >= 0; --i) {
 				int c = s[i];
@@ -178,8 +179,8 @@ int main_suffix(int argc, char *argv[])
 				if (size == 0) break;
 				last_size = size;
 			}
-			if (name) rb3_sprintf_lite(&out, "%s");
-			else rb3_sprintf_lite(&out, "%ld", rec_num);
+			if (name) rb3_sprintf_lite(&out, "%s", name);
+			else rb3_sprintf_lite(&out, "seq%ld", rec_num);
 			rb3_sprintf_lite(&out, "\t%ld\t%ld\t%ld\n", i + 1, len, last_size);
 			fputs(out.s, stdout);
 		}
@@ -231,14 +232,15 @@ int main_match(int argc, char *argv[])
 		fp = rb3_seq_open(argv[j], is_line);
 		while ((seq = rb3_seq_read1(fp, &len, &name)) != 0) {
 			int64_t i;
+			++rec_num;
 			rb3_char2nt6(len, (uint8_t*)seq);
 			rb3_fmd_smem(0, &fmi, len, (uint8_t*)seq, &mem, min_occ, min_len);
 			for (i = 0; i < mem.n; ++i) {
 				rb3_sai_t *p = &mem.a[i];
 				int32_t st = p->info>>32, en = (int32_t)p->info;
 				out.l = 0;
-				if (name) rb3_sprintf_lite(&out, "%s");
-				else rb3_sprintf_lite(&out, "%ld", rec_num);
+				if (name) rb3_sprintf_lite(&out, "%s", name);
+				else rb3_sprintf_lite(&out, "seq%ld", rec_num);
 				rb3_sprintf_lite(&out, "\t%ld\t%ld\t%ld\n", st, en, (long)p->size);
 				fputs(out.s, stdout);
 			}
