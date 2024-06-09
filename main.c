@@ -5,13 +5,14 @@
 #include "io.h"
 #include "ketopt.h"
 
-#define RB3_VERSION "3.0pre-r39"
+#define RB3_VERSION "3.0pre-r43"
 
 int main_build(int argc, char *argv[]);
 int main_merge(int argc, char *argv[]);
 int main_get(int argc, char *argv[]);
 int main_suffix(int argc, char *argv[]);
 int main_match(int argc, char *argv[]);
+int main_fa2line(int argc, char *argv[]);
 
 static int usage(FILE *fp)
 {
@@ -22,6 +23,7 @@ static int usage(FILE *fp)
 	fprintf(fp, "  match      find supermaximal exact matches (requring both strands)\n");
 	fprintf(fp, "  suffix     find the longest matching suffix (aka backward search)\n");
 	fprintf(fp, "  get        retrieve the i-th sequence from BWT\n");
+	fprintf(fp, "  fa2line    convert FASTX to lines\n");
 	fprintf(fp, "  version    print the version number\n");
 	return fp == stdout? 0 : 1;
 }
@@ -36,6 +38,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "match") == 0) ret = main_match(argc-1, argv+1);
 	else if (strcmp(argv[1], "suffix") == 0) ret = main_suffix(argc-1, argv+1);
 	else if (strcmp(argv[1], "get") == 0) ret = main_get(argc-1, argv+1);
+	else if (strcmp(argv[1], "fa2line") == 0) ret = main_fa2line(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
 		printf("%s\n", RB3_VERSION);
 		return 0;
@@ -228,8 +231,7 @@ int main_match(int argc, char *argv[])
 		fp = rb3_seq_open(argv[j], is_line);
 		while ((seq = rb3_seq_read1(fp, &len, &name)) != 0) {
 			int64_t i;
-			for (i = 0; i < len; ++i)
-				seq[i] = (uint8_t)seq[i] < 128? rb3_nt6_table[(uint8_t)seq[i]] : 5;
+			rb3_char2nt6(len, (uint8_t*)seq);
 			rb3_fmd_smem(0, &fmi, len, (uint8_t*)seq, &mem, min_occ, min_len);
 			for (i = 0; i < mem.n; ++i) {
 				rb3_sai_t *p = &mem.a[i];
@@ -246,5 +248,41 @@ int main_match(int argc, char *argv[])
 	}
 	free(out.s);
 	rb3_fmi_destroy(&fmi);
+	return 0;
+}
+
+int main_fa2line(int argc, char *argv[])
+{
+	int32_t c, j, no_rev = 0;
+	ketopt_t o = KETOPT_INIT;
+	while ((c = ketopt(&o, argc, argv, 1, "R", 0)) >= 0) {
+		if (c == 'R') no_rev = 1;
+	}
+	if (argc - o.ind < 1) {
+		fprintf(stdout, "Usage: ropebwt3 fa2line [options] <seq.fa> [...]\n");
+		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -R        no reverse strand\n");
+		return 0;
+	}
+	for (j = o.ind; j < argc; ++j) {
+		char *seq;
+		const char *name;
+		int64_t len;
+		rb3_seqio_t *fp;
+		fp = rb3_seq_open(argv[j], 0);
+		while ((seq = rb3_seq_read1(fp, &len, &name)) != 0) {
+			int64_t i;
+			rb3_char2nt6(len, (uint8_t*)seq);
+			for (i = 0; i < len; ++i) seq[i] = "\nACGTN"[(uint8_t)seq[i]];
+			puts(seq);
+			if (!no_rev) {
+				rb3_char2nt6(len, (uint8_t*)seq);
+				rb3_revcomp6(len, (uint8_t*)seq);
+				for (i = 0; i < len; ++i) seq[i] = "\nACGTN"[(uint8_t)seq[i]];
+				puts(seq);
+			}
+		}
+		rb3_seq_close(fp);
+	}
 	return 0;
 }

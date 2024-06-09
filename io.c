@@ -20,14 +20,14 @@ const uint8_t rb3_nt6_table[128] = {
     5, 5, 5, 5,  4, 5, 5, 5,  5, 5, 5, 5,  5, 5, 5, 5
 };
 
-static inline void rb3_char2nt6(int64_t l, uint8_t *s)
+void rb3_char2nt6(int64_t l, uint8_t *s)
 {
 	int64_t i;
 	for (i = 0; i < l; ++i)
 		s[i] = s[i] < 128? rb3_nt6_table[s[i]] : 5;
 }
 
-static inline void rb3_revcomp6(int64_t l, uint8_t *s)
+void rb3_revcomp6(int64_t l, uint8_t *s)
 {
 	int64_t i;
 	for (i = 0; i < l>>1; ++i) {
