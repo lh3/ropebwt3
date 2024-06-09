@@ -5,7 +5,7 @@
 #include "io.h"
 #include "ketopt.h"
 
-#define RB3_VERSION "3.0pre-r46"
+#define RB3_VERSION "3.0pre-r47"
 
 int main_build(int argc, char *argv[]);
 int main_merge(int argc, char *argv[]);
@@ -13,6 +13,7 @@ int main_get(int argc, char *argv[]);
 int main_suffix(int argc, char *argv[]);
 int main_match(int argc, char *argv[]);
 int main_fa2line(int argc, char *argv[]);
+int main_plain2fmd(int argc, char *argv[]);
 
 static int usage(FILE *fp)
 {
@@ -24,6 +25,7 @@ static int usage(FILE *fp)
 	fprintf(fp, "  suffix     find the longest matching suffix (aka backward search)\n");
 	fprintf(fp, "  get        retrieve the i-th sequence from BWT\n");
 	fprintf(fp, "  fa2line    convert FASTX to lines\n");
+	fprintf(fp, "  plain2fmd  convert BWT in plain text to FMD\n");
 	fprintf(fp, "  version    print the version number\n");
 	return fp == stdout? 0 : 1;
 }
@@ -39,6 +41,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "suffix") == 0) ret = main_suffix(argc-1, argv+1);
 	else if (strcmp(argv[1], "get") == 0) ret = main_get(argc-1, argv+1);
 	else if (strcmp(argv[1], "fa2line") == 0) ret = main_fa2line(argc-1, argv+1);
+	else if (strcmp(argv[1], "plain2fmd") == 0) ret = main_plain2fmd(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
 		printf("%s\n", RB3_VERSION);
 		return 0;
@@ -286,5 +289,39 @@ int main_fa2line(int argc, char *argv[])
 		}
 		rb3_seq_close(fp);
 	}
+	return 0;
+}
+
+int main_plain2fmd(int argc, char *argv[])
+{
+	int32_t c, j;
+	uint8_t buf[0x10000];
+	ketopt_t o = KETOPT_INIT;
+	rld_t *e;
+	rlditr_t ei;
+	while ((c = ketopt(&o, argc, argv, 1, "o:", 0)) >= 0) {
+		if (c == 'o') freopen(o.arg, "wb", stdout);
+	}
+	if (argc - o.ind < 1) {
+		fprintf(stdout, "Usage: ropebwt3 plain2fmd [-o output.fmd] <in.txt>\n");
+		return 0;
+	}
+	e = rld_init(RB3_ASIZE, 3);
+	rld_itr_init(e, &ei, 0);
+	for (j = o.ind; j < argc; ++j) {
+		FILE *fp;
+		int32_t i, len;
+		fp = strcmp(argv[j], "-") == 0? stdin : fopen(argv[j], "r");
+		if (fp == 0) continue; // TODO: change this to an error
+		while ((len = fread(buf, 1, 0x10000, fp)) > 0) {
+			for (i = 0; i < len; ++i) {
+				int c = buf[i] == '\n' || buf[i] == '$'? 0 : buf[i] >= 128? 5 : rb3_nt6_table[buf[i]];
+				rld_enc(e, &ei, 1, c);
+			}
+		}
+		fclose(fp);
+	}
+	rld_enc_finish(e, &ei);
+	rld_dump(e, "-");
 	return 0;
 }
