@@ -30,6 +30,7 @@ echo CTCCAGTTGACACAAAATAGtCTACGAAAGTGGCTTTAACAT | ./ropebwt3 match -L human100.f
   - [Constructing a BWT](#build)
   - [Binary BWT formats](#format)
   - [Counting exact matches](#match)
+- [For developers](#dev)
 - [Performance](#perf)
 - [Limitations](#limit)
 
@@ -141,6 +142,55 @@ If the BWT only contains one strand, you can use the `suffix` command to find
 the longest matching suffix of a query sequence:
 ```sh
 ropebwt3 suffix bwt.fmd query.fa > suffixes.bed
+```
+
+## <a name="dev"></a>For Developers
+
+You can encode and decode a FMD file with [rld0.h](rld0.h) and
+[rld0.c](rld0.c). The two-file library also supports the rank() operator. Here
+is a small program to convert FMD to plain text:
+```c
+// compile with "gcc -O3 rld0.c this.c"; run with "./a.out idx.fmd > out.txt"
+#include <stdio.h>
+#include "rld0.h"
+int main(int argc, char *argv[]) {
+  if (argc < 2) return 1;
+  rld_t *e = rld_restore(argv[1]);
+  rlditr_t ei; // iterator
+  rld_itr_init(e, &ei, 0);
+  int c;
+  int64_t i, l;
+  while ((l = rld_dec(e, &ei, &c, 0)) > 0)
+    for (i = 0; i < l; ++i) putchar("\nACGTN"[c]);
+  rld_destroy(e);
+  return 0;
+}
+```
+and to count a string in an FMD file:
+```c
+// compile with "gcc -O3 rld0.c this.c"; run with "./a.out idx.fmd AGCATAG"
+#include <stdint.h>
+#include <string.h>
+#include <stdio.h>
+#include "rld0.h"
+int main(int argc, char *argv[]) {
+  if (argc < 3) return 1;
+  rld_t *e = rld_restore(argv[1]);
+  uint64_t k = 0, l = e->cnt[6], ok[6], ol[6];
+  const char *s = argv[2];
+  int i, len = strlen(s);
+  for (i = len - 1; i >= 0; --i) { // backward search
+    int c = s[i];
+    c = c=='A'?1:c=='C'?2:c=='G'?3:c=='T'?4:5;
+    rld_rank2a(e, k, l, ok, ol);
+    k = e->cnt[c] + ok[c];
+    l = e->cnt[c] + ol[c];
+    if (k == l) break;
+  }
+  printf("%ld\n", (long)(l - k));
+  rld_destroy(e);
+  return 0;
+}
 ```
 
 ## <a name="perf"></a>Performance
