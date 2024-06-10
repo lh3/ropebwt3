@@ -45,9 +45,13 @@ methods that can construct the double-strand BWT of 100 human genomes using
 reasonable resources (see [Performance](#perf) below). This BWT can be
 downloaded [from Zenodo][zenodo].
 
-Ropebwt3 has most of the functionality of [ropebwt2][rb2] but works better for
-long sequences such as chromsomes and assembled contigs. It additionally
-includes some functionality in [fermi2][fm2].
+Ropebwt3 largely replaces [ropebwt2][rb2] and works better for long sequences
+such as chromsomes and assembled contigs. It additionally includes
+functionality in [fermi2][fm2] such as counting and matching.
+
+Ropebwt3 is mostly a research project I use to understand the performance of
+BWT construction. It may also be useful if you want to get the occurrence of a
+string of arbitrary length, or count long matches against a human pangenome.
 
 ## <a name="use"></a>Usage
 
@@ -216,7 +220,7 @@ final merged BWT with
 ```
 and update $k$ and $i$ by
 ```math
-k\gets C(B'[i])+{\rm rank}(B'[i],k), i\gets C'(B'[i])+{\rm rank}'(B'[i],i)
+k\gets C(B'[i])+{\rm rank}(B'[i],k),\, i\gets C'(B'[i])+{\rm rank}'(B'[i],i)
 ```
 until $`B'[i]`$ is a seninel. When we have the final position of each symbol
 $`B'[i]`$, we insert them into $B$ to generate the merged BWT.
