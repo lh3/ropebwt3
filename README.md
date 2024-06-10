@@ -16,7 +16,7 @@ gzip -d human100.fmr.gz  # decompress
 ./ropebwt build -i human100.fmr -do human100.fmd  # not required but recommended
 
 # Count super-maximal exact matches (no locations)
-echo CTCCAGTTGACACAAAATAGtCTACGAAAGTGGCTTTAACAT|./ropebwt3 match -L human100.fmd -l20 -
+echo CTCCAGTTGACACAAAATAGtCTACGAAAGTGGCTTTAACAT | ./ropebwt3 match -L human100.fmd -l20 -
 
 # Retrieve chrM of CHM13. It is the 25th sequence during construction. 48=(25-1)*2
 ./ropebwt3 get human100.fmd 48 > CHM13-chrM.fa
@@ -116,13 +116,13 @@ FMR format and the fermi FMD format. The FMR format is dynamic in that you can
 add new sequences or merge BWTs to an existing FMR file. The same BWT does not
 necessarily lead to the same FMR. The FMD format is simpler in structure,
 faster to load, smaller in memory and can be memory-mapped. The two formats can
-be converted to each other.
+be used interchangeably in ropebwt3, but it is recommended to use FMR for BWT
+construction and FMD for finding exact matches. You can explicitly convert
+between the two formats with:
 ```sh
 ropebwt3 build -i in.fmd -bo out.fmr
 ropebwt3 build -i in.fmr -do out.fmd
 ```
-It is recommended to use FMR for BWT construction. You may convert FMR to FMD
-at the end for matching.
 
 ### <a name="match"></a>Counting exact matches
 
