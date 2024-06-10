@@ -114,11 +114,14 @@ Ropebwt3 uses two binary formats to store run-length encoded BWTs: the ropebwt2
 FMR format and the fermi FMD format. The FMR format is dynamic in that you can
 add new sequences or merge BWTs to an existing FMR file. The same BWT does not
 necessarily lead to the same FMR. The FMD format is simpler in structure,
-faster to load, smaller in memory and can be memory-mapped.
-
-At present, the FMR-to-FMD conversion works but the FMD-to-FMR conversion is
-buggy. It is recommended to use FMR for BWT construction. You may convert FMR
-to FMD at the end for matching.
+faster to load, smaller in memory and can be memory-mapped. The two formats can
+be converted to each other.
+```sh
+ropebwt3 build -i in.fmd -bo out.fmr
+ropebwt3 build -i in.fmr -bo out.fmd
+```
+It is recommended to use FMR for BWT construction. You may convert FMR to FMD
+at the end for matching.
 
 ### <a name="match"></a>Counting exact matches
 

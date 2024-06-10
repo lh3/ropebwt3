@@ -69,16 +69,15 @@ mrope_t *rb3_enc_fmd2fmr(rld_t *e, int max_nodes, int block_len, int is_free)
 	rld_itr_init(e, &itr, 0);
 	a = 0, off = 0;
 	while ((l = rld_dec(e, &itr, &c, is_free)) > 0) {
+		while (l > 0 && off + l > e->cnt[a+1] && off <= e->cnt[a+1]) {
+			int64_t t = e->cnt[a+1] - off;
+			if (t > 0) rope_insert_run(r->r[a], off - e->cnt[a], c, t, &cache);
+			off += t, l -= t, ++a;
+		}
 		if (off + l <= e->cnt[a+1]) { // <= is important
 			rope_insert_run(r->r[a], off - e->cnt[a], c, l, &cache);
 			off += l;
-			if (off == e->cnt[a+1]) ++a;
-		} else {
-			while (off <= e->cnt[a+1]) {
-				int64_t t = e->cnt[a+1] - off;
-				if (t > 0) rope_insert_run(r->r[a], off - e->cnt[a], c, t, &cache);
-				off += t, l -= t, ++a;
-			}
+			while (a < RB3_ASIZE && off == e->cnt[a+1]) ++a;
 		}
 	}
 	if (is_free) rld_destroy(e);
