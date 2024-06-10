@@ -210,11 +210,16 @@ BWT merging can be done in several equivalent ways and has been
 described in multiple papers. More exactly in ropebwt3, suppose we want to
 append the $`i_0`$ sequence in BWT $`B'`$ into $`B`$. We start with $`k\gets
 C({\rm A})`$ and $`i\gets i_0`$, calculate the position of $`B'[i]`$ in the
-final merged BWT with $`{\rm rank}(B'[i],k)+{\rm rank}'(B'[i],i)`$ and update
-$k$ and $i$ by $`k\gets C(B'[i])+{\rm rank}(B'[i],k)`$ and $`i\gets
-C'(B'[i])+{\rm rank}'(B'[i],i)`$ until $`B'[i]`$ is a seninel. When we have the
-final position of each symbol $`B'[i]`$, we insert them into $B$ to generate
-the merged BWT.
+final merged BWT with
+```math
+{\rm rank}(B'[i],k)+{\rm rank}'(B'[i],i)
+```
+and update $k$ and $i$ by
+```math
+k\gets C(B'[i])+{\rm rank}(B'[i],k), i\gets C'(B'[i])+{\rm rank}'(B'[i],i)
+```
+until $`B'[i]`$ is a seninel. When we have the final position of each symbol
+$`B'[i]`$, we insert them into $B$ to generate the merged BWT.
 
 ## <a name="perf"></a>Performance
 
