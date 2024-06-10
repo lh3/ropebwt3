@@ -40,7 +40,7 @@ exact matches of a query sequence against the BWT. It is optimized for
 repetitive sequences such as a pangenome or sequence reads at high coverage. It
 can incrementally add new sequences to an existing BWT and is one of the few
 methods that can construct the double-strand BWT of 100 human genomes using
-reasonable resources (see [Performance](perf) below).
+reasonable resources (see [Performance](#perf) below).
 
 Ropebwt3 has most of the functionality of [ropebwt2][rb2] but works better for
 long sequences such as chromsomes and assembled contigs. It additionally
@@ -82,7 +82,7 @@ performance, you need to choose an algorithm based on the input date types.
    ropebwt3 build -r -bo bwt.fmr reads.fq.gz
    ```
 
-5. Use [grlBWT][grlbwt], which is faster than ropebwt3 for large pangenomes:
+5. Use [grlBWT][grlbwt], which is [faster](#perf) than ropebwt3 for large pangenomes:
    ```sh
    ropebwt3 fa2line genome1.fa genome2.fa genomen.fa > all.txt
    grlbwt-cli all.txt -t 32 -T . -o bwt.grl
@@ -101,12 +101,12 @@ reducing the batch size via option `-m`.
 The peak memory for the `merge` command is
 $`B+\max\{B_1,\ldots,B_n\}+8\max\{L_1,\ldots,L_n\}`$, where $B$ is the final
 BWT size in run-length encoding, $`B_i`$ is the size of the $i$-th input BWT
-and $`L_i`$ is the number of symbols in the $i$-th BWT to be merged.
+to be merged and $`L_i`$ is the number of symbols in the $i$-th BWT.
 
 If you provide multiple files on a `build` command line, ropebwt3 internally
 will run `build` on each input file and then incrementally merge each
 individual BWT to the final BWT. The peak memory will be the higher one between
-`build` and `merge`.
+the `build` step and the `merge` step.
 
 ### <a name="format"></a>Binary BWT file formats
 
