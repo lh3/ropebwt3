@@ -18,7 +18,7 @@ gzip -d human100.fmr.gz  # decompress
 # Count super-maximal exact matches (no locations)
 echo CTCCAGTTGACACAAAATAGtCTACGAAAGTGGCTTTAACAT|./ropebwt3 match -L human100.fmd -l20 -
 
-# Retrieve chrM of CHM13
+# Retrieve chrM of CHM13. It is the 25th sequence during construction. 48=(25-1)*2
 ./ropebwt3 get human100.fmd 48 > CHM13-chrM.fa
 ```
 
@@ -118,7 +118,7 @@ faster to load, smaller in memory and can be memory-mapped. The two formats can
 be converted to each other.
 ```sh
 ropebwt3 build -i in.fmd -bo out.fmr
-ropebwt3 build -i in.fmr -bo out.fmd
+ropebwt3 build -i in.fmr -do out.fmd
 ```
 It is recommended to use FMR for BWT construction. You may convert FMR to FMD
 at the end for matching.
@@ -127,7 +127,7 @@ at the end for matching.
 
 A maximal exact match (MEM) is an exact alignment between the index and a query
 that cannot be extended in either direction. A super MEM (SMEM) is a MEM that
-is not contained in any other MEM. You can find SMEM of a query if your BWT is
+is not contained in any other MEM. You can find the SMEMs of a query if your BWT is
 constructed from both strands of sequences.
 ```sh
 ropebwt3 match bwt.fmd query.fa > matches.bed
@@ -169,7 +169,7 @@ were evaluated:
 |CPU time (h)     |    792.6|    757.2|  29.6|>15.7 (unfinished)|
 |Peak memory (GB) |    114.2|     70.7|  84.8|>300 (out-of-memory)|
 
-grlBWT is clearly the winner for BWT construction and it also works for non-DNA
+**grlBWT is clearly the winner for BWT construction** and it also works for non-DNA
 alphabet. Ropebwt3 has acceptable performance and its support of incremental
 build may be helpful for large datasets.
 
