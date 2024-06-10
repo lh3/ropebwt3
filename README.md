@@ -40,7 +40,8 @@ exact matches of a query sequence against the BWT. It is optimized for
 repetitive sequences such as a pangenome or sequence reads at high coverage. It
 can incrementally add new sequences to an existing BWT and is one of the few
 methods that can construct the double-strand BWT of 100 human genomes using
-reasonable resources (see [Performance](#perf) below).
+reasonable resources (see [Performance](#perf) below). This BWT can be
+downloaded [from Zenodo][zenodo].
 
 Ropebwt3 has most of the functionality of [ropebwt2][rb2] but works better for
 long sequences such as chromsomes and assembled contigs. It additionally
@@ -188,3 +189,4 @@ build may be helpful for large datasets.
 [bigbwt]: https://gitlab.com/manzai/Big-BWT
 [fm2]: https://github.com/lh3/fermi2
 [rb2]: https://github.com/lh3/ropebwt2
+[zenodo]: https://zenodo.org/records/11533211
