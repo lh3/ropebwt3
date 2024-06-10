@@ -31,6 +31,7 @@ echo CTCCAGTTGACACAAAATAGtCTACGAAAGTGGCTTTAACAT | ./ropebwt3 match -L human100.f
   - [Binary BWT formats](#format)
   - [Counting exact matches](#match)
 - [For developers](#dev)
+- [Algorithms](#algo)
 - [Performance](#perf)
 - [Limitations](#limit)
 
@@ -193,6 +194,28 @@ int main(int argc, char *argv[]) {
 }
 ```
 
+## <a name="algo"></a>Algorithms
+
+Ropebwt3 effectively appends a distinct sentinel to each string in the string
+set such that we never need to compare suffixes beyond sentinels. This is an
+essential assumption behind ropebwt3. Ropebwt3 would become much slower if you
+concatenate all strings without sentinels.
+
+Like ropebwt2, ropebwt3 uses a B+-tree to store a run-length encoded BWT.
+It can either insert sequences or merge BWTs into the B+-tree. The sequence
+insertion algorithm is identical to ropebwt2. Please see [its paper][rb2-paper]
+for details.
+
+BWT merging can be done in several equivalent ways and has been
+described in multiple papers. More exactly in ropebwt3, suppose we want to
+append the $`i_0`$ sequence in BWT $`B'`$ into $`B`$. We start with $`k\gets
+C({\rm A})`$ and $`i\gets i_0`$, calculate the position of $`B'[i]`$ in the
+final merged BWT with $`{\rm rank}(B'[i],k)+{\rm rank}'(B'[i],i)`$ and update
+$k$ and $i$ by $`k\gets C(B'[i])+{\rm rank}(B'[i],k)`$ and $`i\gets
+C'(B'[i])+{\rm rank}'(B'[i],i)`$ until $`B'[i]`$ is a seninel. When we have the
+final position of each symbol $`B'[i]`$, we insert them into $B$ to generate
+the merged BWT.
+
 ## <a name="perf"></a>Performance
 
 The following table shows the time to construct the BWT for 100 human haplotype
@@ -242,3 +265,4 @@ build may be helpful for large datasets.
 [fm2]: https://github.com/lh3/fermi2
 [rb2]: https://github.com/lh3/ropebwt2
 [zenodo]: https://zenodo.org/records/11533211
+[rb2-paper]: https://academic.oup.com/bioinformatics/article/30/22/3274/2391324
