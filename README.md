@@ -86,7 +86,7 @@ performance, you need to choose an algorithm based on the input date types.
    ```sh
    ropebwt3 fa2line genome1.fa genome2.fa genomen.fa > all.txt
    grlbwt-cli all.txt -t 32 -T . -o bwt.grl
-   grl2plain bwt.grl bwt.txt
+   grl2plain bwt.rl_bwt bwt.txt
    ropebwt3 plain2fmd -o bwt.fmd bwt.txt
    ```
 
@@ -94,7 +94,7 @@ These command lines construct a BWT for both strands of the input sequences.
 You can skip the reverse strand by adding option `-R`.
 
 When you use the `build` command for one genome, the peak memory by default is
-$B+`17\cdot\min\{2S,7{\rm g}\}`$ where $S$ is the input file size and $B$ is
+$`B+17\cdot\min\{2S,7{\rm g}\}`$ where $S$ is the input file size and $B$ is
 the final BWT size in run-length encoding. You can reduce the peak memory by
 reducing the batch size via option `-m`.
 
