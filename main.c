@@ -5,7 +5,7 @@
 #include "io.h"
 #include "ketopt.h"
 
-#define RB3_VERSION "3.0pre-r47"
+#define RB3_VERSION "3.0pre-r52"
 
 int main_build(int argc, char *argv[]);
 int main_merge(int argc, char *argv[]);
@@ -65,6 +65,7 @@ int main_merge(int argc, char *argv[])
 {
 	int32_t c, i, n_threads = 1;
 	ketopt_t o = KETOPT_INIT;
+	rb3_fmi_t fmi;
 	mrope_t *r;
 	char *fn_tmp = 0;
 
@@ -82,7 +83,8 @@ int main_merge(int argc, char *argv[])
 		return 1;
 	}
 
-	r = mr_restore_file(argv[o.ind]);
+	rb3_fmi_restore(&fmi, argv[o.ind]);
+	r = fmi.is_fmd? rb3_enc_fmd2fmr(fmi.e, 0, 0, 1) : fmi.r;
 	if (r == 0) {
 		if (rb3_verbose >= 1)
 			fprintf(stderr, "ERROR: failed to load FMR file '%s'\n", argv[o.ind]);
