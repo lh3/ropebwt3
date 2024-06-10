@@ -10,12 +10,12 @@ echo -e 'AGG\nAGC' | ./ropebwt3 build -LR -
 echo TGAACTCTACACAACATATTTTGTCACCAAG | ./ropebwt3 build -Lbo idx.fmr -
 echo ACTCTACACAAgATATTTTGTC | ./ropebwt3 match -Ll10 idx.fmr -
 
-# Acquire the BWT of a human pangenome
+# Download the BWT of a human pangenome consisting of 100 haplotypes on both strands
 wget -O human100.fmr.gz https://zenodo.org/records/11533211/files/human100.fmr.gz?download=1
 gzip -d human100.fmr.gz  # decompress
 ./ropebwt build -i human100.fmr -do human100.fmd  # not required but recommended
 
-# Count super-maximal exact matches (no locations)
+# Count super-maximal exact matches (no contig positions)
 echo CTCCAGTTGACACAAAATAGtCTACGAAAGTGGCTTTAACAT | ./ropebwt3 match -L human100.fmd -l20 -
 
 # Retrieve chrM of CHM13. It is the 25th sequence during construction. 48=(25-1)*2
@@ -146,7 +146,7 @@ ropebwt3 suffix bwt.fmd query.fa > suffixes.bed
 ## <a name="perf"></a>Performance
 
 The following table shows the time to construct the BWT for 100 human haplotype
-assemblies on both strands (~600 Gbp sequences in input). The following methods
+assemblies on both strands (~600 billion characters in input). The following methods
 were evaluated:
 
 * `rb3 build`: construct BWT from input FASTA files with `ropebwt3 build`. This
@@ -183,6 +183,8 @@ build may be helpful for large datasets.
 
 * The "merge" command can be accelerated by 10-30% with a more efficient data
   structure but grlBWT will be faster anyway.
+
+* The "match" and "kount" commands can be parallelized.
 
 [grlbwt]: https://github.com/ddiazdom/grlBWT
 [movi]: https://github.com/mohsenzakeri/Movi

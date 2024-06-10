@@ -5,13 +5,14 @@
 #include "io.h"
 #include "ketopt.h"
 
-#define RB3_VERSION "3.0pre-r55"
+#define RB3_VERSION "3.0pre-r60"
 
 int main_build(int argc, char *argv[]);
 int main_merge(int argc, char *argv[]);
 int main_get(int argc, char *argv[]);
 int main_suffix(int argc, char *argv[]);
 int main_match(int argc, char *argv[]);
+int main_kount(int argc, char *argv[]);
 int main_fa2line(int argc, char *argv[]);
 int main_plain2fmd(int argc, char *argv[]);
 
@@ -24,6 +25,7 @@ static int usage(FILE *fp)
 	fprintf(fp, "  match      find supermaximal exact matches (requring both strands)\n");
 	fprintf(fp, "  suffix     find the longest matching suffix (aka backward search)\n");
 	fprintf(fp, "  get        retrieve the i-th sequence from BWT\n");
+	fprintf(fp, "  kount      count (high-occurrence) k-mers\n");
 	fprintf(fp, "  fa2line    convert FASTX to lines\n");
 	fprintf(fp, "  plain2fmd  convert BWT in plain text to FMD\n");
 	fprintf(fp, "  version    print the version number\n");
@@ -40,6 +42,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "match") == 0) ret = main_match(argc-1, argv+1);
 	else if (strcmp(argv[1], "suffix") == 0) ret = main_suffix(argc-1, argv+1);
 	else if (strcmp(argv[1], "get") == 0) ret = main_get(argc-1, argv+1);
+	else if (strcmp(argv[1], "kount") == 0) ret = main_kount(argc-1, argv+1);
 	else if (strcmp(argv[1], "fa2line") == 0) ret = main_fa2line(argc-1, argv+1);
 	else if (strcmp(argv[1], "plain2fmd") == 0) ret = main_plain2fmd(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
@@ -325,5 +328,97 @@ int main_plain2fmd(int argc, char *argv[])
 	}
 	rld_enc_finish(e, &ei);
 	rld_dump(e, "-");
+	return 0;
+}
+
+typedef struct {
+	int64_t k, l;
+	int d, c;
+} count_pair64_t;
+
+typedef struct {
+	rb3_fmi_t fmi;
+	uint64_t s_top;
+	count_pair64_t *stack;
+	int64_t ok[6], ol[6];
+	count_pair64_t top;
+} count_aux_t;
+
+int main_kount(int argc, char *argv[])
+{
+	int c, min_occ = 100, depth = 51, i, n = 0;
+	count_pair64_t *p;
+	count_aux_t *aux;
+	char *str;
+	kstring_t out = {0,0,0};
+	ketopt_t o = KETOPT_INIT;
+
+	while ((c = ketopt(&o, argc, argv, 1, "k:m:", 0)) >= 0) {
+		if (c == 'k') depth = atol(o.arg);
+		else if (c == 'm') min_occ = atol(o.arg);
+	}
+	if (o.ind == argc) {
+		fprintf(stderr, "Usage: ropebwt3 kount [options] <in1.fmd> [in2.fmd [...]]\n");
+		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -k INT       k-mer length [%d]\n", depth);
+		fprintf(stderr, "  -m INT       min k-mer occurrence [%d]\n", min_occ);
+		return 1;
+	}
+
+	n = argc - o.ind;
+	aux = RB3_CALLOC(count_aux_t, n);
+	for (i = 0; i < n; ++i) {
+		count_aux_t *q = &aux[i];
+		rb3_fmi_restore(&q->fmi, argv[o.ind + i]);
+		if (q->fmi.e == 0 && q->fmi.r == 0) {
+			if (rb3_verbose >= 1)
+				fprintf(stderr, "ERROR: failed to load index '%s'\n", argv[o.ind + i]);
+			return 1; // FIXME: potential memory leak
+		}
+		q->stack = RB3_CALLOC(count_pair64_t, (depth + 1) * 4);
+		p = &q->stack[q->s_top++];
+		p->k = 0, p->l = q->fmi.acc[RB3_ASIZE], p->d = p->c = 0;
+	}
+	str = RB3_CALLOC(char, depth + 1);
+	str[depth] = 0;
+	while (1) {
+		int a;
+		for (i = 0; i < n; ++i) {
+			if (aux[i].s_top == 0) break;
+			aux[i].top = aux[i].stack[--aux[i].s_top];
+		}
+		if (i < n) break;
+		if (aux->top.d > 0) str[depth - aux->top.d] = "$ACGTN"[aux->top.c];
+		for (i = 0; i < n; ++i)
+			rb3_fmi_rank2a(&aux[i].fmi, aux[i].top.k, aux[i].top.l, aux[i].ok, aux[i].ol);
+		for (a = 1; a <= 4; ++a) {
+			for (i = 0; i < n; ++i)
+				if (aux[i].ol[a] - aux[i].ok[a] >= min_occ) break;
+			if (i == n) continue;
+			str[depth - aux->top.d - 1] = "$ACGTN"[a];
+			if (aux->top.d != depth - 1) {
+				for (i = 0; i < n; ++i) {
+					count_aux_t *q = &aux[i];
+					p = &q->stack[q->s_top++];
+					p->k = q->fmi.acc[a] + q->ok[a];
+					p->l = q->fmi.acc[a] + q->ol[a];
+					p->d = aux->top.d + 1;
+					p->c = a;
+				}
+			} else {
+				out.l = 0;
+				rb3_sprintf_lite(&out, "%s", str);
+				for (i = 0; i < n; ++i)
+					rb3_sprintf_lite(&out, "\t%ld", (long)(aux[i].ol[a] - aux[i].ok[a]));
+				puts(out.s);
+			}
+		}
+	}
+	free(str);
+	for (i = 0; i < n; ++i) {
+		free(aux[i].stack);
+		rb3_fmi_destroy(&aux[i].fmi);
+	}
+	free(aux);
 	return 0;
 }
