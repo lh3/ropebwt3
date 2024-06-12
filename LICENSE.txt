@@ -25,4 +25,4 @@ SOFTWARE.
 
 
 Ropebwt3 includes libsais, which is developed by Ilya Grebnov and
-distributed under the Apache License 2.0.
+distributed under Apache License 2.0.
