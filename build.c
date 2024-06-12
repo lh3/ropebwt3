@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <unistd.h>
 #include "rb3priv.h"
 #include "fm-index.h"
 #include "io.h"
@@ -27,7 +28,7 @@ typedef struct {
 void rb3_bopt_init(rb3_bopt_t *opt)
 {
 	memset(opt, 0, sizeof(*opt));
-	opt->n_threads = 1;
+	opt->n_threads = 4;
 	opt->fmt = RB3_PLAIN;
 	opt->block_len = ROPE_DEF_BLOCK_LEN;
 	opt->max_nodes = ROPE_DEF_MAX_NODES;
@@ -66,7 +67,7 @@ int main_build(int argc, char *argv[])
 {
 	rb3_bopt_t opt;
 	kstring_t seq = {0,0,0};
-	int32_t c, i;
+	int32_t c, i, from_stdin = 0;
 	ketopt_t o = KETOPT_INIT;
 	mrope_t *r = 0;
 	char *fn_in = 0, *fn_tmp = 0;
@@ -94,7 +95,9 @@ int main_build(int argc, char *argv[])
 		else if (c == 'T') opt.fmt = RB3_TREE;
 		else if (c == 'S') fn_tmp = o.arg;
 	}
-	if (argc == o.ind && fn_in == 0) return usage_build(stderr, &opt);
+	from_stdin = !isatty(fileno(stdin));
+	if (argc == o.ind && fn_in == 0 && !from_stdin)
+		return usage_build(stderr, &opt);
 
 	if (fn_in) {
 		rb3_fmi_t fmi;
@@ -110,10 +113,11 @@ int main_build(int argc, char *argv[])
 			fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the index from file '%s'\n", __func__, rb3_realtime(), rb3_percent_cpu(), fn_in);
 	}
 
-	for (i = o.ind; i < argc; ++i) {
+	for (i = from_stdin? o.ind - 1 : o.ind; i < argc; ++i) {
 		rb3_seqio_t *fp;
 		int64_t n_seq = 0;
-		fp = rb3_seq_open(argv[i], !!(opt.flag&RB3_BF_LINE));
+		const char *fn = i < o.ind? "-" : argv[i];
+		fp = rb3_seq_open(fn, !!(opt.flag&RB3_BF_LINE));
 		if (fp == 0) {
 			if (rb3_verbose >= 1)
 				fprintf(stderr, "ERROR: failed to open file '%s'\n", argv[i]);
