@@ -3,7 +3,7 @@ CFLAGS=		-g -Wall -Wc++-compat -O3
 CPPFLAGS=
 INCLUDES=
 OBJS=		libsais.o libsais64.o kalloc.o sys.o kthread.o io.o rld0.o rle.o rope.o mrope.o \
-			fm-index.o sais-ss.o build.o
+			fm-index.o sais-ss.o build.o match.o
 PROG=		ropebwt3
 LIBS=		-lpthread -lz -lm
 
