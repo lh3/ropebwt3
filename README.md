@@ -266,8 +266,6 @@ build may be helpful for large datasets.
 * The "merge" command can be accelerated by 10-30% with a more efficient data
   structure but grlBWT will be faster anyway.
 
-* The "match" and "kount" commands can be parallelized.
-
 [grlbwt]: https://github.com/ddiazdom/grlBWT
 [movi]: https://github.com/mohsenzakeri/Movi
 [bigbwt]: https://gitlab.com/manzai/Big-BWT
