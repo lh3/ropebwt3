@@ -119,6 +119,8 @@ static void *worker_pipeline(void *shared, int step, void *in)
 		}
 		free(out.s);
 		free(t->seq);
+		if (rb3_verbose >= 3)
+			fprintf(stderr, "[M::%s::%.3f*%.2f] processed %d sequences\n", __func__, rb3_realtime(), rb3_percent_cpu(), t->n_seq);
 		free(t);
 	}
 	return 0;
@@ -126,19 +128,20 @@ static void *worker_pipeline(void *shared, int step, void *in)
 
 int main_match(int argc, char *argv[])
 {
-	int32_t c, j, is_line = 0;
+	int32_t c, j, is_line = 0, use_mmap = 0;
 	rb3_mopt_t opt;
 	pipeline_t p;
 	ketopt_t o = KETOPT_INIT;
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:M", 0)) >= 0) {
 		if (c == 'L') is_line = 1;
 		else if (c == 'l') opt.min_len = atol(o.arg);
 		else if (c == 'c') opt.min_occ = atol(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
 		else if (c == 'K') opt.batch_size = rb3_parse_num(o.arg);
+		else if (c == 'M') use_mmap = 1;
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stdout, "Usage: ropebwt3 match [options] <idx.fmr> <seq.fa> [...]\n");
@@ -146,11 +149,12 @@ int main_match(int argc, char *argv[])
 		fprintf(stderr, "  -l INT    min SMEM length [%ld]\n", (long)opt.min_len);
 		fprintf(stderr, "  -s INT    min interval size [%ld]\n", (long)opt.min_occ);
 		fprintf(stderr, "  -t INT    number of threads [%d]\n", opt.n_threads);
+		fprintf(stderr, "  -M        use mmap to load FMD\n");
 		fprintf(stderr, "  -L        one sequence per line in the input\n");
 		fprintf(stderr, "  -K NUM    query batch size [100m]\n");
 		return 0;
 	}
-	rb3_fmi_restore(&p.fmi, argv[o.ind]);
+	rb3_fmi_restore(&p.fmi, argv[o.ind], use_mmap);
 	if (p.fmi.e == 0 && p.fmi.r == 0) {
 		if (rb3_verbose >= 1)
 			fprintf(stderr, "ERROR: failed to load index file '%s'\n", argv[o.ind]);
@@ -161,6 +165,8 @@ int main_match(int argc, char *argv[])
 			fprintf(stderr, "ERROR: #A != #T or #C != $G\n");
 		return 1;
 	}
+		if (rb3_verbose >= 3)
+			fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the index\n", __func__, rb3_realtime(), rb3_percent_cpu());
 	for (j = o.ind + 1; j < argc; ++j) {
 		p.fp = rb3_seq_open(argv[j], is_line);
 		kt_pipeline(2, worker_pipeline, &p, 3);

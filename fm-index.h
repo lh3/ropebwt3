@@ -84,10 +84,10 @@ static inline void rb3_fmi_destroy(rb3_fmi_t *fmi)
 	else mr_destroy(fmi->r);
 }
 
-static inline void rb3_fmi_restore(rb3_fmi_t *fmi, const char *fn)
+static inline void rb3_fmi_restore(rb3_fmi_t *fmi, const char *fn, int use_mmap)
 {
 	fmi->r = 0, fmi->e = 0;
-	fmi->e = rld_restore(fn);
+	fmi->e = use_mmap? rld_restore_mmap(fn) : rld_restore(fn);
 	if (fmi->e == 0) {
 		fmi->r = mr_restore_file(fn);
 		fmi->is_fmd = 0;

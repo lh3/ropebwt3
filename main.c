@@ -5,7 +5,7 @@
 #include "io.h"
 #include "ketopt.h"
 
-#define RB3_VERSION "3.0-r69-dirty"
+#define RB3_VERSION "3.0-r70-dirty"
 
 int main_build(int argc, char *argv[]);
 int main_merge(int argc, char *argv[]);
@@ -86,7 +86,7 @@ int main_merge(int argc, char *argv[])
 		return 1;
 	}
 
-	rb3_fmi_restore(&fmi, argv[o.ind]);
+	rb3_fmi_restore(&fmi, argv[o.ind], 0);
 	r = fmi.is_fmd? rb3_enc_fmd2fmr(fmi.e, 0, 0, 1) : fmi.r;
 	if (r == 0) {
 		if (rb3_verbose >= 1)
@@ -95,7 +95,7 @@ int main_merge(int argc, char *argv[])
 	}
 	for (i = o.ind + 1; i < argc; ++i) {
 		rb3_fmi_t fb;
-		rb3_fmi_restore(&fb, argv[i]);
+		rb3_fmi_restore(&fb, argv[i], 0);
 		if (fb.e == 0 && fb.r == 0) {
 			if (rb3_verbose >= 1)
 				fprintf(stderr, "ERROR: failed to load FMR/FMD file '%s'\n", argv[i]);
@@ -127,7 +127,7 @@ int main_get(int argc, char *argv[])
 		fprintf(stdout, "Usage: ropebwt3 get <idx.fmr> <int> [...]\n");
 		return 0;
 	}
-	rb3_fmi_restore(&fmi, argv[o.ind]);
+	rb3_fmi_restore(&fmi, argv[o.ind], 0);
 	if (fmi.e == 0 && fmi.r == 0) {
 		if (rb3_verbose >= 1)
 			fprintf(stderr, "ERROR: failed to load index file '%s'\n", argv[o.ind]);
@@ -164,7 +164,7 @@ int main_suffix(int argc, char *argv[])
 		fprintf(stderr, "  -L        one sequence per line in the input\n");
 		return 0;
 	}
-	rb3_fmi_restore(&fmi, argv[o.ind]);
+	rb3_fmi_restore(&fmi, argv[o.ind], 0);
 	if (fmi.e == 0 && fmi.r == 0) {
 		if (rb3_verbose >= 1)
 			fprintf(stderr, "ERROR: failed to load index file '%s'\n", argv[o.ind]);
@@ -307,7 +307,7 @@ int main_kount(int argc, char *argv[])
 	aux = RB3_CALLOC(count_aux_t, n);
 	for (i = 0; i < n; ++i) {
 		count_aux_t *q = &aux[i];
-		rb3_fmi_restore(&q->fmi, argv[o.ind + i]);
+		rb3_fmi_restore(&q->fmi, argv[o.ind + i], 0);
 		if (q->fmi.e == 0 && q->fmi.r == 0) {
 			if (rb3_verbose >= 1)
 				fprintf(stderr, "ERROR: failed to load index '%s'\n", argv[o.ind + i]);

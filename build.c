@@ -101,7 +101,7 @@ int main_build(int argc, char *argv[])
 
 	if (fn_in) {
 		rb3_fmi_t fmi;
-		rb3_fmi_restore(&fmi, fn_in);
+		rb3_fmi_restore(&fmi, fn_in, 0);
 		if (fmi.e == 0 && fmi.r == 0) {
 			if (rb3_verbose >= 1)
 				fprintf(stderr, "ERROR: failed to open index file '%s'\n", fn_in);
