@@ -67,7 +67,7 @@ mrope_t *rb3_enc_fmd2fmr(rld_t *e, int max_nodes, int block_len, int is_free)
 	memset(&cache, 0, sizeof(rpcache_t));
 
 	rld_itr_init(e, &itr, 0);
-	a = 0, off = 0;
+	a = 0, off = 0, c = -1;
 	while ((l = rld_dec(e, &itr, &c, is_free)) > 0) {
 		while (l > 0 && off + l > e->cnt[a+1] && off <= e->cnt[a+1]) {
 			int64_t t = e->cnt[a+1] - off;

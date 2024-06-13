@@ -117,6 +117,8 @@ int main_build(int argc, char *argv[])
 		rb3_seqio_t *fp;
 		int64_t n_seq = 0;
 		const char *fn = i < o.ind? "-" : argv[i];
+		if (from_stdin && i >= o.ind && strcmp(fn, "-") == 0)
+			continue;
 		fp = rb3_seq_open(fn, !!(opt.flag&RB3_BF_LINE));
 		if (fp == 0) {
 			if (rb3_verbose >= 1)

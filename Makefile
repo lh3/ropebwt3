@@ -46,6 +46,8 @@ kthread.o: kthread.h
 libsais.o: libsais.h
 libsais64.o: libsais.h libsais64.h
 main.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h io.h ketopt.h
+match.o: fm-index.h rb3priv.h rld0.h mrope.h rope.h io.h ketopt.h kthread.h
+match.o: kalloc.h
 mrope.o: mrope.h rope.h rle.h
 rld0.o: rld0.h
 rle.o: rle.h

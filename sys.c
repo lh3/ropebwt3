@@ -15,6 +15,16 @@ int64_t rb3_parse_num(const char *str)
 	return (int64_t)(x + .499);
 }
 
+char *rb3_strdup(const char *src)
+{
+	int32_t len;
+	char *dst;
+	len = strlen(src);
+	dst = (char*)malloc(len + 1);
+	memcpy(dst, src, len + 1);
+	return dst;
+}
+
 #if defined(WIN32) || defined(_WIN32)
 #include <windows.h>
 
