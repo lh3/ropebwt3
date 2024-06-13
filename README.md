@@ -242,15 +242,15 @@ were evaluated:
   input FASTA files and convert them to the one-sequence-per-line format with
   `ropebwt3 fa2line`. Conversion time is not counted.
 
-* `pfp-thresholds`: launched via the [Movi][movi] indexing script. The
-  `newscanNT.x` step (from [Big-BWT][bigbwt]) finished in 15.9 hours but the
-  `pfp-thresholds` command failed apparently due to insufficient memory.
+* `pfp-thresholds`: launched via the [Movi][movi] indexing script. It was run
+  on a slower machine with more RAM. The time for `prepare_ref` is not counted,
+  either.
 
 |                 |rb3 bulid|rb3 merge|grlBWT|pfp-thresholds|
 |:----------------|--------:|--------:|-----:|:-------------|
-|Elaspsed time (h)|     49.2|     24.2|   8.3|>15.9 (unfinished)|
-|CPU time (h)     |    792.6|    757.2|  29.6|>15.7 (unfinished)|
-|Peak memory (GB) |    114.2|     70.7|  84.8|>300 (out-of-memory)|
+|Elaspsed time (h)|     49.2|     24.2|   8.3| 51.7 |
+|CPU time (h)     |    792.6|    757.2|  29.6| 51.5 |
+|Peak memory (GB) |    114.2|     70.7|  84.8| 788.1 |
 
 **grlBWT is clearly the winner for BWT construction** and it also works for non-DNA
 alphabet. Ropebwt3 has acceptable performance and its support of incremental
