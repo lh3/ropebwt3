@@ -50,7 +50,7 @@ int64_t rb3_parse_num(const char *str);
 char *rb3_strdup(const char *src);
 
 // in sais-ss.c
-void rb3_build_sais(int64_t n_seq, int64_t len, char *seq, int n_threads, int force64);
+void rb3_build_sais(int64_t n_seq, int64_t len, char *seq, int n_threads);
 
 #ifdef __cplusplus
 }
