@@ -41,6 +41,7 @@ void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb);
 int64_t rb3_fmi_retrieve(const rb3_fmi_t *f, int64_t k, kstring_t *s);
 void rb3_fmd_extend(const rb3_fmi_t *f, const rb3_sai_t *ik, rb3_sai_t ok[RB3_ASIZE], int is_back);
 int64_t rb3_fmd_smem(void *km, const rb3_fmi_t *f, int64_t len, const uint8_t *q, rb3_sai_v *mem, int64_t min_occ, int64_t min_len);
+int64_t rb3_fmd_gmem(void *km, const rb3_fmi_t *f, int64_t len, const uint8_t *q, rb3_sai_v *mem, int64_t min_occ, int64_t min_len);
 
 static inline int rb3_comp(int c)
 {

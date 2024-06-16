@@ -29,9 +29,11 @@ echo CTCCAGTTGACACAAAATAGtCTACGAAAGTGGCTTTAACAT | ./ropebwt3 match -L human100.f
 - [Usage](#use)
   - [Constructing a BWT](#build)
   - [Binary BWT formats](#format)
-  - [Counting exact matches](#match)
+  - [Counting maximal exact matches](#match)
 - [For developers](#dev)
 - [Algorithms](#algo)
+  - [BWT construction](#algo-build)
+  - [Matching](#algo-match)
 - [Performance](#perf)
 - [Limitations](#limit)
 
@@ -101,9 +103,11 @@ These command lines construct a BWT for both strands of the input sequences.
 You can skip the reverse strand by adding option `-R`.
 
 When you use the `build` command for one genome, the peak memory by default is
-$`B+17\cdot\min\{2S,7{\rm g}\}`$ where $S$ is the input file size and $B$ is
-the final BWT size in run-length encoding. You can reduce the peak memory by
-reducing the batch size via option `-m`.
+$`B+11\cdot\min\{2S,7{\rm g}\}`$ where $S$ is the input file size and $B$ is
+the final BWT size in run-length encoding. If you have more than 65536
+sequences in a batch, factor 11 will be increased to 17 due to the use of a
+different algorithm. You can reduce the peak memory by reducing the batch size
+via option `-m`.
 
 The peak memory for the `merge` command is
 $`B+\max\{B_1,\ldots,B_n\}+8\max\{L_1,\ldots,L_n\}`$, where $B$ is the final
@@ -130,18 +134,24 @@ ropebwt3 build -i in.fmd -bo out.fmr
 ropebwt3 build -i in.fmr -do out.fmd
 ```
 
-### <a name="match"></a>Counting exact matches
+### <a name="match"></a>Counting maximal exact matches
 
 A maximal exact match (MEM) is an exact alignment between the index and a query
 that cannot be extended in either direction. A super MEM (SMEM) is a MEM that
-is not contained in any other MEM. You can find the SMEMs of a query if your BWT is
-constructed from both strands of sequences.
+is not contained in any other MEM on the query sequence. You can find the SMEMs
+of a query **provided that your BWT is constructed from both strands of sequences**.
 ```sh
-ropebwt3 match bwt.fmd query.fa > matches.bed
+ropebwt3 match -t4 bwt.fmd query.fa > matches.bed
 ```
 In the output, the first three columns give the query sequence name, start and
 end of a match and the fourth column gives the number of hits. As of now,
 **ropebwt3 does not report the locations of matches**.
+
+If searching for SMEMs is slow, you may add option `-g` to look for greedy MEMs
+which are found by a forward search followed by a backward search from the
+furthest forward search. Similar to SMEMs, greedy MEMs are MEMs and are not
+contained in each other on the query sequence. However, greedy MEMs are not
+always SMEMs. They are approximate.
 
 If the BWT only contains one strand, you can use the `suffix` command to find
 the longest matching suffix of a query sequence:
@@ -200,6 +210,8 @@ int main(int argc, char *argv[]) {
 
 ## <a name="algo"></a>Algorithms
 
+### <a name="algo-build"></a>BWT construction
+
 Ropebwt3 effectively appends a distinct sentinel to each string in the string
 set such that we never need to compare suffixes beyond sentinels. This is an
 essential assumption behind ropebwt3. Ropebwt3 would become much slower if you
@@ -224,6 +236,13 @@ k\gets C(B'[i])+{\rm rank}(B'[i],k),\, i\gets C'(B'[i])+{\rm rank}'(B'[i],i)
 ```
 until $`B'[i]`$ is a seninel. When we have the final position of each symbol
 $`B'[i]`$, we insert them into $B$ to generate the merged BWT.
+
+### <a name="algo-match"></a>Matching
+
+A classical BWT only supports backward search but if a BWT contains both
+strands of DNA sequences, it will support both forward and backward searches.
+And with search in both directions, it is possible to find SMEMs. Please see
+the [fermi paper][fm-paper] for details.
 
 ## <a name="perf"></a>Performance
 
@@ -273,3 +292,4 @@ build may be helpful for large datasets.
 [rb2]: https://github.com/lh3/ropebwt2
 [zenodo]: https://zenodo.org/records/11533211
 [rb2-paper]: https://academic.oup.com/bioinformatics/article/30/22/3274/2391324
+[fm-paper]: https://academic.oup.com/bioinformatics/article/28/14/1838/218887
