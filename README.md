@@ -231,11 +231,11 @@ The following table shows the time to construct the BWT for 100 human haplotype
 assemblies on both strands (~600 billion characters in input). The following methods
 were evaluated:
 
-* `rb3 build`: construct BWT from input FASTA files with `ropebwt3 build`. This
+* `rb3 build`: construct BWT from input FASTA files with `ropebwt3 build -t48`. This
   is the only method here that does not use working disk space.
 
 * `rb3 merge`: merge 100 BWTs constructed from 100 FASTA files, respectively.
-  Constructing the BWT for one human genome takes 10-12 minutes, which is not
+  Constructing the BWT for one human genome takes around 10 minutes, which is not
   counted in the table.
 
 * `grlBWT`: construct BWT using [grlBWT][grlbwt]. We need to concatenate all
@@ -248,9 +248,9 @@ were evaluated:
 
 |                 |rb3 bulid|rb3 merge|grlBWT|pfp-thresholds|
 |:----------------|--------:|--------:|-----:|-------------:|
-|Elaspsed time (h)|     49.2|     24.2|   8.3| 51.7 |
-|CPU time (h)     |    792.6|    757.2|  29.6| 51.5 |
-|Peak memory (GB) |    114.2|     70.7|  84.8| 788.1 |
+|Elaspsed time (h)|     33.7|     24.2|   8.3| 51.7 |
+|CPU time (h)     |    803.6|    757.2|  29.6| 51.5 |
+|Peak memory (GB) |     82.3|     70.7|  84.8| 788.1 |
 
 **grlBWT is clearly the winner for BWT construction** and it also works for non-DNA
 alphabet. Ropebwt3 has acceptable performance and its support of incremental
