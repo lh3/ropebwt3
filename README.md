@@ -43,7 +43,7 @@ Ropebwt3 constructs the BWT of a large DNA sequence set and finds super-maximal
 exact matches of a query sequence against the BWT. It is optimized for
 repetitive sequences such as a pangenome or sequence reads at high coverage. It
 can incrementally add new sequences to an existing BWT and is one of the few
-methods that can construct the double-strand BWT of 100 human genomes using
+methods that can construct the double-strand BWT of 100 human genomes or 315k *E. coli* genomes using
 reasonable resources (see [Performance](#perf) below). This BWT can be
 downloaded [from Zenodo][zenodo].
 
@@ -53,7 +53,7 @@ functionality in [fermi2][fm2] such as counting and matching.
 
 Ropebwt3 is mostly a research project I use to understand the performance of
 BWT construction. It may also be useful if you want to get the occurrence of a
-string of arbitrary length, or count long matches against a human pangenome.
+string of arbitrary length, or count long matches against a large pangenome.
 
 ## <a name="use"></a>Usage
 
@@ -83,7 +83,7 @@ performance, you need to choose an algorithm based on the input date types.
 
 3. For a set of small genomes, it is better to concatenate them together:
    ```sh
-   cat file1.fa file2.fa filen.fa | ropebwt3 build -t24 -bo bwt.fmr -
+   cat file1.fa file2.fa filen.fa | ropebwt3 build -t24 -m2g -bo bwt.fmr -
    ```
 
 4. For short reads, use the ropebwt2 algorithm and enable the RCLO sorting:
@@ -246,12 +246,24 @@ the [fermi paper][fm-paper] for details.
 
 ## <a name="perf"></a>Performance
 
-The following table shows the time to construct the BWT for 100 human haplotype
-assemblies on both strands (~600 billion characters in input). The following methods
-were evaluated:
+The following table shows the time to construct the BWT for two datasets: 100
+human genomes assembled with long reads and 315k *E. coli* genomes from
+[AllTheBacteria v0.2][atb02].
 
-* `rb3 build`: construct BWT from input FASTA files with `ropebwt3 build -t48`. This
-  is the only method here that does not use working disk space.
+|Dataset       | Metric          |rb3 bulid|rb3 merge|grlBWT|pfp-thresholds|
+|:-------------|:----------------|--------:|--------:|-----:|-------------:|
+|human100      |Elapsed time (h) |     33.7|     24.2|   8.3| 51.7 |
+|(600Gb/2/100) |CPU time (h)     |    803.6|    757.2|  29.6| 51.5 |
+|              |Peak memory (GB) |     82.3|     70.7|  84.8| 788.1 |
+|ecoli315k     |Elapsed time (h) |    128.7|
+|(3.2Tb/2/315k)|CPU time (h)     |   3826.8|
+|              |Peak memory (GB) |     20.5|
+
+For human100, the following methods were evaluated:
+
+* `rb3 build`: construct BWT from input FASTA files with `ropebwt3 build -t48`
+  (using up to 48 threads). This is the only method here that does not use
+  working disk space.
 
 * `rb3 merge`: merge 100 BWTs constructed from 100 FASTA files, respectively.
   Constructing the BWT for one human genome takes around 10 minutes, which is not
@@ -264,12 +276,6 @@ were evaluated:
 * `pfp-thresholds`: launched via the [Movi][movi] indexing script. It was run
   on a slower machine with more RAM. The time for `prepare_ref` is not counted,
   either.
-
-|                 |rb3 bulid|rb3 merge|grlBWT|pfp-thresholds|
-|:----------------|--------:|--------:|-----:|-------------:|
-|Elaspsed time (h)|     33.7|     24.2|   8.3| 51.7 |
-|CPU time (h)     |    803.6|    757.2|  29.6| 51.5 |
-|Peak memory (GB) |     82.3|     70.7|  84.8| 788.1 |
 
 **grlBWT is clearly the winner for BWT construction** and it also works for non-DNA
 alphabet. Ropebwt3 has acceptable performance and its support of incremental
@@ -293,3 +299,4 @@ build may be helpful for large datasets.
 [zenodo]: https://zenodo.org/records/11533211
 [rb2-paper]: https://academic.oup.com/bioinformatics/article/30/22/3274/2391324
 [fm-paper]: https://academic.oup.com/bioinformatics/article/28/14/1838/218887
+[atb02]: https://ftp.ebi.ac.uk/pub/databases/AllTheBacteria/Releases/0.2/
