@@ -248,18 +248,18 @@ the [fermi paper][fm-paper] for details.
 
 The following table shows the time to construct the BWT for two datasets: 100
 human genomes assembled with long reads and 315k *E. coli* genomes from
-[AllTheBacteria v0.2][atb02]. In the leftmost column in the table, the three
-numbers in parentheses indicates the number of symbols in the input, double
-stranded (thus 2) and the number of genomes.
+[AllTheBacteria v0.2][atb02]. In the leftmost column in the table, the numbers
+in parentheses indicates the number of symbols in the input multiplied by two
+strands.
 
-|Dataset         | Metric          |rb3 bulid|rb3 merge|grlBWT|pfp-thresholds|
-|:---------------|:----------------|--------:|--------:|-----:|-------------:|
-|human100        |Elapsed time (h) |     33.7|     24.2|   8.3| 51.7 |
-|(300Gb\*2; 100) |CPU time (h)     |    803.6|    757.2|  29.6| 51.5 |
-|                |Peak memory (GB) |     82.3|     70.7|  84.8| 788.1 |
-|ecoli315k       |Elapsed time (h) |    128.7|
-|(1.6Tb\*2; 315k)|CPU time (h)     |   3826.8|
-|                |Peak memory (GB) |     20.5|
+|Dataset   | Metric          |rb3 bulid|rb3 merge|grlBWT|pfp-thresholds|
+|:---------|:----------------|--------:|--------:|-----:|-------------:|
+|human100  |Elapsed time (h) |     33.7|     24.2|   8.3| 51.7 |
+|(300Gb\*2)|CPU time (h)     |    803.6|    757.2|  29.6| 51.5 |
+|          |Peak memory (GB) |     82.3|     70.7|  84.8| 788.1 |
+|ecoli315k |Elapsed time (h) |    128.7|
+|(1.6Tb\*2)|CPU time (h)     |   3826.8|
+|          |Peak memory (GB) |     20.5|
 
 For human100, the following methods were evaluated:
 
