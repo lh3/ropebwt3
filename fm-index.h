@@ -43,6 +43,8 @@ void rb3_fmd_extend(const rb3_fmi_t *f, const rb3_sai_t *ik, rb3_sai_t ok[RB3_AS
 int64_t rb3_fmd_smem(void *km, const rb3_fmi_t *f, int64_t len, const uint8_t *q, rb3_sai_v *mem, int64_t min_occ, int64_t min_len);
 int64_t rb3_fmd_gmem(void *km, const rb3_fmi_t *f, int64_t len, const uint8_t *q, rb3_sai_v *mem, int64_t min_occ, int64_t min_len);
 
+void rb3_bwa_sw(void *km, const rb3_fmi_t *f, int32_t len, const uint8_t *seq);
+
 static inline int rb3_comp(int c)
 {
 	return c >= 1 && c <= 4? 5 - c : c;

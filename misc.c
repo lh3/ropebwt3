@@ -148,3 +148,10 @@ double rb3_percent_cpu(void)
 {
 	return (rb3_cputime() + 1e-6) / (rb3_realtime() + 1e-6);
 }
+
+void rb3_init(void)
+{
+	extern void bwtl_init_cnt_table(void);
+	bwtl_init_cnt_table();
+	rb3_realtime();
+}

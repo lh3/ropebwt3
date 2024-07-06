@@ -35,7 +35,7 @@ static int usage(FILE *fp)
 int main(int argc, char *argv[])
 {
 	int ret = 0;
-	rb3_realtime();
+	rb3_init();
 	if (argc == 1) return usage(stdout);
 	else if (strcmp(argv[1], "build") == 0) ret = main_build(argc-1, argv+1);
 	else if (strcmp(argv[1], "merge") == 0) ret = main_merge(argc-1, argv+1);

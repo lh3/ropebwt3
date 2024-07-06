@@ -40,7 +40,9 @@ typedef struct __kstring_t {
 
 extern int rb3_verbose;
 
-// in sys.c
+// in misc.c
+void rb3_init(void);
+
 double rb3_cputime(void);
 double rb3_realtime(void);
 double rb3_percent_cpu(void);

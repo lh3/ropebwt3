@@ -6,7 +6,7 @@
 #include "kalloc.h"
 
 typedef struct {
-	int32_t n_threads, find_gmem;
+	int32_t n_threads, find_gmem:16, use_sw:16;
 	int64_t min_occ, min_len;
 	int64_t batch_size;
 } rb3_mopt_t;
@@ -52,15 +52,19 @@ static void worker_for(void *data, long i, int tid)
 	const pipeline_t *p = t->p;
 	m_seq_t *s = &t->seq[i];
 	m_tbuf_t *b = &t->buf[tid];
-	rb3_char2nt6(s->len, s->seq);
-	b->mem.n = 0;
-	if (p->opt->find_gmem)
-		rb3_fmd_gmem(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
-	else
-		rb3_fmd_smem(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
-	s->n_mem = b->mem.n;
-	s->mem = RB3_MALLOC(rb3_sai_t, s->n_mem);
-	memcpy(s->mem, b->mem.a, s->n_mem * sizeof(rb3_sai_t));
+	if (p->opt->use_sw) {
+		rb3_bwa_sw(b->km, &p->fmi, s->len, s->seq);
+	} else {
+		rb3_char2nt6(s->len, s->seq);
+		b->mem.n = 0;
+		if (p->opt->find_gmem)
+			rb3_fmd_gmem(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
+		else
+			rb3_fmd_smem(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
+		s->n_mem = b->mem.n;
+		s->mem = RB3_MALLOC(rb3_sai_t, s->n_mem);
+		memcpy(s->mem, b->mem.a, s->n_mem * sizeof(rb3_sai_t));
+	}
 }
 
 static void *worker_pipeline(void *shared, int step, void *in)
@@ -138,9 +142,10 @@ int main_match(int argc, char *argv[])
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:Mg", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:Mgd", 0)) >= 0) {
 		if (c == 'L') is_line = 1;
 		else if (c == 'g') opt.find_gmem = 1;
+		else if (c == 'd') opt.use_sw = 1;
 		else if (c == 'l') opt.min_len = atol(o.arg);
 		else if (c == 'c') opt.min_occ = atol(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
