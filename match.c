@@ -159,6 +159,7 @@ int main_match(int argc, char *argv[])
 		fprintf(stderr, "  -s INT    min interval size [%ld]\n", (long)opt.min_occ);
 		fprintf(stderr, "  -t INT    number of threads [%d]\n", opt.n_threads);
 		fprintf(stderr, "  -g        find greedy MEMs (faster but not always SMEMs)\n");
+		fprintf(stderr, "  -d        use the BWA-SW algorithm\n");
 		fprintf(stderr, "  -M        use mmap to load FMD\n");
 		fprintf(stderr, "  -L        one sequence per line in the input\n");
 		fprintf(stderr, "  -K NUM    query batch size [100m]\n");

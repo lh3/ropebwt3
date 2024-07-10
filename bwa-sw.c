@@ -42,6 +42,10 @@ bwtl_t *bwtl_gen(void *km, int len, const uint8_t *seq)
 	b = Kcalloc(km, bwtl_t, 1);
 	b->km = km;
 	b->seq_len = len;
+	b->bwt_size = (len + 15) / 16;
+	b->bwt = Kcalloc(km, uint32_t, b->bwt_size);
+	b->n_occ = (len + 15) / 16 * 4;
+	b->occ = Kcalloc(km, int32_t, b->n_occ);
 
 	{ // calculate b->bwt
 		uint8_t *s;
@@ -58,16 +62,12 @@ bwtl_t *bwtl_gen(void *km, int len, const uint8_t *seq)
 		}
 		kfree(km, s16);
 		for (i = b->primary; i < len; ++i) s[i] = s[i + 1];
-		b->bwt_size = (len + 15) / 16;
-		b->bwt = Kcalloc(km, uint32_t, b->bwt_size);
 		for (i = 0; i < len; ++i)
 			b->bwt[i>>4] |= s[i] << ((15 - (i&15)) << 1);
 		kfree(km, s);
 	}
 	{ // calculate b->occ
 		int32_t c[4];
-		b->n_occ = (len + 15) / 16 * 4;
-		b->occ = Kcalloc(km, int32_t, b->n_occ);
 		memset(c, 0, 16);
 		for (i = 0; i < len; ++i) {
 			if (i % 16 == 0)
@@ -112,7 +112,7 @@ void bwtl_destroy(bwtl_t *bwt)
  * BWA-SW *
  **********/
 
-sw_hash_t *rb3_sw_count_pre(void *km, const bwtl_t *bwt)
+static sw_hash_t *sw_count_pre(void *km, const bwtl_t *bwt)
 {
 	sw_hash_t *h;
 	uint32_t n = 0, m = 16;
@@ -148,7 +148,7 @@ sw_hash_t *rb3_sw_count_pre(void *km, const bwtl_t *bwt)
 	return h;
 }
 
-void rb3_sw_hash_print(const sw_hash_t *h)
+void sw_hash_print(const sw_hash_t *h)
 {
 	khint_t k;
 	kh_foreach(h, k) {
@@ -156,13 +156,50 @@ void rb3_sw_hash_print(const sw_hash_t *h)
 	}
 }
 
+static void sw_core(void *km, const rb3_fmi_t *f, const bwtl_t *q, sw_hash_t *h)
+{
+	uint32_t n = 0, m = 16;
+	uint64_t *a;
+	khint_t itr;
+
+	a = Kmalloc(km, uint64_t, m);
+	a[n++] = q->seq_len + 1;
+	while (n > 0) {
+		uint64_t x = a[--n];
+		int32_t k = x>>32, l = (int32_t)x;
+		int32_t rk[4], rl[4];
+		int c;
+		bwtl_rank2a(q, k, l, rk, rl);
+		//fprintf(stderr, "[%d,%d)\n", k, l);
+		for (c = 3; c >= 0; --c) {
+			uint64_t y, z;
+			int32_t tot, visited;
+			k = q->L2[c] + rk[c];
+			l = q->L2[c] + rl[c];
+			if (k == l) continue;
+			y = (uint64_t)k << 32 | l;
+			itr = sw_hash_get(h, y);
+			assert(itr != kh_end(h));
+			z = ++kh_val(h, itr);
+			tot = z>>32, visited = (int32_t)z;
+			assert(visited <= tot);
+			if (tot == visited) {
+				Kgrow(km, uint64_t, a, n, m);
+				a[n++] = y;
+			}
+		}
+	}
+	kfree(km, a);
+}
+
 void rb3_bwa_sw(void *km, const rb3_fmi_t *f, int len, const uint8_t *seq)
 {
 	bwtl_t *q;
 	sw_hash_t *h;
 	q = bwtl_gen(km, len, seq);
-	//h = rb3_sw_count_pre(km, q);
-	rb3_sw_hash_print(h);
+	h = sw_count_pre(km, q);
+	//sw_hash_print(h);
+	sw_core(km, f, q, h);
 	sw_hash_destroy(h);
 	bwtl_destroy(q);
 }
