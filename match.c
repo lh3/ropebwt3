@@ -9,6 +9,7 @@ typedef struct {
 	int32_t n_threads, find_gmem:16, use_sw:16;
 	int64_t min_occ, min_len;
 	int64_t batch_size;
+	rb3_swopt_t swo;
 } rb3_mopt_t;
 
 void rb3_mopt_init(rb3_mopt_t *opt)
@@ -17,6 +18,7 @@ void rb3_mopt_init(rb3_mopt_t *opt)
 	opt->n_threads = 4;
 	opt->min_occ = opt->min_len = 1;
 	opt->batch_size = 100000000;
+	rb3_swopt_init(&opt->swo);
 }
 
 typedef struct mp_tbuf_s {
@@ -53,7 +55,7 @@ static void worker_for(void *data, long i, int tid)
 	m_seq_t *s = &t->seq[i];
 	m_tbuf_t *b = &t->buf[tid];
 	if (p->opt->use_sw) {
-		rb3_bwa_sw(b->km, &p->fmi, s->len, s->seq);
+		rb3_sw(b->km, &p->opt->swo, &p->fmi, s->len, s->seq);
 	} else {
 		rb3_char2nt6(s->len, s->seq);
 		b->mem.n = 0;
@@ -155,14 +157,17 @@ int main_match(int argc, char *argv[])
 	if (argc - o.ind < 2) {
 		fprintf(stdout, "Usage: ropebwt3 match [options] <idx.fmr> <seq.fa> [...]\n");
 		fprintf(stderr, "Options:\n");
-		fprintf(stderr, "  -l INT    min SMEM length [%ld]\n", (long)opt.min_len);
-		fprintf(stderr, "  -s INT    min interval size [%ld]\n", (long)opt.min_occ);
-		fprintf(stderr, "  -t INT    number of threads [%d]\n", opt.n_threads);
-		fprintf(stderr, "  -g        find greedy MEMs (faster but not always SMEMs)\n");
-		fprintf(stderr, "  -d        use the BWA-SW algorithm\n");
-		fprintf(stderr, "  -M        use mmap to load FMD\n");
-		fprintf(stderr, "  -L        one sequence per line in the input\n");
-		fprintf(stderr, "  -K NUM    query batch size [100m]\n");
+		fprintf(stderr, "  Maximal exact matches:\n");
+		fprintf(stderr, "    -g        find greedy MEMs (faster but not always SMEMs)\n");
+		fprintf(stderr, "    -l INT    min MEM length [%ld]\n", (long)opt.min_len);
+		fprintf(stderr, "    -s INT    min interval size [%ld]\n", (long)opt.min_occ);
+		fprintf(stderr, "  BWA-SW:\n");
+		fprintf(stderr, "    -d        use the BWA-SW algorithm\n");
+		fprintf(stderr, "  Input/output:\n");
+		fprintf(stderr, "    -t INT    number of threads [%d]\n", opt.n_threads);
+		fprintf(stderr, "    -L        one sequence per line in the input\n");
+		fprintf(stderr, "    -K NUM    query batch size [100m]\n");
+		fprintf(stderr, "    -M        use mmap to load FMD\n");
 		return 0;
 	}
 	rb3_fmi_restore(&p.fmi, argv[o.ind], use_mmap);

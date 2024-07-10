@@ -112,6 +112,15 @@ void bwtl_destroy(bwtl_t *bwt)
  * BWA-SW *
  **********/
 
+void rb3_swopt_init(rb3_swopt_t *opt)
+{
+	memset(opt, 0, sizeof(*opt));
+	opt->sz = 5;
+	opt->min_sc = 30;
+	opt->match = 1, opt->mis = 3;
+	opt->gap_open = 5, opt->gap_ext = 2;
+}
+
 static sw_deg_t *sw_cal_deg(void *km, const bwtl_t *bwt)
 {
 	sw_deg_t *h;
@@ -193,7 +202,7 @@ static void sw_core(void *km, const rb3_fmi_t *f, const bwtl_t *q, sw_deg_t *h)
 	kfree(km, a);
 }
 
-void rb3_bwa_sw(void *km, const rb3_fmi_t *f, int len, const uint8_t *seq)
+void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const uint8_t *seq)
 {
 	bwtl_t *q;
 	sw_deg_t *h;

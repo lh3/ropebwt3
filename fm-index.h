@@ -28,6 +28,13 @@ typedef struct {
 	int64_t info;
 } rb3_sai_t;
 
+typedef struct {
+	int32_t sz;
+	int32_t min_sc;
+	int32_t match, mis;
+	int32_t gap_open, gap_ext;
+} rb3_swopt_t;
+
 typedef struct { size_t n, m; rb3_sai_t *a; } rb3_sai_v;
 
 rld_t *rb3_enc_plain2rld(int64_t len, const uint8_t *bwt, int cbits);
@@ -43,7 +50,8 @@ void rb3_fmd_extend(const rb3_fmi_t *f, const rb3_sai_t *ik, rb3_sai_t ok[RB3_AS
 int64_t rb3_fmd_smem(void *km, const rb3_fmi_t *f, int64_t len, const uint8_t *q, rb3_sai_v *mem, int64_t min_occ, int64_t min_len);
 int64_t rb3_fmd_gmem(void *km, const rb3_fmi_t *f, int64_t len, const uint8_t *q, rb3_sai_v *mem, int64_t min_occ, int64_t min_len);
 
-void rb3_bwa_sw(void *km, const rb3_fmi_t *f, int32_t len, const uint8_t *seq);
+void rb3_swopt_init(rb3_swopt_t *opt);
+void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const uint8_t *seq);
 
 static inline int rb3_comp(int c)
 {
