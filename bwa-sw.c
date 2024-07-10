@@ -6,7 +6,7 @@
 #include "fm-index.h"
 #include "kalloc.h"
 #include "khashl-km.h"
-KHASHL_MAP_INIT(KH_LOCAL, sw_hash_t, sw_hash, uint64_t, uint64_t, kh_hash_uint64, kh_eq_generic)
+KHASHL_MAP_INIT(KH_LOCAL, sw_deg_t, sw_deg, uint64_t, uint64_t, kh_hash_uint64, kh_eq_generic)
 
 /*******************
  * Lightweight BWT *
@@ -112,14 +112,14 @@ void bwtl_destroy(bwtl_t *bwt)
  * BWA-SW *
  **********/
 
-static sw_hash_t *sw_count_pre(void *km, const bwtl_t *bwt)
+static sw_deg_t *sw_cal_deg(void *km, const bwtl_t *bwt)
 {
-	sw_hash_t *h;
+	sw_deg_t *h;
 	uint32_t n = 0, m = 16;
 	uint64_t *a;
 	khint_t itr;
 
-	h = sw_hash_init2(km);
+	h = sw_deg_init2(km);
 	a = Kmalloc(km, uint64_t, m);
 	a[n++] = bwt->seq_len + 1;
 	while (n > 0) {
@@ -135,20 +135,21 @@ static sw_hash_t *sw_count_pre(void *km, const bwtl_t *bwt)
 			l = bwt->L2[c] + rl[c];
 			if (k == l) continue;
 			y = (uint64_t)k << 32 | l;
-			itr = sw_hash_put(h, y, &absent);
+			itr = sw_deg_put(h, y, &absent);
 			//fprintf(stderr, "- c=%c, [%d,%d): %d\n", "ACGTN"[c], k, l, absent);
 			if (absent) {
-				kh_val(h, itr) = 1ULL<<32;
+				kh_val(h, itr) = 0;
 				Kgrow(km, uint64_t, a, n, m);
 				a[n++] = y;
-			} else kh_val(h, itr) += 1ULL<<32;
+			}
+			kh_val(h, itr) += 1ULL<<32;
 		}
 	}
 	kfree(km, a);
 	return h;
 }
 
-void sw_hash_print(const sw_hash_t *h)
+void sw_deg_print(const sw_deg_t *h)
 {
 	khint_t k;
 	kh_foreach(h, k) {
@@ -156,7 +157,7 @@ void sw_hash_print(const sw_hash_t *h)
 	}
 }
 
-static void sw_core(void *km, const rb3_fmi_t *f, const bwtl_t *q, sw_hash_t *h)
+static void sw_core(void *km, const rb3_fmi_t *f, const bwtl_t *q, sw_deg_t *h)
 {
 	uint32_t n = 0, m = 16;
 	uint64_t *a;
@@ -178,7 +179,7 @@ static void sw_core(void *km, const rb3_fmi_t *f, const bwtl_t *q, sw_hash_t *h)
 			l = q->L2[c] + rl[c];
 			if (k == l) continue;
 			y = (uint64_t)k << 32 | l;
-			itr = sw_hash_get(h, y);
+			itr = sw_deg_get(h, y);
 			assert(itr != kh_end(h));
 			z = ++kh_val(h, itr);
 			tot = z>>32, visited = (int32_t)z;
@@ -195,11 +196,11 @@ static void sw_core(void *km, const rb3_fmi_t *f, const bwtl_t *q, sw_hash_t *h)
 void rb3_bwa_sw(void *km, const rb3_fmi_t *f, int len, const uint8_t *seq)
 {
 	bwtl_t *q;
-	sw_hash_t *h;
+	sw_deg_t *h;
 	q = bwtl_gen(km, len, seq);
-	h = sw_count_pre(km, q);
-	//sw_hash_print(h);
+	h = sw_cal_deg(km, q);
+	//sw_deg_print(h);
 	sw_core(km, f, q, h);
-	sw_hash_destroy(h);
+	sw_deg_destroy(h);
 	bwtl_destroy(q);
 }
