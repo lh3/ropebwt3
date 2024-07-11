@@ -181,8 +181,8 @@ int main_match(int argc, char *argv[])
 			fprintf(stderr, "ERROR: #A != #T or #C != $G\n");
 		return 1;
 	}
-		if (rb3_verbose >= 3)
-			fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the index\n", __func__, rb3_realtime(), rb3_percent_cpu());
+	if (rb3_verbose >= 3)
+		fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the index\n", __func__, rb3_realtime(), rb3_percent_cpu());
 	for (j = o.ind + 1; j < argc; ++j) {
 		p.fp = rb3_seq_open(argv[j], is_line);
 		kt_pipeline(2, worker_pipeline, &p, 3);

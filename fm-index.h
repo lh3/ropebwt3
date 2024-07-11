@@ -29,9 +29,9 @@ typedef struct {
 } rb3_sai_t;
 
 typedef struct {
-	int32_t sz;
+	int32_t n_best;
 	int32_t min_sc;
-	int32_t match, mis;
+	int32_t match, mis, ambi;
 	int32_t gap_open, gap_ext;
 } rb3_swopt_t;
 

@@ -39,7 +39,7 @@ bwtl_t *bwtl_gen(void *km, int len, const uint8_t *seq)
 {
 	bwtl_t *b;
 	int32_t i;
-	b = Kcalloc(km, bwtl_t, 1);
+	b = Kcalloc(km, bwtl_t, 1); // allocate long-term memory first to reduce memory fragmentation
 	b->km = km;
 	b->seq_len = len;
 	b->bwt_size = (len + 15) / 16;
@@ -115,9 +115,9 @@ void bwtl_destroy(bwtl_t *bwt)
 void rb3_swopt_init(rb3_swopt_t *opt)
 {
 	memset(opt, 0, sizeof(*opt));
-	opt->sz = 5;
+	opt->n_best = 5;
 	opt->min_sc = 30;
-	opt->match = 1, opt->mis = 3;
+	opt->match = 1, opt->mis = 3, opt->ambi = 1;
 	opt->gap_open = 5, opt->gap_ext = 2;
 }
 
@@ -166,11 +166,46 @@ void sw_deg_print(const sw_deg_t *h)
 	}
 }
 
-static void sw_core(void *km, const rb3_fmi_t *f, const bwtl_t *q, sw_deg_t *h)
+static inline void ksw_gen_simple_mat(int m, int8_t *mat, int8_t a, int8_t b, int8_t sc_ambi)
+{
+	int i, j;
+	a = a < 0? -a : a;
+	b = b > 0? -b : b;
+	sc_ambi = sc_ambi > 0? -sc_ambi : sc_ambi;
+	for (i = 0; i < m - 1; ++i) {
+		for (j = 0; j < m - 1; ++j)
+			mat[i * m + j] = i == j? a : b;
+		mat[i * m + m - 1] = sc_ambi;
+	}
+	for (j = 0; j < m; ++j)
+		mat[(m - 1) * m + j] = sc_ambi;
+}
+
+typedef struct sw_cell_s {
+	int64_t tk, tl;
+	int32_t sc, pre_c;
+	struct sw_cell_s *pre;
+} sw_cell_t;
+
+typedef struct {
+	int32_t n;
+	int32_t qk, ql;
+	sw_cell_t *p;
+} sw_node_t;
+
+static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const bwtl_t *q, sw_deg_t *h)
 {
 	uint32_t n = 0, m = 16;
 	uint64_t *a;
+	int32_t i;
 	khint_t itr;
+	int8_t mat[25];
+	sw_node_t *b;
+
+	ksw_gen_simple_mat(5, mat, opt->match, opt->mis, opt->ambi);
+	b = Kcalloc(km, sw_node_t, kh_size(h));
+	for (i = 0; i < kh_size(h); ++i)
+		b[i].p = Kcalloc(km, sw_cell_t, opt->n_best);
 
 	a = Kmalloc(km, uint64_t, m);
 	a[n++] = q->seq_len + 1;
@@ -209,7 +244,7 @@ void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const
 	q = bwtl_gen(km, len, seq);
 	h = sw_cal_deg(km, q);
 	//sw_deg_print(h);
-	sw_core(km, f, q, h);
+	sw_core(km, opt, f, q, h);
 	sw_deg_destroy(h);
 	bwtl_destroy(q);
 }
