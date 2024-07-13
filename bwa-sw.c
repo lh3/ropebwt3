@@ -118,7 +118,7 @@ typedef struct {
 
 KHASHL_MAP_INIT(KH_LOCAL, sw_deg_t, sw_deg, uint64_t, deg_cell_t, kh_hash_uint64, kh_eq_generic)
 
-static sw_deg_t *sw_cal_deg(void *km, const bwtl_t *bwt)
+static sw_deg_t *sw_cal_deg(void *km, const bwtl_t *bwt) // calculate the in-degree of each node in DAWG
 {
 	sw_deg_t *h;
 	int32_t n = 0, m = 16, c, absent;
@@ -128,11 +128,11 @@ static sw_deg_t *sw_cal_deg(void *km, const bwtl_t *bwt)
 	h = sw_deg_init2(km);
 	sw_deg_resize(h, bwt->seq_len + 1);
 	itr = sw_deg_put(h, bwt->seq_len + 1, &absent);
-	kh_val(h, itr).total = kh_val(h, itr).visit = 0;
+	kh_val(h, itr).total = 0;
 
 	a = Kmalloc(km, uint64_t, m);
 	a[n++] = bwt->seq_len + 1;
-	while (n > 0) { // 1st pass: count in-degree of each node in DAWG
+	while (n > 0) { // 1st pass: count the in-degree of each node in DAWG
 		uint64_t x = a[--n];
 		int32_t k = x>>32, l = (int32_t)x;
 		int32_t rk[4], rl[4];
@@ -145,7 +145,7 @@ static sw_deg_t *sw_cal_deg(void *km, const bwtl_t *bwt)
 			y = (uint64_t)k << 32 | l;
 			itr = sw_deg_put(h, y, &absent);
 			if (absent) {
-				kh_val(h, itr).total = kh_val(h, itr).visit = 0;
+				kh_val(h, itr).total = 0;
 				Kgrow(km, uint64_t, a, n, m);
 				a[n++] = y;
 			}
@@ -173,7 +173,7 @@ static sw_dawg_t *sw_dawg_gen(void *km, const bwtl_t *q)
 	khint_t itr;
 	sw_deg_t *h;
 	sw_dawg_t *g;
-	int32_t i, off_pre = 0, n_a = 0, j = 0;
+	int32_t i, off_pre = 0, n_a = 0, id = 0;
 	uint64_t *a;
 	sw_node_t *p;
 
@@ -183,17 +183,17 @@ static sw_dawg_t *sw_dawg_gen(void *km, const bwtl_t *q)
 	g->node = Kcalloc(km, sw_node_t, g->n_node);
 	kh_foreach(h, itr) {
 		g->n_pre += kh_val(h, itr).total;
+		kh_val(h, itr).visit = kh_val(h, itr).id = 0;
 	}
 	g->pre = Kcalloc(km, int32_t, g->n_pre);
 
 	a = Kmalloc(km, uint64_t, g->n_node);
-	p = &g->node[j++];
+	p = &g->node[id++];
 	p->lo = 0, p->hi = q->seq_len + 1, p->n_pre = 0, p->pre = g->pre;
 	a[n_a++] = (uint64_t)p->lo<<32 | p->hi;
 	while (n_a > 0) { // 2nd pass: topological sorting; this is different from the first pass
 		uint64_t x = a[--n_a];
-		int32_t rk[4], rl[4];
-		int c;
+		int32_t rk[4], rl[4], c;
 		bwtl_rank2a(q, x>>32, (int32_t)x, rk, rl);
 		for (c = 3; c >= 0; --c) {
 			uint64_t y;
@@ -204,55 +204,36 @@ static sw_dawg_t *sw_dawg_gen(void *km, const bwtl_t *q)
 			itr = sw_deg_get(h, y);
 			assert(itr != kh_end(h));
 			kh_val(h, itr).visit++;
-			if (kh_val(h, itr).visit == kh_val(h, itr).total) {
-				p = &g->node[j++];
-				p->lo = y>>32, p->hi = (int32_t)y, p->n_pre = 0, p->pre = &g->pre[off_pre];
+			if (kh_val(h, itr).visit == kh_val(h, itr).total) { // the last predecessors being visited
+				kh_val(h, itr).id = id;
+				p = &g->node[id++];
+				p->lo = k, p->hi = l, p->n_pre = 0, p->pre = &g->pre[off_pre];
 				off_pre += kh_val(h, itr).total;
 				a[n_a++] = y;
 			}
 		}
 	}
-	assert(j == g->n_node);
-	assert(off_pre == g->n_pre);
+	assert(id == g->n_node && off_pre == g->n_pre);
+	kfree(km, a);
 
-	for (i = 0; i < g->n_node; ++i) {
-		sw_node_t *p = &g->node[i];
-		uint64_t y = (uint64_t)p->lo<<32 | p->hi;
-		itr = sw_deg_get(h, y);
-		assert(itr != kh_end(h));
-		kh_val(h, itr).id = i;
-		kh_val(h, itr).visit = 0;
-	}
-
-	n_a = 0;
-	a[n_a++] = q->seq_len + 1;
-	while (n_a > 0) { // 3rd pass: find predecessors
-		uint64_t x = a[--n_a];
-		int32_t rk[4], rl[4], id;
-		int c;
-		itr = sw_deg_get(h, x);
-		id = kh_val(h, itr).id;
-		bwtl_rank2a(q, x>>32, (int32_t)x, rk, rl);
-		for (c = 3; c >= 0; --c) {
-			uint64_t y;
+	for (i = 0; i < g->n_node; ++i) { // populate predecessors
+		int32_t rk[4], rl[4], c;
+		bwtl_rank2a(q, g->node[i].lo, g->node[i].hi, rk, rl);
+		for (c = 0; c < 4; ++c) { // traverse i's children
 			int32_t k = q->L2[c] + rk[c];
 			int32_t l = q->L2[c] + rl[c];
 			if (k == l) continue;
-			y = (uint64_t)k << 32 | l;
-			itr = sw_deg_get(h, y);
+			itr = sw_deg_get(h, (uint64_t)k << 32 | l);
 			p = &g->node[kh_val(h, itr).id];
-			p->pre[p->n_pre++] = id;
-			kh_val(h, itr).visit++;
-			if (kh_val(h, itr).visit == kh_val(h, itr).total)
-				a[n_a++] = y;
+			p->pre[p->n_pre++] = i;
 		}
 	}
-	kfree(km, a);
 	sw_deg_destroy(h);
 
 	#if 0 // debugging the topology of DAWG
 	for (i = 0; i < g->n_node; ++i) {
 		sw_node_t *p = &g->node[i];
+		int j;
 		fprintf(stderr, "%d\t[%d,%d)\t", i, p->lo, p->hi);
 		for (j = 0; j < p->n_pre; ++j) {
 			if (j) fprintf(stderr, ",");
