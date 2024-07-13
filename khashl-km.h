@@ -354,6 +354,7 @@ typedef struct {
 	SCOPE HType *prefix##_init(void) { return prefix##_m_init(); } \
 	SCOPE HType *prefix##_init2(void *km) { return prefix##_m_init2(km); } \
 	SCOPE void prefix##_destroy(HType *h) { prefix##_m_destroy(h); } \
+	SCOPE void prefix##_resize(HType *h, khint_t new_n_buckets) { prefix##_m_resize(h, new_n_buckets); } \
 	SCOPE khint_t prefix##_get(const HType *h, khkey_t key) { HType##_m_bucket_t t; t.key = key; return prefix##_m_getp(h, &t); } \
 	SCOPE int prefix##_del(HType *h, khint_t k) { return prefix##_m_del(h, k); } \
 	SCOPE khint_t prefix##_put(HType *h, khkey_t key, int *absent) { HType##_m_bucket_t t; t.key = key; return prefix##_m_putp(h, &t, absent); } \
