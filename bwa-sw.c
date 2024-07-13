@@ -126,28 +126,27 @@ static sw_deg_t *sw_cal_deg(void *km, const bwtl_t *bwt) // calculate the in-deg
 	khint_t itr;
 
 	h = sw_deg_init2(km);
-	sw_deg_resize(h, bwt->seq_len + 1);
-	itr = sw_deg_put(h, bwt->seq_len + 1, &absent);
+	sw_deg_resize(h, bwt->seq_len + 1); // preallocate for efficiency
+	itr = sw_deg_put(h, bwt->seq_len + 1, &absent); // put the root
 	kh_val(h, itr).total = 0;
 
 	a = Kmalloc(km, uint64_t, m);
-	a[n++] = bwt->seq_len + 1;
+	a[n++] = bwt->seq_len + 1; // the root interval is [0,bwt->seq_len + 1)
 	while (n > 0) { // 1st pass: count the in-degree of each node in DAWG
-		uint64_t x = a[--n];
-		int32_t k = x>>32, l = (int32_t)x;
-		int32_t rk[4], rl[4];
-		bwtl_rank2a(bwt, k, l, rk, rl);
-		for (c = 3; c >= 0; --c) {
-			uint64_t y;
-			k = bwt->L2[c] + rk[c];
-			l = bwt->L2[c] + rl[c];
-			if (k == l) continue;
-			y = (uint64_t)k << 32 | l;
-			itr = sw_deg_put(h, y, &absent);
+		uint64_t x = a[--n]; // pop
+		int32_t rlo[4], rhi[4];
+		bwtl_rank2a(bwt, x>>32, (int32_t)x, rlo, rhi);
+		for (c = 3; c >= 0; --c) { // traverse children
+			uint64_t key;
+			int32_t lo = bwt->L2[c] + rlo[c];
+			int32_t hi = bwt->L2[c] + rhi[c];
+			if (lo == hi) continue;
+			key = (uint64_t)lo << 32 | hi;
+			itr = sw_deg_put(h, key, &absent);
 			if (absent) {
 				kh_val(h, itr).total = 0;
 				Kgrow(km, uint64_t, a, n, m);
-				a[n++] = y;
+				a[n++] = key;
 			}
 			kh_val(h, itr).total++;
 		}
@@ -190,26 +189,26 @@ static sw_dawg_t *sw_dawg_gen(void *km, const bwtl_t *q)
 	a = Kmalloc(km, uint64_t, g->n_node);
 	p = &g->node[id++];
 	p->lo = 0, p->hi = q->seq_len + 1, p->n_pre = 0, p->pre = g->pre;
-	a[n_a++] = (uint64_t)p->lo<<32 | p->hi;
+	a[n_a++] = q->seq_len + 1; // the root interval
 	while (n_a > 0) { // 2nd pass: topological sorting; this is different from the first pass
-		uint64_t x = a[--n_a];
-		int32_t rk[4], rl[4], c;
-		bwtl_rank2a(q, x>>32, (int32_t)x, rk, rl);
-		for (c = 3; c >= 0; --c) {
-			uint64_t y;
-			int32_t k = q->L2[c] + rk[c];
-			int32_t l = q->L2[c] + rl[c];
-			if (k == l) continue;
-			y = (uint64_t)k << 32 | l;
-			itr = sw_deg_get(h, y);
+		uint64_t x = a[--n_a]; // pop
+		int32_t rlo[4], rhi[4], c;
+		bwtl_rank2a(q, x>>32, (int32_t)x, rlo, rhi);
+		for (c = 3; c >= 0; --c) { // traverse children
+			uint64_t key;
+			int32_t lo = q->L2[c] + rlo[c];
+			int32_t hi = q->L2[c] + rhi[c];
+			if (lo == hi) continue;
+			key = (uint64_t)lo << 32 | hi;
+			itr = sw_deg_get(h, key);
 			assert(itr != kh_end(h));
 			kh_val(h, itr).visit++;
 			if (kh_val(h, itr).visit == kh_val(h, itr).total) { // the last predecessors being visited
 				kh_val(h, itr).id = id;
 				p = &g->node[id++];
-				p->lo = k, p->hi = l, p->n_pre = 0, p->pre = &g->pre[off_pre];
+				p->lo = lo, p->hi = hi, p->n_pre = 0, p->pre = &g->pre[off_pre];
 				off_pre += kh_val(h, itr).total;
-				a[n_a++] = y;
+				a[n_a++] = key;
 			}
 		}
 	}
@@ -217,13 +216,13 @@ static sw_dawg_t *sw_dawg_gen(void *km, const bwtl_t *q)
 	kfree(km, a);
 
 	for (i = 0; i < g->n_node; ++i) { // populate predecessors
-		int32_t rk[4], rl[4], c;
-		bwtl_rank2a(q, g->node[i].lo, g->node[i].hi, rk, rl);
+		int32_t rlo[4], rhi[4], c;
+		bwtl_rank2a(q, g->node[i].lo, g->node[i].hi, rlo, rhi);
 		for (c = 0; c < 4; ++c) { // traverse i's children
-			int32_t k = q->L2[c] + rk[c];
-			int32_t l = q->L2[c] + rl[c];
-			if (k == l) continue;
-			itr = sw_deg_get(h, (uint64_t)k << 32 | l);
+			int32_t lo = q->L2[c] + rlo[c];
+			int32_t hi = q->L2[c] + rhi[c];
+			if (lo == hi) continue;
+			itr = sw_deg_get(h, (uint64_t)lo << 32 | hi);
 			p = &g->node[kh_val(h, itr).id];
 			p->pre[p->n_pre++] = i;
 		}
