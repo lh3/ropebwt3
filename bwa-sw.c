@@ -156,7 +156,7 @@ static sw_deg_t *sw_cal_deg(void *km, const bwtl_t *bwt) // calculate the in-deg
 }
 
 typedef struct {
-	int32_t n_pre;
+	int32_t n_pre, c;
 	int32_t lo, hi;
 	int32_t *pre;
 } sw_node_t;
@@ -206,7 +206,7 @@ static sw_dawg_t *sw_dawg_gen(void *km, const bwtl_t *q)
 			if (kh_val(h, itr).visit == kh_val(h, itr).total) { // the last predecessors being visited
 				kh_val(h, itr).id = id;
 				p = &g->node[id++];
-				p->lo = lo, p->hi = hi, p->n_pre = 0, p->pre = &g->pre[off_pre];
+				p->lo = lo, p->hi = hi, p->c = c, p->n_pre = 0, p->pre = &g->pre[off_pre];
 				off_pre += kh_val(h, itr).total;
 				a[n_a++] = key;
 			}
@@ -249,6 +249,10 @@ static void sw_dawg_destroy(void *km, sw_dawg_t *g)
 	kfree(km, g->pre); kfree(km, g->node); kfree(km, g);
 }
 
+/**********
+ * BWA-SW *
+ **********/
+
 void rb3_swopt_init(rb3_swopt_t *opt)
 {
 	memset(opt, 0, sizeof(*opt));
@@ -273,8 +277,44 @@ static inline void ksw_gen_simple_mat(int m, int8_t *mat, int8_t a, int8_t b, in
 		mat[(m - 1) * m + j] = sc_ambi;
 }
 
-static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const bwtl_t *q, sw_deg_t *h)
+typedef struct {
+	int32_t I, D, H, pre;
+	int64_t lo, hi;
+} sw_cell_t;
+
+typedef struct {
+	int32_t n;
+	sw_cell_t *a;
+} sw_row_t;
+
+#define SW_NEG_INF (-0x4000000)
+
+static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g)
 {
+	int32_t i;
+	sw_cell_t *cell, *p;
+	sw_row_t *row;
+	int64_t acc[6], tot;
+
+	tot = rb3_fmi_get_acc(f, acc);
+	cell = Kcalloc(km, sw_cell_t, opt->n_best * g->n_node);
+	row = Kcalloc(km, sw_row_t, g->n_node);
+	for (i = 0; i < g->n_node; ++i)
+		row[i].a = &cell[i * opt->n_best];
+	p = &row[0].a[row[0].n++];
+	p->lo = 0, p->hi = tot;
+	p->I = p->D = SW_NEG_INF;
+
+	for (i = 1; i < g->n_node; ++i) {
+		const sw_node_t *t = &g->node[i];
+		int32_t j, k;
+		for (j = 0; j < t->n_pre; ++j) {
+			const sw_node_t *s = &g->node[t->pre[j]];
+		}
+	}
+
+	kfree(km, row);
+	kfree(km, cell);
 }
 
 void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const uint8_t *seq)
