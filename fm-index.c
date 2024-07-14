@@ -237,6 +237,89 @@ void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb)
 }
 
 /***************
+ * Cached rank *
+ ***************/
+
+#include "khashl-km.h"
+
+typedef struct {
+	int64_t occ[6];
+} rc_occ6_t;
+
+KHASHL_MAP_INIT(KH_LOCAL, rc_hash_t, rc_hash, uint64_t, rc_occ6_t, kh_hash_uint64, kh_eq_generic)
+
+#define RB3_DEFAULT_CACHE 1024
+
+typedef struct {
+	int32_t max;
+	void *km;
+	rc_hash_t *h;
+} rank_cache_t;
+
+void *rb3_r2cache_init(void *km, int32_t max)
+{
+	rank_cache_t *rc;
+	if (max <= 2) max = RB3_DEFAULT_CACHE;
+	rc = Kcalloc(km, rank_cache_t, 1);
+	rc->max = max, rc->km = km;
+	rc->h = rc_hash_init2(km);
+	rc_hash_resize(rc->h, rc->max * 2);
+	return rc;
+}
+
+void rb3_r2cache_destroy(void *rc_)
+{
+	rank_cache_t *rc = (rank_cache_t*)rc_;
+	if (rc == 0) return;
+	rc_hash_destroy(rc->h);
+	kfree(rc->km, rc);
+}
+
+void rb3_fmi_rank2a_cached(const rb3_fmi_t *fmi, void *rc_, int64_t k, int64_t l, int64_t ok[6], int64_t ol[6])
+{
+	if (rc_ == 0) {
+		rb3_fmi_rank2a(fmi, k, l, ok, ol);
+		return;
+	} else {
+		rank_cache_t *rc = (rank_cache_t*)rc_;
+		int abs_k, abs_l, n_del;
+		khint_t itr_k, itr_l;
+		rc_occ6_t *pk, *pl;
+		itr_k = rc_hash_put(rc->h, k, &abs_k);
+		itr_l = rc_hash_put(rc->h, l, &abs_l);
+		pk = &kh_val(rc->h, itr_k);
+		pl = &kh_val(rc->h, itr_l);
+		if (abs_k && abs_l) {
+			rb3_fmi_rank2a(fmi, k, l, ok, ol);
+			memcpy(pk->occ, ok, 48);
+			memcpy(pl->occ, ol, 48);
+		} else if (abs_k) {
+			rb3_fmi_rank1a(fmi, k, ok);
+			memcpy(pk->occ, ok, 48);
+		} else if (abs_l) {
+			rb3_fmi_rank1a(fmi, l, ol);
+			memcpy(pl->occ, ol, 48);
+		} else {
+			memcpy(ok, pk->occ, 48);
+			memcpy(ol, pl->occ, 48);
+		}
+		n_del = (int32_t)kh_size(rc->h) + 2 - rc->max;
+		assert(n_del <= 2);
+		if (n_del > 0) {
+			uint64_t d[2];
+			khint_t itr;
+			int m = 0;
+			kh_foreach(rc->h, itr) {
+				d[m++] = kh_key(rc->h, itr);
+				if (m == n_del) break;
+			}
+			if (n_del >= 1) rc_hash_del(rc->h, d[0]);
+			if (n_del >= 2) rc_hash_del(rc->h, d[1]);
+		}
+	}
+}
+
+/***************
  * Exact match *
  ***************/
 

@@ -42,6 +42,10 @@ rld_t *rb3_enc_fmr2fmd(mrope_t *r, int cbits, int is_free);
 mrope_t *rb3_enc_plain2fmr(int64_t len, const uint8_t *bwt, int max_nodes, int block_len, int32_t n_threads);
 mrope_t *rb3_enc_fmd2fmr(rld_t *e, int max_nodes, int block_len, int is_free);
 
+void *rb3_r2cache_init(void *km, int32_t max);
+void rb3_r2cache_destroy(void *rc_);
+void rb3_fmi_rank2a_cached(const rb3_fmi_t *fmi, void *rc_, int64_t k, int64_t l, int64_t ok[6], int64_t ol[6]);
+
 void rb3_mg_rank(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int n_threads);
 void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb);
 
