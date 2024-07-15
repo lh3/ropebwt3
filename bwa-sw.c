@@ -42,7 +42,7 @@ bwtl_t *bwtl_gen(void *km, int len, const uint8_t *seq)
 	b->seq_len = len;
 	b->bwt_size = (len + 15) / 16;
 	b->bwt = Kcalloc(km, uint32_t, b->bwt_size);
-	b->n_occ = (len + 15) / 16 * 4;
+	b->n_occ = (len + 16) / 16 * 4;
 	b->occ = Kcalloc(km, int32_t, b->n_occ);
 
 	{ // calculate b->bwt
@@ -72,6 +72,8 @@ bwtl_t *bwtl_gen(void *km, int len, const uint8_t *seq)
 				memcpy(b->occ + (i/16) * 4, c, 16);
 			++c[bwtl_B0(b, i)];
 		}
+		if (i % 16 == 0)
+			memcpy(b->occ + (i/16) * 4, c, 16);
 		memcpy(b->L2+1, c, 16);
 		b->L2[0] = 1;
 		for (i = 1; i < 5; ++i) b->L2[i] += b->L2[i-1];
@@ -377,7 +379,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		row[i].n = k;
 		for (j = 0; j < k; ++j)
 			row[i].a[j] = kh_key(h, (uint32_t)heap[j]);
-		fprintf(stderr, "i=%d, qintv=[%d,%d), n=%d, score=%d\n", i, t->lo, t->hi, row[i].n, row[i].a[0].H);
+		fprintf(stderr, "i=%d, qintv=[%d,%d), n=%d: ", i, t->lo, t->hi, row[i].n); for (j = 0; j < row[i].n; ++j) fprintf(stderr, "%d,", row[i].a[j].H); fprintf(stderr, "\n");
 	}
 	sw_candset_destroy(h);
 	kfree(km, heap);
