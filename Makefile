@@ -39,9 +39,9 @@ depend:
 
 build.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h io.h ketopt.h
 bwa-sw.o: rb3priv.h libsais16.h io.h fm-index.h rld0.h mrope.h rope.h
-bwa-sw.o: kalloc.h khashl-km.h
+bwa-sw.o: kalloc.h khashl-km.h ksort.h
 fm-index.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h rle.h kthread.h
-fm-index.o: kalloc.h
+fm-index.o: kalloc.h khashl-km.h
 io.o: rb3priv.h io.h kseq.h
 kalloc.o: kalloc.h
 kthread.o: kthread.h
