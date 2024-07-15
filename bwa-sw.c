@@ -206,7 +206,7 @@ static sw_dawg_t *sw_dawg_gen(void *km, const bwtl_t *q)
 			if (kh_val(h, itr).visit == kh_val(h, itr).total) { // the last predecessors being visited
 				kh_val(h, itr).id = id;
 				p = &g->node[id++];
-				p->lo = lo, p->hi = hi, p->c = c, p->n_pre = 0, p->pre = &g->pre[off_pre];
+				p->lo = lo, p->hi = hi, p->c = c + 1, p->n_pre = 0, p->pre = &g->pre[off_pre]; // c+1 for the nt6 encoding
 				off_pre += kh_val(h, itr).total;
 				a[n_a++] = key;
 			}
@@ -258,27 +258,19 @@ void rb3_swopt_init(rb3_swopt_t *opt)
 	memset(opt, 0, sizeof(*opt));
 	opt->n_best = 5;
 	opt->min_sc = 30;
-	opt->match = 1, opt->mis = 3, opt->ambi = 1;
+	opt->match = 1, opt->mis = 3;
 	opt->gap_open = 5, opt->gap_ext = 2;
 }
 
-static inline void ksw_gen_simple_mat(int m, int8_t *mat, int8_t a, int8_t b, int8_t sc_ambi)
-{
-	int i, j;
-	a = a < 0? -a : a;
-	b = b > 0? -b : b;
-	sc_ambi = sc_ambi > 0? -sc_ambi : sc_ambi;
-	for (i = 0; i < m - 1; ++i) {
-		for (j = 0; j < m - 1; ++j)
-			mat[i * m + j] = i == j? a : b;
-		mat[i * m + m - 1] = sc_ambi;
-	}
-	for (j = 0; j < m; ++j)
-		mat[(m - 1) * m + j] = sc_ambi;
-}
+#define SW_FROM_H    0
+#define SW_FROM_E    1
+#define SW_FROM_F    2
+#define SW_FROM_OPEN 0
+#define SW_FROM_EXT  1
 
 typedef struct {
-	int32_t I, D, H, pre;
+	int32_t H, E, F;
+	uint32_t H_from:2, E_from:1, F_from:1, dummy:28;
 	int64_t lo, hi;
 } sw_cell_t;
 
@@ -287,7 +279,22 @@ typedef struct {
 	sw_cell_t *a;
 } sw_row_t;
 
-#define SW_NEG_INF (-0x4000000)
+#define sw_cell_hash(x) (kh_hash_uint64((x).lo) + kh_hash_uint64((x).hi))
+#define sw_cell_eq(x, y) ((x).lo == (y).lo && (x).hi == (y).hi)
+KHASHL_SET_INIT(KH_LOCAL, sw_candset_t, sw_candset, sw_cell_t, sw_cell_hash, sw_cell_eq)
+
+static void sw_update_candset(sw_candset_t *h, sw_cell_t *p)
+{
+	khint_t k;
+	int absent;
+	k = sw_candset_put(h, *p, &absent);
+	if (!absent) {
+		sw_cell_t *q = &kh_key(h, k);
+		if (q->H < p->H) q->H = p->H, q->H_from = p->H_from;
+		if (q->E < p->E) q->E = q->E, q->E_from = p->E_from;
+		if (q->F < p->F) q->F = q->F, q->F_from = p->F_from;
+	}
+}
 
 static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g)
 {
@@ -295,6 +302,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	sw_cell_t *cell, *p;
 	sw_row_t *row;
 	int64_t acc[6], tot;
+	sw_candset_t *h;
 
 	tot = rb3_fmi_get_acc(f, acc);
 	cell = Kcalloc(km, sw_cell_t, opt->n_best * g->n_node);
@@ -303,15 +311,51 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		row[i].a = &cell[i * opt->n_best];
 	p = &row[0].a[row[0].n++];
 	p->lo = 0, p->hi = tot;
-	p->I = p->D = SW_NEG_INF;
+	p->H_from = SW_FROM_H;
 
+	h = sw_candset_init2(km);
+	sw_candset_resize(h, opt->n_best * 4);
 	for (i = 1; i < g->n_node; ++i) {
 		const sw_node_t *t = &g->node[i];
 		int32_t j, k;
+		sw_candset_clear(h);
 		for (j = 0; j < t->n_pre; ++j) {
-			const sw_node_t *s = &g->node[t->pre[j]];
+			int32_t pid = t->pre[j]; // parent/pre ID
+			for (k = 0; k < row[pid].n; ++k) {
+				sw_cell_t r;
+				int c;
+				int64_t clo[6], chi[6];
+				p = &row[pid].a[k];
+				memset(&r, 0, sizeof(sw_cell_t));
+				// I(s,u) = max{ H(s',u)-q, I(s',u) } - r;
+				if (p->H - opt->gap_open > p->E)
+					r.E_from = SW_FROM_OPEN, r.E = p->H - opt->gap_open;
+				else
+					r.E_from = SW_FROM_EXT,  r.E = p->E;
+				r.E -= opt->gap_ext;
+				if (r.E > 0) { // add to rowaux
+					r.lo = p->lo, r.hi = p->hi;
+					r.H = r.E;
+					r.H_from = SW_FROM_E;
+					sw_update_candset(h, &r);
+				}
+				// H(s,u)
+				rb3_fmi_rank2a(f, p->lo, p->hi, clo, chi);
+				for (c = 1; c < 6; ++c) {
+					int32_t sc = c == t->c? opt->match : -opt->mis;
+					if (p->H + sc <= 0) continue;
+					r.lo = acc[c] + clo[c];
+					r.hi = acc[c] + chi[c];
+					if (r.lo == r.hi) continue;
+					r.H = p->H + sc;
+					r.H_from = SW_FROM_H;
+					sw_update_candset(h, &r);
+				}
+			}
 		}
 	}
+
+	sw_candset_destroy(h);
 
 	kfree(km, row);
 	kfree(km, cell);
