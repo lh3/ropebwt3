@@ -3,7 +3,7 @@ CFLAGS=		-g -Wall -Wc++-compat -O3
 CPPFLAGS=
 INCLUDES=
 OBJS=		libsais16.o libsais16x64.o kalloc.o kthread.o misc.o io.o rld0.o rle.o rope.o mrope.o \
-			fm-index.o sais-ss.o build.o match.o bwa-sw.o
+			fm-index.o sais-ss.o build.o search.o bwa-sw.o
 PROG=		ropebwt3
 LIBS=		-lpthread -lz -lm
 
@@ -48,11 +48,11 @@ kthread.o: kthread.h
 libsais16.o: libsais16.h
 libsais16x64.o: libsais16.h libsais16x64.h
 main.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h io.h ketopt.h
-match.o: fm-index.h rb3priv.h rld0.h mrope.h rope.h align.h io.h ketopt.h
-match.o: kthread.h kalloc.h
 misc.o: rb3priv.h
 mrope.o: mrope.h rope.h rle.h
 rld0.o: rld0.h
 rle.o: rle.h
 rope.o: rle.h rope.h
 sais-ss.o: rb3priv.h libsais16.h libsais16x64.h
+search.o: fm-index.h rb3priv.h rld0.h mrope.h rope.h align.h io.h ketopt.h
+search.o: kthread.h kalloc.h

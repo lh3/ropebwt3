@@ -151,7 +151,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 	return 0;
 }
 
-int main_match(int argc, char *argv[])
+int main_search(int argc, char *argv[])
 {
 	int32_t c, j, is_line = 0, use_mmap = 0;
 	rb3_mopt_t opt;
@@ -160,7 +160,7 @@ int main_match(int argc, char *argv[])
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgdwC", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgdwCN:", 0)) >= 0) {
 		if (c == 'L') is_line = 1;
 		else if (c == 'g') opt.algo = RB3_SA_GREEDY;
 		else if (c == 'w') opt.algo = RB3_SA_MEM_ORI;
@@ -169,10 +169,11 @@ int main_match(int argc, char *argv[])
 		else if (c == 'c') opt.min_occ = atol(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
 		else if (c == 'K') opt.batch_size = rb3_parse_num(o.arg);
+		else if (c == 'N') opt.swo.n_best = atoi(o.arg);
 		else if (c == 'M') use_mmap = 1;
 	}
 	if (argc - o.ind < 2) {
-		fprintf(stdout, "Usage: ropebwt3 match [options] <idx.fmr> <seq.fa> [...]\n");
+		fprintf(stdout, "Usage: ropebwt3 search [options] <idx.fmr> <seq.fa> [...]\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  Maximal exact matches:\n");
 		fprintf(stderr, "    -l INT    min MEM length [%ld]\n", (long)opt.min_len);
@@ -181,6 +182,7 @@ int main_match(int argc, char *argv[])
 		fprintf(stderr, "    -w        use the original MEM algorithm (slower)\n");
 		fprintf(stderr, "  BWA-SW:\n");
 		fprintf(stderr, "    -d        use the BWA-SW algorithm\n");
+		fprintf(stderr, "    -N INT    keep up to INT hits per DAWG node [%d]\n", opt.swo.n_best);
 		fprintf(stderr, "  Input/output:\n");
 		fprintf(stderr, "    -t INT    number of threads [%d]\n", opt.n_threads);
 		fprintf(stderr, "    -L        one sequence per line in the input\n");

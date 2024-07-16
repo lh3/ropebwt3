@@ -11,7 +11,7 @@ int main_build(int argc, char *argv[]);
 int main_merge(int argc, char *argv[]);
 int main_get(int argc, char *argv[]);
 int main_suffix(int argc, char *argv[]);
-int main_match(int argc, char *argv[]);
+int main_search(int argc, char *argv[]);
 int main_kount(int argc, char *argv[]);
 int main_fa2line(int argc, char *argv[]);
 int main_plain2fmd(int argc, char *argv[]);
@@ -22,7 +22,7 @@ static int usage(FILE *fp)
 	fprintf(fp, "Commands:\n");
 	fprintf(fp, "  build      construct a BWT\n");
 	fprintf(fp, "  merge      merge BWTs\n");
-	fprintf(fp, "  match      find supermaximal exact matches (requring both strands)\n");
+	fprintf(fp, "  search     find local hits (requring both strands)\n");
 	fprintf(fp, "  suffix     find the longest matching suffix (aka backward search)\n");
 	fprintf(fp, "  get        retrieve the i-th sequence from BWT\n");
 	fprintf(fp, "  kount      count (high-occurrence) k-mers\n");
@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
 	if (argc == 1) return usage(stdout);
 	else if (strcmp(argv[1], "build") == 0) ret = main_build(argc-1, argv+1);
 	else if (strcmp(argv[1], "merge") == 0) ret = main_merge(argc-1, argv+1);
-	else if (strcmp(argv[1], "match") == 0) ret = main_match(argc-1, argv+1);
+	else if (strcmp(argv[1], "match") == 0 || strcmp(argv[1], "search") == 0) ret = main_search(argc-1, argv+1);
 	else if (strcmp(argv[1], "suffix") == 0) ret = main_suffix(argc-1, argv+1);
 	else if (strcmp(argv[1], "get") == 0) ret = main_get(argc-1, argv+1);
 	else if (strcmp(argv[1], "kount") == 0) ret = main_kount(argc-1, argv+1);
