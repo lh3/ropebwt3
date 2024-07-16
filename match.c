@@ -6,7 +6,7 @@
 #include "kalloc.h"
 
 typedef struct {
-	int32_t n_threads, find_gmem:16, use_sw:16;
+	int32_t n_threads, find_gmem:8, find_mem_TG:8, use_sw:16;
 	int64_t min_occ, min_len;
 	int64_t batch_size;
 	rb3_swopt_t swo;
@@ -16,7 +16,8 @@ void rb3_mopt_init(rb3_mopt_t *opt)
 {
 	memset(opt, 0, sizeof(rb3_mopt_t));
 	opt->n_threads = 4;
-	opt->min_occ = opt->min_len = 1;
+	opt->min_occ = 1;
+	opt->min_len = 19;
 	opt->batch_size = 100000000;
 	rb3_swopt_init(&opt->swo);
 }
@@ -59,7 +60,9 @@ static void worker_for(void *data, long i, int tid)
 	} else {
 		rb3_char2nt6(s->len, s->seq);
 		b->mem.n = 0;
-		if (p->opt->find_gmem)
+		if (p->opt->find_mem_TG)
+			rb3_fmd_smem_TG(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
+		else if (p->opt->find_gmem)
 			rb3_fmd_gmem(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
 		else
 			rb3_fmd_smem(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
@@ -144,10 +147,11 @@ int main_match(int argc, char *argv[])
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:Mgd", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgGd", 0)) >= 0) {
 		if (c == 'L') is_line = 1;
 		else if (c == 'g') opt.find_gmem = 1;
 		else if (c == 'd') opt.use_sw = 1;
+		else if (c == 'G') opt.find_mem_TG = 1;
 		else if (c == 'l') opt.min_len = atol(o.arg);
 		else if (c == 'c') opt.min_occ = atol(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
@@ -159,6 +163,7 @@ int main_match(int argc, char *argv[])
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  Maximal exact matches:\n");
 		fprintf(stderr, "    -g        find greedy MEMs (faster but not always SMEMs)\n");
+		fprintf(stderr, "    -G        find SMEMs with the TG algorithm\n");
 		fprintf(stderr, "    -l INT    min MEM length [%ld]\n", (long)opt.min_len);
 		fprintf(stderr, "    -s INT    min interval size [%ld]\n", (long)opt.min_occ);
 		fprintf(stderr, "  BWA-SW:\n");
