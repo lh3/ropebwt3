@@ -15,7 +15,8 @@ void rb3_mopt_init(rb3_mopt_t *opt)
 {
 	memset(opt, 0, sizeof(rb3_mopt_t));
 	opt->n_threads = 4;
-	opt->min_occ = opt->min_len = 1;
+	opt->min_occ = 1;
+	opt->min_len = 19;
 	opt->batch_size = 100000000;
 }
 
