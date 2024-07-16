@@ -6,7 +6,7 @@
 #include "kalloc.h"
 
 typedef struct {
-	int32_t n_threads, find_gmem;
+	int32_t n_threads, find_gmem, find_mem_TG;
 	int64_t min_occ, min_len;
 	int64_t batch_size;
 } rb3_mopt_t;
@@ -54,7 +54,9 @@ static void worker_for(void *data, long i, int tid)
 	m_tbuf_t *b = &t->buf[tid];
 	rb3_char2nt6(s->len, s->seq);
 	b->mem.n = 0;
-	if (p->opt->find_gmem)
+	if (p->opt->find_mem_TG)
+		rb3_fmd_smem_TG(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
+	else if (p->opt->find_gmem)
 		rb3_fmd_gmem(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
 	else
 		rb3_fmd_smem(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
@@ -138,9 +140,10 @@ int main_match(int argc, char *argv[])
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:Mg", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgG", 0)) >= 0) {
 		if (c == 'L') is_line = 1;
 		else if (c == 'g') opt.find_gmem = 1;
+		else if (c == 'G') opt.find_mem_TG = 1;
 		else if (c == 'l') opt.min_len = atol(o.arg);
 		else if (c == 'c') opt.min_occ = atol(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
@@ -153,6 +156,7 @@ int main_match(int argc, char *argv[])
 		fprintf(stderr, "  -l INT    min SMEM length [%ld]\n", (long)opt.min_len);
 		fprintf(stderr, "  -s INT    min interval size [%ld]\n", (long)opt.min_occ);
 		fprintf(stderr, "  -t INT    number of threads [%d]\n", opt.n_threads);
+		fprintf(stderr, "  -G        find TG MEMs (for long {-l})\n");
 		fprintf(stderr, "  -g        find greedy MEMs (faster but not always SMEMs)\n");
 		fprintf(stderr, "  -M        use mmap to load FMD\n");
 		fprintf(stderr, "  -L        one sequence per line in the input\n");
