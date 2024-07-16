@@ -1,12 +1,16 @@
 #include "fm-index.h"
+#include "align.h"
 #include "rb3priv.h"
 #include "io.h"
 #include "ketopt.h"
 #include "kthread.h"
 #include "kalloc.h"
 
+typedef enum { RB3_SA_MEM_TG, RB3_SA_MEM_ORI, RB3_SA_GREEDY, RB3_SA_SW } rb3_search_algo_t;
+
 typedef struct {
-	int32_t n_threads, find_gmem:8, find_mem_TG:8, use_sw:16;
+	int32_t n_threads, no_kalloc;
+	rb3_search_algo_t algo;
 	int64_t min_occ, min_len;
 	int64_t batch_size;
 	rb3_swopt_t swo;
@@ -19,6 +23,7 @@ void rb3_mopt_init(rb3_mopt_t *opt)
 	opt->min_occ = 1;
 	opt->min_len = 19;
 	opt->batch_size = 100000000;
+	opt->algo = RB3_SA_MEM_TG;
 	rb3_swopt_init(&opt->swo);
 }
 
@@ -33,6 +38,7 @@ typedef struct {
 	int64_t id;
 	int32_t len, n_mem;
 	rb3_sai_t *mem;
+	rb3_swrst_t rst;
 } m_seq_t;
 
 typedef struct {
@@ -55,16 +61,16 @@ static void worker_for(void *data, long i, int tid)
 	const pipeline_t *p = t->p;
 	m_seq_t *s = &t->seq[i];
 	m_tbuf_t *b = &t->buf[tid];
-	if (p->opt->use_sw) {
-		rb3_sw(b->km, &p->opt->swo, &p->fmi, s->len, s->seq);
-	} else {
+	if (p->opt->algo == RB3_SA_SW) { // BWA-SW
+		rb3_sw(b->km, &p->opt->swo, &p->fmi, s->len, s->seq, &s->rst);
+	} else { // MEM algorithms
 		rb3_char2nt6(s->len, s->seq);
 		b->mem.n = 0;
-		if (p->opt->find_mem_TG)
+		if (p->opt->algo == RB3_SA_MEM_TG)
 			rb3_fmd_smem_TG(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
-		else if (p->opt->find_gmem)
+		else if (p->opt->algo == RB3_SA_GREEDY)
 			rb3_fmd_gmem(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
-		else
+		else if (p->opt->algo == RB3_SA_MEM_ORI)
 			rb3_fmd_smem(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
 		s->n_mem = b->mem.n;
 		s->mem = RB3_MALLOC(rb3_sai_t, s->n_mem);
@@ -103,8 +109,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 			t->n_seq = n_seq;
 			t->buf = RB3_CALLOC(m_tbuf_t, p->opt->n_threads);
 			for (i = 0; i < p->opt->n_threads; ++i)
-				//t->buf[i].km = km_init();
-				t->buf[i].km = 0;
+				t->buf[i].km = p->opt->no_kalloc? 0 : km_init();
 			return t;
 		}
 	} else if (step == 1) {
@@ -118,14 +123,21 @@ static void *worker_pipeline(void *shared, int step, void *in)
 		for (j = 0; j < t->n_seq; ++j) {
 			m_seq_t *s = &t->seq[j];
 			free(s->seq);
-			for (i = 0; i < s->n_mem; ++i) {
-				rb3_sai_t *q = &s->mem[i];
-				int32_t st = q->info>>32, en = (int32_t)q->info;
-				out.l = 0;
+			if (p->opt->algo == RB3_SA_SW) {
 				if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
 				else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
-				rb3_sprintf_lite(&out, "\t%ld\t%ld\t%ld\n", st, en, (long)q->size);
+				rb3_sprintf_lite(&out, "\t%d\t%d\t%d\t%ld\n", s->rst.qlo, s->rst.qhi, s->rst.score, (long)(s->rst.rhi - s->rst.rlo));
 				fputs(out.s, stdout);
+			} else {
+				for (i = 0; i < s->n_mem; ++i) {
+					rb3_sai_t *q = &s->mem[i];
+					int32_t st = q->info>>32, en = (int32_t)q->info;
+					out.l = 0;
+					if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
+					else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
+					rb3_sprintf_lite(&out, "\t%ld\t%ld\t%ld\n", st, en, (long)q->size);
+					fputs(out.s, stdout);
+				}
 			}
 			free(s->name);
 			free(s->mem);
@@ -148,11 +160,11 @@ int main_match(int argc, char *argv[])
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgGd", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgdwC", 0)) >= 0) {
 		if (c == 'L') is_line = 1;
-		else if (c == 'g') opt.find_gmem = 1;
-		else if (c == 'd') opt.use_sw = 1;
-		else if (c == 'G') opt.find_mem_TG = 1;
+		else if (c == 'g') opt.algo = RB3_SA_GREEDY;
+		else if (c == 'w') opt.algo = RB3_SA_MEM_ORI;
+		else if (c == 'd') opt.algo = RB3_SA_SW;
 		else if (c == 'l') opt.min_len = atol(o.arg);
 		else if (c == 'c') opt.min_occ = atol(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
@@ -163,10 +175,10 @@ int main_match(int argc, char *argv[])
 		fprintf(stdout, "Usage: ropebwt3 match [options] <idx.fmr> <seq.fa> [...]\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  Maximal exact matches:\n");
-		fprintf(stderr, "    -g        find greedy MEMs (faster but not always SMEMs)\n");
-		fprintf(stderr, "    -G        find SMEMs with the TG algorithm\n");
 		fprintf(stderr, "    -l INT    min MEM length [%ld]\n", (long)opt.min_len);
 		fprintf(stderr, "    -s INT    min interval size [%ld]\n", (long)opt.min_occ);
+		fprintf(stderr, "    -g        find greedy MEMs (faster but not always SMEMs)\n");
+		fprintf(stderr, "    -w        use the original MEM algorithm (slower)\n");
 		fprintf(stderr, "  BWA-SW:\n");
 		fprintf(stderr, "    -d        use the BWA-SW algorithm\n");
 		fprintf(stderr, "  Input/output:\n");
@@ -174,6 +186,7 @@ int main_match(int argc, char *argv[])
 		fprintf(stderr, "    -L        one sequence per line in the input\n");
 		fprintf(stderr, "    -K NUM    query batch size [100m]\n");
 		fprintf(stderr, "    -M        use mmap to load FMD\n");
+		fprintf(stderr, "    -C        disable the kalloc allocator\n");
 		return 0;
 	}
 	rb3_fmi_restore(&p.fmi, argv[o.ind], use_mmap);

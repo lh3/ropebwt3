@@ -4,6 +4,7 @@
 #include "libsais16.h"
 #include "io.h" // for rb3_nt6_table[]
 #include "fm-index.h"
+#include "align.h"
 #include "kalloc.h"
 
 /*******************
@@ -319,7 +320,7 @@ static inline int32_t sw_heap_insert1(uint64_t *heap, int32_t max, int32_t *sz, 
 	return 0;
 }
 
-static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g)
+static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g, rb3_swrst_t *rst)
 {
 	int32_t i, c, m_fstack = opt->n_best;
 	sw_cell_t *cell, *fstack, *p;
@@ -336,6 +337,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	p = &row[0].a[row[0].n++];
 	p->lo = 0, p->hi = tot;
 	p->H_from = SW_FROM_H;
+	rst->score = 0;
 
 	fstack = Kcalloc(km, sw_cell_t, m_fstack);
 	heap = Kcalloc(km, uint64_t, opt->n_best);
@@ -428,26 +430,31 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		kh_foreach(h, itr)
 			sw_heap_insert1(heap, opt->n_best, &heap_sz, kh_key(h, itr).H, itr);
 		ks_heapsort_rb3_64(heap_sz, heap);
+		assert(heap_sz > 0);
 		ri->n = heap_sz;
 		for (j = 0; j < ri->n; ++j)
 			ri->a[j] = kh_key(h, (uint32_t)heap[j]);
-		fprintf(stderr, "i=%d, qintv=[%d,%d), n=%d: ", i, t->lo, t->hi, row[i].n); for (j = 0; j < row[i].n; ++j) fprintf(stderr, "%d,", row[i].a[j].H); fprintf(stderr, "\n");
+		//fprintf(stderr, "i=%d, qintv=[%d,%d), n=%d: ", i, t->lo, t->hi, row[i].n); for (j = 0; j < row[i].n; ++j) fprintf(stderr, "%d,", row[i].a[j].H); fprintf(stderr, "\n");
+		if (ri->a[0].H > rst->score) {
+			rst->score = ri->a->H;
+			rst->qlo = t->lo, rst->qhi = t->hi;
+			rst->rlo = ri->a->lo, rst->rhi = ri->a->hi;
+		}
 	}
 	kfree(km, fstack);
 	sw_candset_destroy(h);
 	kfree(km, heap);
-
 	kfree(km, row);
 	kfree(km, cell);
 }
 
-void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const uint8_t *seq)
+void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const uint8_t *seq, rb3_swrst_t *rst)
 {
 	bwtl_t *q;
 	sw_dawg_t *g;
 	q = bwtl_gen(km, len, seq);
 	g = sw_dawg_gen(km, q);
-	sw_core(km, opt, f, g);
+	sw_core(km, opt, f, g, rst);
 	sw_dawg_destroy(km, g);
 	bwtl_destroy(q);
 }

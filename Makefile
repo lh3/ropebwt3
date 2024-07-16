@@ -38,7 +38,7 @@ depend:
 # DO NOT DELETE
 
 build.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h io.h ketopt.h
-bwa-sw.o: rb3priv.h libsais16.h io.h fm-index.h rld0.h mrope.h rope.h
+bwa-sw.o: rb3priv.h libsais16.h io.h fm-index.h rld0.h mrope.h rope.h align.h
 bwa-sw.o: kalloc.h khashl-km.h ksort.h
 fm-index.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h rle.h kthread.h
 fm-index.o: kalloc.h khashl-km.h
@@ -48,8 +48,8 @@ kthread.o: kthread.h
 libsais16.o: libsais16.h
 libsais16x64.o: libsais16.h libsais16x64.h
 main.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h io.h ketopt.h
-match.o: fm-index.h rb3priv.h rld0.h mrope.h rope.h io.h ketopt.h kthread.h
-match.o: kalloc.h
+match.o: fm-index.h rb3priv.h rld0.h mrope.h rope.h align.h io.h ketopt.h
+match.o: kthread.h kalloc.h
 misc.o: rb3priv.h
 mrope.o: mrope.h rope.h rle.h
 rld0.o: rld0.h
