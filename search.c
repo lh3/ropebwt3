@@ -180,7 +180,7 @@ int main_search(int argc, char *argv[])
 		fprintf(stderr, "    -s INT    min interval size [%ld]\n", (long)opt.min_occ);
 		fprintf(stderr, "    -g        find greedy MEMs (faster but not always SMEMs)\n");
 		fprintf(stderr, "    -w        use the original MEM algorithm (slower)\n");
-		fprintf(stderr, "  BWA-SW:\n");
+		fprintf(stderr, "  BWA-SW (unfinished):\n");
 		fprintf(stderr, "    -d        use the BWA-SW algorithm\n");
 		fprintf(stderr, "    -N INT    keep up to INT hits per DAWG node [%d]\n", opt.swo.n_best);
 		fprintf(stderr, "  Input/output:\n");
