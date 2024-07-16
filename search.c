@@ -171,6 +171,7 @@ int main_search(int argc, char *argv[])
 		else if (c == 't') opt.n_threads = atoi(o.arg);
 		else if (c == 'K') opt.batch_size = rb3_parse_num(o.arg);
 		else if (c == 'N') opt.swo.n_best = atoi(o.arg);
+		else if (c == 'C') opt.no_kalloc = 1;
 		else if (c == 'M') use_mmap = 1;
 	}
 	if (argc - o.ind < 2) {

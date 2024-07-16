@@ -323,13 +323,15 @@ static inline int32_t sw_heap_insert1(uint64_t *heap, int32_t max, int32_t *sz, 
 
 static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g, rb3_swrst_t *rst)
 {
-	int32_t i, c, m_fstack = opt->n_best;
+	int32_t i, c, m_fstack = opt->n_best * 2;
 	sw_cell_t *cell, *fstack, *p;
 	sw_row_t *row;
 	int64_t acc[7], tot, clo[6], chi[6];
 	uint64_t *heap;
 	sw_candset_t *h;
+	void *rc;
 
+	rc = rb3_r2cache_init(km, 0x10000);
 	tot = rb3_fmi_get_acc(f, acc);
 	cell = Kcalloc(km, sw_cell_t, opt->n_best * g->n_node);
 	row = Kcalloc(km, sw_row_t, g->n_node);
@@ -369,7 +371,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 					sw_update_candset(h, &r);
 				}
 				// H(s,u)
-				rb3_fmi_rank2a(f, p->lo, p->hi, clo, chi);
+				rb3_fmi_rank2a_cached(f, rc, p->lo, p->hi, clo, chi);
 				for (c = 1; c < 6; ++c) {
 					int32_t sc = c == t->c? opt->match : -opt->mis;
 					if (p->H + sc <= 0) continue;
@@ -412,7 +414,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 				r.F -= opt->gap_ext;
 				r.H = r.F, r.H_from = SW_FROM_F;
 				if (r.H <= min) continue;
-				rb3_fmi_rank2a(f, z.lo, z.hi, clo, chi);
+				rb3_fmi_rank2a_cached(f, rc, z.lo, z.hi, clo, chi);
 				for (c = 1; c < 6; ++c) {
 					sw_cell_t *q;
 					r.lo = acc[c] + clo[c];
@@ -447,6 +449,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	kfree(km, heap);
 	kfree(km, row);
 	kfree(km, cell);
+	rb3_r2cache_destroy(rc);
 }
 
 void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const uint8_t *seq, rb3_swrst_t *rst)

@@ -240,6 +240,7 @@ void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb)
  * Cached rank *
  ***************/
 
+#define kh_packed
 #include "khashl-km.h"
 
 typedef struct {
@@ -296,9 +297,11 @@ void rb3_fmi_rank2a_cached(const rb3_fmi_t *fmi, void *rc_, int64_t k, int64_t l
 		} else if (abs_k) {
 			rb3_fmi_rank1a(fmi, k, ok);
 			memcpy(pk->occ, ok, 48);
+			memcpy(ol, pl->occ, 48);
 		} else if (abs_l) {
 			rb3_fmi_rank1a(fmi, l, ol);
 			memcpy(pl->occ, ol, 48);
+			memcpy(ok, pk->occ, 48);
 		} else {
 			memcpy(ok, pk->occ, 48);
 			memcpy(ol, pl->occ, 48);
