@@ -103,7 +103,8 @@ static void *worker_pipeline(void *shared, int step, void *in)
 			t->n_seq = n_seq;
 			t->buf = RB3_CALLOC(m_tbuf_t, p->opt->n_threads);
 			for (i = 0; i < p->opt->n_threads; ++i)
-				t->buf[i].km = km_init();
+				//t->buf[i].km = km_init();
+				t->buf[i].km = 0;
 			return t;
 		}
 	} else if (step == 1) {

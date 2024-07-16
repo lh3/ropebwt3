@@ -290,7 +290,7 @@ typedef struct {
 #define sw_cell_eq(x, y) ((x).lo == (y).lo && (x).hi == (y).hi)
 KHASHL_SET_INIT(KH_LOCAL, sw_candset_t, sw_candset, sw_cell_t, sw_cell_hash, sw_cell_eq)
 
-static void sw_update_candset(sw_candset_t *h, sw_cell_t *p)
+static sw_cell_t *sw_update_candset(sw_candset_t *h, sw_cell_t *p)
 {
 	khint_t k;
 	int absent;
@@ -301,14 +301,30 @@ static void sw_update_candset(sw_candset_t *h, sw_cell_t *p)
 		if (q->E < p->E) q->E = q->E, q->E_from = p->E_from;
 		if (q->F < p->F) q->F = q->F, q->F_from = p->F_from;
 	}
+	return &kh_key(h, k);
+}
+
+static inline int32_t sw_heap_insert1(uint64_t *heap, int32_t max, int32_t *sz, uint32_t score, uint32_t id)
+{
+	uint64_t x = (uint64_t)score<<32 | id;
+	if (*sz < max) {
+		heap[(*sz)++] = x;
+		ks_heapup_rb3_64(*sz, heap);
+		return 1;
+	} else if (x > heap[0]) {
+		heap[0] = x;
+		ks_heapdown_rb3_64(0, *sz, heap);
+		return 1;
+	}
+	return 0;
 }
 
 static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g)
 {
-	int32_t i;
-	sw_cell_t *cell, *p;
+	int32_t i, c, m_fstack = opt->n_best;
+	sw_cell_t *cell, *fstack, *p;
 	sw_row_t *row;
-	int64_t acc[7], tot;
+	int64_t acc[7], tot, clo[6], chi[6];
 	uint64_t *heap;
 	sw_candset_t *h;
 
@@ -321,20 +337,20 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	p->lo = 0, p->hi = tot;
 	p->H_from = SW_FROM_H;
 
+	fstack = Kcalloc(km, sw_cell_t, m_fstack);
 	heap = Kcalloc(km, uint64_t, opt->n_best);
 	h = sw_candset_init2(km);
 	sw_candset_resize(h, opt->n_best * 4);
 	for (i = 1; i < g->n_node; ++i) {
 		const sw_node_t *t = &g->node[i];
-		int32_t j, k;
+		sw_row_t *ri = &row[i];
+		int32_t j, k, heap_sz;
 		khint_t itr;
 		sw_candset_clear(h);
 		for (j = 0; j < t->n_pre; ++j) {
 			int32_t pid = t->pre[j]; // parent/pre ID
 			for (k = 0; k < row[pid].n; ++k) {
 				sw_cell_t r;
-				int c;
-				int64_t clo[6], chi[6];
 				p = &row[pid].a[k];
 				memset(&r, 0, sizeof(sw_cell_t));
 				// I(s,u) = max{ H(s',u)-q, I(s',u) } - r;
@@ -364,23 +380,60 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 			}
 		}
 		if (kh_size(h) == 0) break;
-		k = 0;
-		kh_foreach(h, itr) {
-			uint64_t x = (uint64_t)(kh_key(h, itr).H) << 32 | itr;
-			if (k < opt->n_best) {
-				heap[k++] = x;
-				ks_heapup_rb3_64(k, heap);
-			} else if (x > heap[0]) {
-				heap[0] = x;
-				ks_heapdown_rb3_64(0, k, heap);
+		// find top-n hits
+		heap_sz = 0;
+		kh_foreach(h, itr)
+			sw_heap_insert1(heap, opt->n_best, &heap_sz, kh_key(h, itr).H, itr);
+		ks_heapsort_rb3_64(heap_sz, heap);
+		ri->n = heap_sz;
+		for (j = 0; j < ri->n; ++j)
+			ri->a[j] = kh_key(h, (uint32_t)heap[j]);
+		for (j = 0; j < heap_sz>>1; ++j) { // reverse heap[] such that it remains a heap
+			uint64_t tmp = heap[j];
+			heap[j] = heap[heap_sz - j - 1];
+			heap[heap_sz - j - 1] = tmp;
+		}
+		{ // update F
+			int32_t n_fstack = 0;
+			for (j = ri->n - 1; j >= 0; --j)
+				if (ri->a[j].H > opt->gap_open + opt->gap_ext)
+					fstack[n_fstack++] = ri->a[j];
+			while (n_fstack > 0) {
+				sw_cell_t r, z = fstack[--n_fstack];
+				int32_t min = heap_sz < opt->n_best? 0 : heap[0]>>32;
+				memset(&r, 0, sizeof(sw_cell_t));
+				if (z.H - opt->gap_open > z.F)
+					r.F_from = SW_FROM_OPEN, r.F = z.H - opt->gap_open;
+				else
+					r.F_from = SW_FROM_EXT,  r.F = z.F;
+				r.F -= opt->gap_ext;
+				r.H = r.F, r.H_from = SW_FROM_F;
+				if (r.H <= min) continue;
+				rb3_fmi_rank2a(f, z.lo, z.hi, clo, chi);
+				for (c = 1; c < 6; ++c) {
+					sw_cell_t *q;
+					r.lo = acc[c] + clo[c];
+					r.hi = acc[c] + chi[c];
+					if (r.lo == r.hi) continue;
+					q = sw_update_candset(h, &r);
+					sw_heap_insert1(heap, opt->n_best, &heap_sz, r.H, UINT32_MAX);
+					if (r.H - opt->gap_ext > min) {
+						Kgrow(km, sw_cell_t, fstack, n_fstack, m_fstack);
+						fstack[n_fstack++] = *q;
+					}
+				}
 			}
 		}
-		ks_heapsort_rb3_64(k, heap);
-		row[i].n = k;
-		for (j = 0; j < k; ++j)
-			row[i].a[j] = kh_key(h, (uint32_t)heap[j]);
+		heap_sz = 0;
+		kh_foreach(h, itr)
+			sw_heap_insert1(heap, opt->n_best, &heap_sz, kh_key(h, itr).H, itr);
+		ks_heapsort_rb3_64(heap_sz, heap);
+		ri->n = heap_sz;
+		for (j = 0; j < ri->n; ++j)
+			ri->a[j] = kh_key(h, (uint32_t)heap[j]);
 		fprintf(stderr, "i=%d, qintv=[%d,%d), n=%d: ", i, t->lo, t->hi, row[i].n); for (j = 0; j < row[i].n; ++j) fprintf(stderr, "%d,", row[i].a[j].H); fprintf(stderr, "\n");
 	}
+	kfree(km, fstack);
 	sw_candset_destroy(h);
 	kfree(km, heap);
 
