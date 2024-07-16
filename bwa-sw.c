@@ -113,6 +113,7 @@ void bwtl_destroy(bwtl_t *bwt)
  * Constructing DAWG *
  *********************/
 
+#define kh_packed
 #include "khashl-km.h"
 
 typedef struct {

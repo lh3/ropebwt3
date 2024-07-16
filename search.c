@@ -124,6 +124,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 			m_seq_t *s = &t->seq[j];
 			free(s->seq);
 			if (p->opt->algo == RB3_SA_SW) {
+				out.l = 0;
 				if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
 				else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
 				rb3_sprintf_lite(&out, "\t%d\t%d\t%d\t%ld\n", s->rst.qlo, s->rst.qhi, s->rst.score, (long)(s->rst.rhi - s->rst.rlo));
