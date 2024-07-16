@@ -8,7 +8,7 @@ make  # use "make omp=0" if your compiler doesn't suport OpenMP
 # Toy examples
 echo -e 'AGG\nAGC' | ./ropebwt3 build -LR -
 echo TGAACTCTACACAACATATTTTGTCACCAAG | ./ropebwt3 build -Lbo idx.fmr -
-echo ACTCTACACAAgATATTTTGTC | ./ropebwt3 match -Ll10 idx.fmr -
+echo ACTCTACACAAgATATTTTGTC | ./ropebwt3 search -Ll10 idx.fmr -
 
 # Download the BWT of a human pangenome consisting of 100 haplotypes on both strands
 wget -O human100.fmr.gz https://zenodo.org/records/11533211/files/human100.fmr.gz?download=1
@@ -16,7 +16,7 @@ gzip -d human100.fmr.gz  # decompress
 ./ropebwt build -i human100.fmr -do human100.fmd  # not required but recommended
 
 # Count super-maximal exact matches (no contig positions)
-echo CTCCAGTTGACACAAAATAGtCTACGAAAGTGGCTTTAACAT | ./ropebwt3 match -L human100.fmd -l20 -
+echo CTCCAGTTGACACAAAATAGtCTACGAAAGTGGCTTTAACAT | ./ropebwt3 search -L human100.fmd -l20 -
 
 # Retrieve chrM of CHM13. It is the 25th sequence during construction. 48=(25-1)*2
 ./ropebwt3 get human100.fmd 48 > CHM13-chrM.fa
@@ -33,7 +33,7 @@ echo CTCCAGTTGACACAAAATAGtCTACGAAAGTGGCTTTAACAT | ./ropebwt3 match -L human100.f
 - [For developers](#dev)
 - [Algorithms](#algo)
   - [BWT construction](#algo-build)
-  - [Matching](#algo-match)
+  - [Searching](#algo-match)
 - [Performance](#perf)
 - [Limitations](#limit)
 
@@ -49,7 +49,7 @@ downloaded [from Zenodo][zenodo].
 
 Ropebwt3 largely replaces [ropebwt2][rb2] and works better for long sequences
 such as chromsomes and assembled contigs. It additionally includes
-functionality in [fermi2][fm2] such as counting and matching.
+functionality in [fermi2][fm2] such as counting and searching.
 
 Ropebwt3 is mostly a research project I use to understand the performance of
 BWT construction. It may also be useful if you want to get the occurrence of a
@@ -141,7 +141,7 @@ that cannot be extended in either direction. A super MEM (SMEM) is a MEM that
 is not contained in any other MEM on the query sequence. You can find the SMEMs
 of a query **provided that your BWT is constructed from both strands of sequences**.
 ```sh
-ropebwt3 match -t4 bwt.fmd query.fa > matches.bed
+ropebwt3 search -t4 bwt.fmd query.fa > matches.bed
 ```
 In the output, the first three columns give the query sequence name, start and
 end of a match and the fourth column gives the number of hits. As of now,
@@ -237,7 +237,7 @@ k\gets C(B'[i])+{\rm rank}(B'[i],k),\, i\gets C'(B'[i])+{\rm rank}'(B'[i],i)
 until $`B'[i]`$ is a seninel. When we have the final position of each symbol
 $`B'[i]`$, we insert them into $B$ to generate the merged BWT.
 
-### <a name="algo-match"></a>Matching
+### <a name="algo-match"></a>Searching
 
 A classical BWT only supports backward search but if a BWT contains both
 strands of DNA sequences, it will support both forward and backward searches.
@@ -285,7 +285,7 @@ build may be helpful for large datasets.
 
 ## <a name="limit"></a>Limitations
 
-* The "match" command of ropebwt3 only counts the number of hits but does not
+* The "search" command of ropebwt3 only counts the number of hits but does not
   report the locations of the hits. [Fermi2][fm2] already supports such
   functionality using standard sampled suffix array but it needs to be
   reworked.
