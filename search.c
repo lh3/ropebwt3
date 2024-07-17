@@ -152,6 +152,13 @@ static void *worker_pipeline(void *shared, int step, void *in)
 	return 0;
 }
 
+static ko_longopt_t long_options[] = {
+	{ "no-kalloc",       ko_no_argument,       501 },
+	{ "dbg-dawg",        ko_no_argument,       502 },
+	{ "dbg-sw",          ko_no_argument,       503 },
+	{ 0, 0, 0 }
+};
+
 int main_search(int argc, char *argv[])
 {
 	int32_t c, j, is_line = 0, use_mmap = 0;
@@ -161,7 +168,7 @@ int main_search(int argc, char *argv[])
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgdwCN:A:B:O:E:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgdwN:A:B:O:E:S:", long_options)) >= 0) {
 		if (c == 'L') is_line = 1;
 		else if (c == 'g') opt.algo = RB3_SA_GREEDY;
 		else if (c == 'w') opt.algo = RB3_SA_MEM_ORI;
@@ -171,34 +178,37 @@ int main_search(int argc, char *argv[])
 		else if (c == 't') opt.n_threads = atoi(o.arg);
 		else if (c == 'K') opt.batch_size = rb3_parse_num(o.arg);
 		else if (c == 'N') opt.swo.n_best = atoi(o.arg);
-		else if (c == 'C') opt.no_kalloc = 1;
 		else if (c == 'M') use_mmap = 1;
 		else if (c == 'A') opt.swo.match = atoi(o.arg);
 		else if (c == 'B') opt.swo.mis = atoi(o.arg);
 		else if (c == 'O') opt.swo.gap_open = atoi(o.arg);
 		else if (c == 'E') opt.swo.gap_ext = atoi(o.arg);
+		else if (c == 'S') opt.swo.r2cache_size = rb3_parse_num(o.arg);
+		else if (c == 501) opt.no_kalloc = 1;
+		else if (c == 502) rb3_dbg_flag |= RB3_DBG_DAWG;
+		else if (c == 503) rb3_dbg_flag |= RB3_DBG_SW;
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stdout, "Usage: ropebwt3 search [options] <idx.fmr> <seq.fa> [...]\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  Maximal exact matches:\n");
-		fprintf(stderr, "    -l INT    min MEM length [%ld]\n", (long)opt.min_len);
-		fprintf(stderr, "    -s INT    min interval size [%ld]\n", (long)opt.min_occ);
-		fprintf(stderr, "    -g        find greedy MEMs (faster but not always SMEMs)\n");
-		fprintf(stderr, "    -w        use the original MEM algorithm (slower)\n");
+		fprintf(stderr, "    -l INT      min MEM length [%ld]\n", (long)opt.min_len);
+		fprintf(stderr, "    -s INT      min interval size [%ld]\n", (long)opt.min_occ);
+		fprintf(stderr, "    -g          find greedy MEMs (faster but not always SMEMs)\n");
+		fprintf(stderr, "    -w          use the original MEM algorithm (slower)\n");
 		fprintf(stderr, "  BWA-SW (unfinished):\n");
-		fprintf(stderr, "    -d        use the BWA-SW algorithm\n");
-		fprintf(stderr, "    -N INT    keep up to INT hits per DAWG node [%d]\n", opt.swo.n_best);
-		fprintf(stderr, "    -A INT    match score [%d]\n", opt.swo.match);
-		fprintf(stderr, "    -B INT    mismatch penalty [%d]\n", opt.swo.mis);
-		fprintf(stderr, "    -O INT    gap open penalty [%d]\n", opt.swo.gap_open);
-		fprintf(stderr, "    -E INT    gap extension penalty; a k-long gap costs O+k*E [%d]\n", opt.swo.gap_ext);
+		fprintf(stderr, "    -d          use the BWA-SW algorithm\n");
+		fprintf(stderr, "    -N INT      keep up to INT hits per DAWG node [%d]\n", opt.swo.n_best);
+		fprintf(stderr, "    -A INT      match score [%d]\n", opt.swo.match);
+		fprintf(stderr, "    -B INT      mismatch penalty [%d]\n", opt.swo.mis);
+		fprintf(stderr, "    -O INT      gap open penalty [%d]\n", opt.swo.gap_open);
+		fprintf(stderr, "    -E INT      gap extension penalty; a k-long gap costs O+k*E [%d]\n", opt.swo.gap_ext);
+		fprintf(stderr, "    -S NUM      size of the ranking cache [%d]\n", opt.swo.r2cache_size);
 		fprintf(stderr, "  Input/output:\n");
-		fprintf(stderr, "    -t INT    number of threads [%d]\n", opt.n_threads);
-		fprintf(stderr, "    -L        one sequence per line in the input\n");
-		fprintf(stderr, "    -K NUM    query batch size [100m]\n");
-		fprintf(stderr, "    -M        use mmap to load FMD\n");
-		fprintf(stderr, "    -C        disable the kalloc allocator\n");
+		fprintf(stderr, "    -t INT      number of threads [%d]\n", opt.n_threads);
+		fprintf(stderr, "    -L          one sequence per line in the input\n");
+		fprintf(stderr, "    -K NUM      query batch size [100m]\n");
+		fprintf(stderr, "    -M          use mmap to load FMD\n");
 		return 0;
 	}
 	rb3_fmi_restore(&p.fmi, argv[o.ind], use_mmap);

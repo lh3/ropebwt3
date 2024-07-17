@@ -233,18 +233,18 @@ static sw_dawg_t *sw_dawg_gen(void *km, const bwtl_t *q)
 	}
 	sw_deg_destroy(h);
 
-	#if 0 // debugging the topology of DAWG
-	for (i = 0; i < g->n_node; ++i) {
-		sw_node_t *p = &g->node[i];
-		int j;
-		fprintf(stderr, "%d\t[%d,%d)\t", i, p->lo, p->hi);
-		for (j = 0; j < p->n_pre; ++j) {
-			if (j) fprintf(stderr, ",");
-			fprintf(stderr, "%d", p->pre[j]);
+	if (rb3_dbg_flag & RB3_DBG_DAWG) {
+		for (i = 0; i < g->n_node; ++i) {
+			sw_node_t *p = &g->node[i];
+			int j;
+			fprintf(stderr, "DG\t%d\t[%d,%d)\t", i, p->lo, p->hi);
+			for (j = 0; j < p->n_pre; ++j) {
+				if (j) fputc(',', stderr);
+				fprintf(stderr, "%d", p->pre[j]);
+			}
+			fputc('\n', stderr);
 		}
-		fprintf(stderr, "\n");
 	}
-	#endif
 	return g;
 }
 
@@ -269,6 +269,7 @@ void rb3_swopt_init(rb3_swopt_t *opt)
 	opt->min_sc = 30;
 	opt->match = 1, opt->mis = 3;
 	opt->gap_open = 3, opt->gap_ext = 1;
+	opt->r2cache_size = 0x10000;
 }
 
 #define SW_FROM_M    0
@@ -371,7 +372,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	sw_candset_t *h;
 	void *rc;
 
-	rc = rb3_r2cache_init(km, 0x10000);
+	rc = rb3_r2cache_init(km, opt->r2cache_size);
 	cell = Kcalloc(km, sw_cell_t, opt->n_best * g->n_node);
 	row = Kcalloc(km, sw_row_t, g->n_node);
 	for (i = 0; i < g->n_node; ++i)
@@ -481,7 +482,19 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		for (j = 0; j < ri->n; ++j)
 			ri->a[j] = kh_key(h, (uint32_t)heap[j]);
 		sw_track_F(km, f, rc, h, &row[i]);
-		//fprintf(stderr, "i=%d, qintv=[%d,%d), pre=%d, n=%d: ", i, t->lo, t->hi, g->node[i].n_pre, row[i].n); for (j = 0; j < row[i].n; ++j) fprintf(stderr, "%d[%lld:%lld),", ri->a[j].H, ri->a[j].lo, ri->a[j].hi); fprintf(stderr, "\n");
+		if (rb3_dbg_flag & RB3_DBG_SW) { // NB: single-threaded only
+			fprintf(stderr, "SW\t%d\t[%d,%d)\t%d\t", i, t->lo, t->hi, ri->n);
+			for (j = 0; j < t->n_pre; ++j) {
+				if (j) fputc(',', stderr);
+				fprintf(stderr, "%d", t->pre[j]);
+			}
+			fputc('\t', stderr);
+			for (j = 0; j < ri->n; ++j) {
+				if (j) fputc(',', stderr);
+				fprintf(stderr, "%d", ri->a[j].H);
+			}
+			fputc('\n', stderr);
+		}
 		if (ri->a[0].H > rst->score) {
 			rst->score = ri->a->H;
 			rst->qlo = t->lo, rst->qhi = t->hi;

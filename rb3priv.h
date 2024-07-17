@@ -4,6 +4,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define RB3_DBG_DAWG   0x1
+#define RB3_DBG_SW     0x2
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -38,7 +41,7 @@ typedef struct __kstring_t {
 		} \
 	} while (0)
 
-extern int rb3_verbose;
+extern int rb3_verbose, rb3_dbg_flag;
 
 // in misc.c
 void rb3_init(void);

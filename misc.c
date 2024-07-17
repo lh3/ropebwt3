@@ -2,7 +2,7 @@
 #include <string.h>
 #include "rb3priv.h"
 
-int rb3_verbose = 3;
+int rb3_verbose = 3, rb3_dbg_flag = 0;
 
 int64_t rb3_parse_num(const char *str)
 {
