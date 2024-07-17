@@ -161,7 +161,7 @@ int main_search(int argc, char *argv[])
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgdwCN:", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgdwCN:A:B:O:E:", 0)) >= 0) {
 		if (c == 'L') is_line = 1;
 		else if (c == 'g') opt.algo = RB3_SA_GREEDY;
 		else if (c == 'w') opt.algo = RB3_SA_MEM_ORI;
@@ -173,6 +173,10 @@ int main_search(int argc, char *argv[])
 		else if (c == 'N') opt.swo.n_best = atoi(o.arg);
 		else if (c == 'C') opt.no_kalloc = 1;
 		else if (c == 'M') use_mmap = 1;
+		else if (c == 'A') opt.swo.match = atoi(o.arg);
+		else if (c == 'B') opt.swo.mis = atoi(o.arg);
+		else if (c == 'O') opt.swo.gap_open = atoi(o.arg);
+		else if (c == 'E') opt.swo.gap_ext = atoi(o.arg);
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stdout, "Usage: ropebwt3 search [options] <idx.fmr> <seq.fa> [...]\n");
@@ -185,6 +189,10 @@ int main_search(int argc, char *argv[])
 		fprintf(stderr, "  BWA-SW (unfinished):\n");
 		fprintf(stderr, "    -d        use the BWA-SW algorithm\n");
 		fprintf(stderr, "    -N INT    keep up to INT hits per DAWG node [%d]\n", opt.swo.n_best);
+		fprintf(stderr, "    -A INT    match score [%d]\n", opt.swo.match);
+		fprintf(stderr, "    -B INT    mismatch penalty [%d]\n", opt.swo.mis);
+		fprintf(stderr, "    -O INT    gap open penalty [%d]\n", opt.swo.gap_open);
+		fprintf(stderr, "    -E INT    gap extension penalty; a k-long gap costs O+k*E [%d]\n", opt.swo.gap_ext);
 		fprintf(stderr, "  Input/output:\n");
 		fprintf(stderr, "    -t INT    number of threads [%d]\n", opt.n_threads);
 		fprintf(stderr, "    -L        one sequence per line in the input\n");
