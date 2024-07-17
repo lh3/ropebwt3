@@ -268,7 +268,7 @@ void rb3_swopt_init(rb3_swopt_t *opt)
 	opt->n_best = 10;
 	opt->min_sc = 30;
 	opt->match = 1, opt->mis = 3;
-	opt->gap_open = 5, opt->gap_ext = 2;
+	opt->gap_open = 3, opt->gap_ext = 1;
 }
 
 #define SW_FROM_M    0

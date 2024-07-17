@@ -316,8 +316,10 @@ void rb3_fmi_rank2a_cached(const rb3_fmi_t *fmi, void *rc_, int64_t k, int64_t l
 				d[m++] = kh_key(rc->h, itr);
 				if (m == n_del) break;
 			}
-			if (n_del >= 1) rc_hash_del(rc->h, d[0]);
-			if (n_del >= 2) rc_hash_del(rc->h, d[1]);
+			if (n_del >= 1)
+				rc_hash_del(rc->h, rc_hash_get(rc->h, d[0]));
+			if (n_del >= 2)
+				rc_hash_del(rc->h, rc_hash_get(rc->h, d[1]));
 		}
 	}
 }
