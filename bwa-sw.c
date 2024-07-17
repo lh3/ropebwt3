@@ -370,7 +370,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	int64_t clo[6], chi[6];
 	uint64_t *heap;
 	sw_candset_t *h;
-	void *rc;
+	void *rc = 0;
 
 	rc = rb3_r2cache_init(km, opt->r2cache_size);
 	cell = Kcalloc(km, sw_cell_t, opt->n_best * g->n_node);
@@ -483,7 +483,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 			ri->a[j] = kh_key(h, (uint32_t)heap[j]);
 		sw_track_F(km, f, rc, h, &row[i]);
 		if (rb3_dbg_flag & RB3_DBG_SW) { // NB: single-threaded only
-			fprintf(stderr, "SW\t%d\t[%d,%d)\t%d\t", i, t->lo, t->hi, ri->n);
+			fprintf(stderr, "SW\t%d\t[%d,%d)\t%d:%.3f\t", i, t->lo, t->hi, ri->n, rb3_cputime());
 			for (j = 0; j < t->n_pre; ++j) {
 				if (j) fputc(',', stderr);
 				fprintf(stderr, "%d", t->pre[j]);

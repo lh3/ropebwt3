@@ -283,9 +283,11 @@ void rb3_fmi_rank2a_cached(const rb3_fmi_t *fmi, void *rc_, int64_t k, int64_t l
 		return;
 	} else {
 		rank_cache_t *rc = (rank_cache_t*)rc_;
-		int abs_k, abs_l, n_del;
+		int abs_k, abs_l;
 		khint_t itr_k, itr_l;
 		rc_occ6_t *pk, *pl;
+		if (kh_size(rc->h) >= rc->max)
+			rc_hash_clear(rc->h);
 		itr_k = rc_hash_put(rc->h, k, &abs_k);
 		itr_l = rc_hash_put(rc->h, l, &abs_l);
 		pk = &kh_val(rc->h, itr_k);
@@ -305,21 +307,6 @@ void rb3_fmi_rank2a_cached(const rb3_fmi_t *fmi, void *rc_, int64_t k, int64_t l
 		} else {
 			memcpy(ok, pk->occ, 48);
 			memcpy(ol, pl->occ, 48);
-		}
-		n_del = (int32_t)kh_size(rc->h) + 2 - rc->max;
-		assert(n_del <= 2);
-		if (n_del > 0) {
-			uint64_t d[2];
-			khint_t itr;
-			int m = 0;
-			kh_foreach(rc->h, itr) {
-				d[m++] = kh_key(rc->h, itr);
-				if (m == n_del) break;
-			}
-			if (n_del >= 1)
-				rc_hash_del(rc->h, rc_hash_get(rc->h, d[0]));
-			if (n_del >= 2)
-				rc_hash_del(rc->h, rc_hash_get(rc->h, d[1]));
 		}
 	}
 }
