@@ -298,7 +298,7 @@ build may be helpful for large datasets.
 [bigbwt]: https://gitlab.com/manzai/Big-BWT
 [fm2]: https://github.com/lh3/fermi2
 [rb2]: https://github.com/lh3/ropebwt2
-[zenodo]: https://zenodo.org/records/11533211
+[zenodo]: https://zenodo.org/records/11533210
 [rb2-paper]: https://academic.oup.com/bioinformatics/article/30/22/3274/2391324
 [fm-paper]: https://academic.oup.com/bioinformatics/article/28/14/1838/218887
 [atb02]: https://ftp.ebi.ac.uk/pub/databases/AllTheBacteria/Releases/0.2/
