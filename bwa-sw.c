@@ -35,6 +35,7 @@ typedef struct {
 	int32_t H, E, F;
 	uint32_t H_from:2, E_from:1, F_from:1, F_from_off:28;
 	uint32_t H_from_pos, E_from_pos;
+	int32_t rlen, qlen;
 	int64_t lo, hi;
 } sw_cell_t;
 
@@ -244,6 +245,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 					r.H = r.E;
 					r.H_from = SW_FROM_E;
 					r.E_from_pos = pid * n_col + k, r.H_from_pos = UINT32_MAX;
+					r.rlen = p->rlen, r.qlen = p->qlen + 1;
 					sw_update_candset(h, &r);
 				}
 				// calculate H
@@ -257,10 +259,12 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 					r.hi = f->acc[c] + chi[c];
 					if (r.lo == r.hi) continue;
 					r.H = p->H + sc;
+					r.rlen = p->rlen + 1, r.qlen = p->qlen + 1;
 					sw_update_candset(h, &r);
 				}
 			}
 		}
+		ri->n = 0;
 		if (kh_size(h) == 0) continue;
 		// find top-n hits
 		heap_sz = 0;
@@ -291,6 +295,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 					r.F_from = SW_FROM_EXT,  r.F = z.F;
 				r.F -= opt->gap_ext;
 				r.H = r.F, r.H_from = SW_FROM_F;
+				r.rlen = p->rlen + 1, r.qlen = p->qlen;
 				if (r.H <= min) continue;
 				rb3_fmi_rank2a_cached(f, rc, z.lo, z.hi, clo, chi);
 				for (c = 1; c < 6; ++c) {
@@ -325,7 +330,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 			fputc('\t', stderr);
 			for (j = 0; j < ri->n; ++j) {
 				if (j) fputc(',', stderr);
-				fprintf(stderr, "%d", ri->a[j].H);
+				fprintf(stderr, "%d(%d,%d)", ri->a[j].H, ri->a[j].rlen, ri->a[j].qlen);
 			}
 			fputc('\n', stderr);
 		}
