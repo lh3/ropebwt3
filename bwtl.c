@@ -58,9 +58,9 @@ rb3_bwtl_t *rb3_bwtl_gen(void *km, int len, const uint8_t *seq)
 		}
 		if (i % 16 == 0)
 			memcpy(b->occ + (i/16) * 4, c, 16);
-		memcpy(b->L2+1, c, 16);
-		b->L2[0] = 1;
-		for (i = 1; i < 5; ++i) b->L2[i] += b->L2[i-1];
+		memcpy(&b->acc[1], c, 16);
+		b->acc[0] = 1;
+		for (i = 1; i < 5; ++i) b->acc[i] += b->acc[i-1];
 	}
 	return b;
 }

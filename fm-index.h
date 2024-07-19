@@ -98,6 +98,7 @@ static inline void rb3_fmi_restore(rb3_fmi_t *fmi, const char *fn, int use_mmap)
 		fmi->r = mr_restore_file(fn);
 		fmi->is_fmd = 0;
 	} else fmi->is_fmd = 1;
+	if (fmi->e == 0 && fmi->r == 0) return;
 	rb3_fmi_get_acc(fmi, fmi->acc);
 }
 

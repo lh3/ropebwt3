@@ -179,7 +179,7 @@ int main_search(int argc, char *argv[])
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgdwN:A:B:O:E:S:", long_options)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgdwN:A:B:O:E:S:m:", long_options)) >= 0) {
 		if (c == 'L') is_line = 1;
 		else if (c == 'g') opt.algo = RB3_SA_GREEDY;
 		else if (c == 'w') opt.algo = RB3_SA_MEM_ORI;
@@ -195,6 +195,7 @@ int main_search(int argc, char *argv[])
 		else if (c == 'O') opt.swo.gap_open = atoi(o.arg);
 		else if (c == 'E') opt.swo.gap_ext = atoi(o.arg);
 		else if (c == 'S') opt.swo.r2cache_size = rb3_parse_num(o.arg);
+		else if (c == 'm') opt.swo.min_sc = atoi(o.arg);
 		else if (c == 501) opt.no_kalloc = 1;
 		else if (c == 502) rb3_dbg_flag |= RB3_DBG_DAWG;
 		else if (c == 503) rb3_dbg_flag |= RB3_DBG_SW;
@@ -207,9 +208,10 @@ int main_search(int argc, char *argv[])
 		fprintf(stderr, "    -s INT      min interval size [%ld]\n", (long)opt.min_occ);
 		fprintf(stderr, "    -g          find greedy MEMs (faster but not always SMEMs)\n");
 		fprintf(stderr, "    -w          use the original MEM algorithm (slower)\n");
-		fprintf(stderr, "  BWA-SW (unfinished):\n");
-		fprintf(stderr, "    -d          use the BWA-SW algorithm\n");
+		fprintf(stderr, "  BWA-SW:\n");
+		fprintf(stderr, "    -d          use the BWA-SW algorithm (output incomplete PAF)\n");
 		fprintf(stderr, "    -N INT      keep up to INT hits per DAWG node [%d]\n", opt.swo.n_best);
+		fprintf(stderr, "    -m INT      min alignment score [%d]\n", opt.swo.min_sc);
 		fprintf(stderr, "    -A INT      match score [%d]\n", opt.swo.match);
 		fprintf(stderr, "    -B INT      mismatch penalty [%d]\n", opt.swo.mis);
 		fprintf(stderr, "    -O INT      gap open penalty [%d]\n", opt.swo.gap_open);

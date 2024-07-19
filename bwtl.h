@@ -7,7 +7,7 @@ typedef struct {
 	void *km;
 	int32_t seq_len, bwt_size, n_occ;
 	int32_t primary;
-	int32_t *occ, *sa, L2[5];
+	int32_t *occ, *sa, acc[5];
 	uint32_t *bwt;
 } rb3_bwtl_t;
 
