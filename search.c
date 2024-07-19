@@ -200,6 +200,10 @@ int main_search(int argc, char *argv[])
 		else if (c == 501) opt.no_kalloc = 1;
 		else if (c == 502) rb3_dbg_flag |= RB3_DBG_DAWG;
 		else if (c == 503) rb3_dbg_flag |= RB3_DBG_SW;
+		else {
+			fprintf(stderr, "ERROR: unknown option\n");
+			return 1;
+		}
 	}
 	if (argc - o.ind < 2) {
 		fprintf(stdout, "Usage: ropebwt3 search [options] <idx.fmr> <seq.fa> [...]\n");
@@ -208,7 +212,7 @@ int main_search(int argc, char *argv[])
 		fprintf(stderr, "    -l INT      min MEM length [%ld]\n", (long)opt.min_len);
 		fprintf(stderr, "    -s INT      min interval size [%ld]\n", (long)opt.min_occ);
 		fprintf(stderr, "    -g          find greedy MEMs (faster but not always SMEMs)\n");
-		fprintf(stderr, "    -w          use the original MEM algorithm (slower)\n");
+		fprintf(stderr, "    -w          use the original MEM algorithm (for testing)\n");
 		fprintf(stderr, "  BWA-SW:\n");
 		fprintf(stderr, "    -d          use the BWA-SW algorithm (output incomplete PAF)\n");
 		fprintf(stderr, "    -N INT      keep up to INT hits per DAWG node [%d]\n", opt.swo.n_best);
