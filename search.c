@@ -61,6 +61,8 @@ static void worker_for(void *data, long i, int tid)
 	const pipeline_t *p = t->p;
 	m_seq_t *s = &t->seq[i];
 	m_tbuf_t *b = &t->buf[tid];
+	if (rb3_dbg_flag & RB3_DBG_QNAME)
+		fprintf(stderr, "Q\t%s\t%d\n", s->name, tid);
 	if (p->opt->algo == RB3_SA_SW) { // BWA-SW
 		rb3_sw(b->km, &p->opt->swo, &p->fmi, s->len, s->seq, &s->rst);
 	} else { // MEM algorithms
@@ -168,6 +170,7 @@ static ko_longopt_t long_options[] = {
 	{ "no-kalloc",       ko_no_argument,       501 },
 	{ "dbg-dawg",        ko_no_argument,       502 },
 	{ "dbg-sw",          ko_no_argument,       503 },
+	{ "dbg-qname",       ko_no_argument,       504 },
 	{ 0, 0, 0 }
 };
 
@@ -200,6 +203,7 @@ int main_search(int argc, char *argv[])
 		else if (c == 501) opt.no_kalloc = 1;
 		else if (c == 502) rb3_dbg_flag |= RB3_DBG_DAWG;
 		else if (c == 503) rb3_dbg_flag |= RB3_DBG_SW;
+		else if (c == 504) rb3_dbg_flag |= RB3_DBG_QNAME;
 		else {
 			fprintf(stderr, "ERROR: unknown option\n");
 			return 1;

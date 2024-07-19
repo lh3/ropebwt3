@@ -186,6 +186,8 @@ static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, 
 			if (k != kh_end(h))
 				row->a[kh_key(h, k).H].F_from_off = j;
 		}
+	}
+	for (j = 0; j < row->n - 1; ++j) {
 		if (row->a[j].F_from_off == SW_F_UNSET) { // this may happen if the parent cell is not in row; this happens!
 			assert(row->a[j].H_from != SW_FROM_F); // but this shouldn't happen
 			row->a[j].F = 0; // prevent backtrack to F
