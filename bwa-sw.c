@@ -1,113 +1,10 @@
 #include <string.h>
 #include <stdio.h>
 #include "rb3priv.h"
-#include "libsais16.h"
-#include "io.h" // for rb3_nt6_table[]
 #include "fm-index.h"
 #include "align.h"
 #include "kalloc.h"
-
-/*******************
- * Lightweight BWT *
- *******************/
-
-static uint32_t bwtl_cnt_table[256];
-
-typedef struct {
-	void *km;
-	int32_t seq_len, bwt_size, n_occ;
-	int32_t primary;
-	int32_t *occ, *sa, L2[5];
-	uint32_t *bwt;
-} bwtl_t;
-
-#define bwtl_B0(b, k) ((b)->bwt[(k)>>4]>>((~(k)&0xf)<<1)&3)
-
-void bwtl_init_cnt_table(void)
-{
-	int i, c;
-	for (i = 0; i != 256; ++i) {
-		uint32_t x = 0;
-		for (c = 0; c != 4; ++c)
-			x |= (((i&3) == c) + ((i>>2&3) == c) + ((i>>4&3) == c) + (i>>6 == c)) << (c<<3);
-		bwtl_cnt_table[i] = x;
-	}
-}
-
-bwtl_t *bwtl_gen(void *km, int len, const uint8_t *seq)
-{
-	bwtl_t *b;
-	int32_t i;
-	b = Kcalloc(km, bwtl_t, 1); // allocate long-term memory first to reduce memory fragmentation
-	b->km = km;
-	b->seq_len = len;
-	b->bwt_size = (len + 15) / 16;
-	b->bwt = Kcalloc(km, uint32_t, b->bwt_size);
-	b->n_occ = (len + 16) / 16 * 4;
-	b->occ = Kcalloc(km, int32_t, b->n_occ);
-
-	{ // calculate b->bwt
-		uint8_t *s;
-		uint16_t *s16;
-		s16 = Kcalloc(km, uint16_t, len);
-		for (i = 0; i < len; ++i) s16[i] = rb3_nt6_table[seq[i]];
-		b->sa = Kcalloc(km, int32_t, len + 1);
-		libsais16(s16, &b->sa[1], len, 0, 0);
-		b->sa[0] = len;
-		s = Kcalloc(km, uint8_t, len + 1);
-		for (i = 0; i <= len; ++i) {
-			if (b->sa[i] == 0) b->primary = i;
-			else s[i] = s16[b->sa[i] - 1] - 1;
-		}
-		kfree(km, s16);
-		for (i = b->primary; i < len; ++i) s[i] = s[i + 1];
-		for (i = 0; i < len; ++i)
-			b->bwt[i>>4] |= s[i] << ((15 - (i&15)) << 1);
-		kfree(km, s);
-	}
-	{ // calculate b->occ
-		int32_t c[4];
-		memset(c, 0, 16);
-		for (i = 0; i < len; ++i) {
-			if (i % 16 == 0)
-				memcpy(b->occ + (i/16) * 4, c, 16);
-			++c[bwtl_B0(b, i)];
-		}
-		if (i % 16 == 0)
-			memcpy(b->occ + (i/16) * 4, c, 16);
-		memcpy(b->L2+1, c, 16);
-		b->L2[0] = 1;
-		for (i = 1; i < 5; ++i) b->L2[i] += b->L2[i-1];
-	}
-	return b;
-}
-
-void bwtl_rank1a(const bwtl_t *bwt, int32_t k, int32_t cnt[4])
-{
-	uint32_t x, b;
-	if (k > bwt->primary) --k; // because $ is not in bwt
-	memcpy(cnt, bwt->occ + (k>>4<<2), 16);
-	if (k % 16 == 0) return;
-	--k;
-	b = bwt->bwt[k>>4] & ~((1U<<((~k&15)<<1)) - 1);
-	x = bwtl_cnt_table[b&0xff] + bwtl_cnt_table[b>>8&0xff] + bwtl_cnt_table[b>>16&0xff] + bwtl_cnt_table[b>>24];
-	x -= 15 - (k&15);
-	cnt[0] += x&0xff; cnt[1] += x>>8&0xff; cnt[2] += x>>16&0xff; cnt[3] += x>>24;
-}
-
-void bwtl_rank2a(const bwtl_t *bwt, int32_t k, int32_t l, int32_t cntk[4], int32_t cntl[4])
-{
-	bwtl_rank1a(bwt, k, cntk);
-	bwtl_rank1a(bwt, l, cntl);
-}
-
-void bwtl_destroy(bwtl_t *bwt)
-{
-	kfree(bwt->km, bwt->occ);
-	kfree(bwt->km, bwt->bwt);
-	kfree(bwt->km, bwt->sa);
-	kfree(bwt->km, bwt);
-}
+#include "bwtl.h"
 
 /*********************
  * Constructing DAWG *
@@ -122,7 +19,7 @@ typedef struct {
 
 KHASHL_MAP_INIT(KH_LOCAL, sw_deg_t, sw_deg, uint64_t, deg_cell_t, kh_hash_uint64, kh_eq_generic)
 
-static sw_deg_t *sw_cal_deg(void *km, const bwtl_t *bwt) // calculate the in-degree of each node in DAWG
+static sw_deg_t *sw_cal_deg(void *km, const rb3_bwtl_t *bwt) // calculate the in-degree of each node in DAWG
 {
 	sw_deg_t *h;
 	int32_t n = 0, m = 16, c, absent;
@@ -136,10 +33,10 @@ static sw_deg_t *sw_cal_deg(void *km, const bwtl_t *bwt) // calculate the in-deg
 
 	a = Kmalloc(km, uint64_t, m);
 	a[n++] = bwt->seq_len + 1; // the root interval is [0,bwt->seq_len + 1)
-	while (n > 0) { // 1st pass: count the in-degree of each node in DAWG
+	while (n > 0) { // count the in-degree of each node in DAWG
 		uint64_t x = a[--n]; // pop
 		int32_t rlo[4], rhi[4];
-		bwtl_rank2a(bwt, x>>32, (int32_t)x, rlo, rhi);
+		rb3_bwtl_rank2a(bwt, x>>32, (int32_t)x, rlo, rhi);
 		for (c = 3; c >= 0; --c) { // traverse children
 			uint64_t key;
 			int32_t lo = bwt->L2[c] + rlo[c];
@@ -169,10 +66,10 @@ typedef struct {
 	int32_t n_node, n_pre;
 	sw_node_t *node;
 	int32_t *pre;
-	const bwtl_t *bwt;
+	const rb3_bwtl_t *bwt;
 } sw_dawg_t;
 
-static sw_dawg_t *sw_dawg_gen(void *km, const bwtl_t *q)
+static sw_dawg_t *sw_dawg_gen(void *km, const rb3_bwtl_t *q)
 {
 	khint_t itr;
 	sw_deg_t *h;
@@ -199,7 +96,7 @@ static sw_dawg_t *sw_dawg_gen(void *km, const bwtl_t *q)
 	while (n_a > 0) { // 2nd pass: topological sorting; this is different from the first pass
 		uint64_t x = a[--n_a]; // pop
 		int32_t rlo[4], rhi[4], c;
-		bwtl_rank2a(q, x>>32, (int32_t)x, rlo, rhi);
+		rb3_bwtl_rank2a(q, x>>32, (int32_t)x, rlo, rhi);
 		for (c = 3; c >= 0; --c) { // traverse children
 			uint64_t key;
 			int32_t lo = q->L2[c] + rlo[c];
@@ -223,7 +120,7 @@ static sw_dawg_t *sw_dawg_gen(void *km, const bwtl_t *q)
 
 	for (i = 0; i < g->n_node; ++i) { // populate predecessors
 		int32_t rlo[4], rhi[4], c;
-		bwtl_rank2a(q, g->node[i].lo, g->node[i].hi, rlo, rhi);
+		rb3_bwtl_rank2a(q, g->node[i].lo, g->node[i].hi, rlo, rhi);
 		for (c = 0; c < 4; ++c) { // traverse i's children
 			int32_t lo = q->L2[c] + rlo[c];
 			int32_t hi = q->L2[c] + rhi[c];
@@ -446,7 +343,7 @@ static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, 
 	}
 }
 
-static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g, const bwtl_t *bwt, rb3_swrst_t *rst)
+static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g, const rb3_bwtl_t *bwt, rb3_swrst_t *rst)
 {
 	uint32_t best_pos = 0;
 	int32_t i, c, n_col = opt->n_best, m_fstack = opt->n_best * 2;
@@ -595,11 +492,11 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 
 void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const uint8_t *seq, rb3_swrst_t *rst)
 {
-	bwtl_t *q;
+	rb3_bwtl_t *q;
 	sw_dawg_t *g;
-	q = bwtl_gen(km, len, seq);
+	q = rb3_bwtl_gen(km, len, seq);
 	g = sw_dawg_gen(km, q);
 	sw_core(km, opt, f, g, q, rst);
 	sw_dawg_destroy(km, g); // this doesn't deallocate q
-	bwtl_destroy(q);
+	rb3_bwtl_destroy(q);
 }

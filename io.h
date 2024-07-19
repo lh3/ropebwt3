@@ -2,6 +2,7 @@
 #define RB3_IO_H
 
 #include <stdint.h>
+#include "rb3priv.h" // for kstring_t
 
 #ifdef __cplusplus
 extern "C" {

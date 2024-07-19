@@ -151,7 +151,7 @@ double rb3_percent_cpu(void)
 
 void rb3_init(void)
 {
-	extern void bwtl_init_cnt_table(void);
-	bwtl_init_cnt_table();
+	extern void rb3_bwtl_init(void);
+	rb3_bwtl_init();
 	rb3_realtime();
 }
