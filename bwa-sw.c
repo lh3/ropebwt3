@@ -169,6 +169,7 @@ typedef struct {
 	int32_t n_node, n_pre;
 	sw_node_t *node;
 	int32_t *pre;
+	const bwtl_t *bwt;
 } sw_dawg_t;
 
 static sw_dawg_t *sw_dawg_gen(void *km, const bwtl_t *q)
@@ -182,6 +183,7 @@ static sw_dawg_t *sw_dawg_gen(void *km, const bwtl_t *q)
 
 	h = sw_cal_deg(km, q);
 	g = Kcalloc(km, sw_dawg_t, 1);
+	g->bwt = q;
 	g->n_node = kh_size(h);
 	g->node = Kcalloc(km, sw_node_t, g->n_node);
 	kh_foreach(h, itr) {
@@ -346,10 +348,33 @@ static void sw_backtrack_core(const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 
 static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g, const sw_row_t *row, uint32_t pos, rb3_swrst_t *rst)
 {
+	int32_t k;
+	const sw_node_t *p;
+	const sw_cell_t *q;
+
+	// get CIGAR
+	if (rst->score == 0) return;
 	sw_backtrack_core(opt, f, g, row, pos, rst, 1);
 	rst->rseq = RB3_CALLOC(uint8_t, rst->rlen);
 	rst->cigar = RB3_CALLOC(uint32_t, rst->n_cigar);
 	sw_backtrack_core(opt, f, g, row, pos, rst, 0);
+
+	// calculate block length and matching length
+	rst->mlen = rst->blen = 0;
+	for (k = 0; k < rst->n_cigar; ++k) {
+		int32_t op = rst->cigar[k]&0xf, len = rst->cigar[k]>>4;
+		rst->blen += len;
+		if (op == 7) rst->mlen += len;
+	}
+
+	// get positions
+	p = &g->node[pos / opt->n_best];
+	q = &row[pos / opt->n_best].a[pos % opt->n_best];
+	rst->lo = q->lo, rst->hi = q->hi;
+	rst->n_qoff = p->hi - p->lo;
+	rst->qoff = RB3_CALLOC(int32_t, p->hi - p->lo);
+	for (k = p->lo; k < p->hi; ++k)
+		rst->qoff[k - p->lo] = g->bwt->sa[k];
 }
 
 static sw_cell_t *sw_update_candset(sw_candset_t *h, const sw_cell_t *p)
@@ -421,7 +446,7 @@ static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, 
 	}
 }
 
-static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g, rb3_swrst_t *rst)
+static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g, const bwtl_t *bwt, rb3_swrst_t *rst)
 {
 	uint32_t best_pos = 0;
 	int32_t i, c, n_col = opt->n_best, m_fstack = opt->n_best * 2;
@@ -555,14 +580,11 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 			}
 			fputc('\n', stderr);
 		}
-		if (ri->a[0].H > rst->score) {
-			rst->score = ri->a->H;
-			rst->qlo = t->lo, rst->qhi = t->hi;
-			rst->rlo = ri->a->lo, rst->rhi = ri->a->hi;
-			best_pos = i * n_col;
-		}
+		if (ri->a[0].H > rst->score)
+			rst->score = ri->a->H, best_pos = i * n_col;
 	}
 	sw_backtrack(opt, f, g, row, best_pos, rst);
+
 	kfree(km, fstack);
 	sw_candset_destroy(h);
 	kfree(km, heap);
@@ -577,7 +599,7 @@ void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const
 	sw_dawg_t *g;
 	q = bwtl_gen(km, len, seq);
 	g = sw_dawg_gen(km, q);
-	sw_core(km, opt, f, g, rst);
-	sw_dawg_destroy(km, g);
+	sw_core(km, opt, f, g, q, rst);
+	sw_dawg_destroy(km, g); // this doesn't deallocate q
 	bwtl_destroy(q);
 }

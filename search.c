@@ -127,16 +127,19 @@ static void *worker_pipeline(void *shared, int step, void *in)
 				rb3_swrst_t *r = &s->rst;
 				int32_t k;
 				out.l = 0;
-				if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
-				else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
-				rb3_sprintf_lite(&out, "\t%d\t%d:%d\t%d:%ld\t", s->rst.score, r->qlen, r->rlen, r->qhi - r->qlo, (long)(r->rhi - r->rlo));
-				for (k = 0; k < r->n_cigar; ++k)
-					rb3_sprintf_lite(&out, "%d%c", r->cigar[k]>>4, "MIDNSHP=X"[r->cigar[k]&0xf]);
-				rb3_sprintf_lite(&out, "\t");
-				for (k = 0; k < r->rlen; ++k)
-					rb3_sprintf_lite(&out, "%c", "$ACGTN"[r->rseq[k]]);
-				rb3_sprintf_lite(&out, "\n");
-				fputs(out.s, stdout);
+				if (r->score > 0 && r->n_qoff > 0) {
+					if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
+					else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
+					rb3_sprintf_lite(&out, "\t%d\t%d\t%d\t*\t*\t*\t*\t*\t%d\t%d\t0", s->len, r->qoff[0], r->qoff[0] + r->qlen, r->mlen, r->blen);
+					rb3_sprintf_lite(&out, "\tAS:i:%d\tqh:i:%d\trh:i:%ld\tcg:Z:", r->score, r->n_qoff, (long)(r->hi - r->lo));
+					for (k = 0; k < r->n_cigar; ++k)
+						rb3_sprintf_lite(&out, "%d%c", r->cigar[k]>>4, "MIDNSHP=X"[r->cigar[k]&0xf]);
+					rb3_sprintf_lite(&out, "\trs:Z:");
+					for (k = 0; k < r->rlen; ++k)
+						rb3_sprintf_lite(&out, "%c", "$ACGTN"[r->rseq[k]]);
+					rb3_sprintf_lite(&out, "\n");
+					fputs(out.s, stdout);
+				}
 			} else {
 				for (i = 0; i < s->n_mem; ++i) {
 					rb3_sai_t *q = &s->mem[i];
