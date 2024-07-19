@@ -217,7 +217,7 @@ int main_search(int argc, char *argv[])
 		fprintf(stderr, "    -s INT      min interval size [%ld]\n", (long)opt.min_occ);
 		fprintf(stderr, "    -g          find greedy MEMs (faster but not always SMEMs)\n");
 		fprintf(stderr, "    -w          use the original MEM algorithm (for testing)\n");
-		fprintf(stderr, "  BWA-SW:\n");
+		fprintf(stderr, "  BWA-SW (experimental):\n");
 		fprintf(stderr, "    -d          use the BWA-SW algorithm (output incomplete PAF)\n");
 		fprintf(stderr, "    -N INT      keep up to INT hits per DAWG node [%d]\n", opt.swo.n_best);
 		fprintf(stderr, "    -m INT      min alignment score [%d]\n", opt.swo.min_sc);

@@ -261,7 +261,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 				}
 			}
 		}
-		if (kh_size(h) == 0) break;
+		if (kh_size(h) == 0) continue;
 		// find top-n hits
 		heap_sz = 0;
 		kh_foreach(h, itr)
