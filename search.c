@@ -132,7 +132,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 				if (r->score > 0 && r->n_qoff > 0) {
 					if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
 					else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
-					rb3_sprintf_lite(&out, "\t%d\t%d\t%d\t*\t*\t*\t*\t*\t%d\t%d\t0", s->len, r->qoff[0], r->qoff[0] + r->qlen, r->mlen, r->blen);
+					rb3_sprintf_lite(&out, "\t%d\t%d\t%d\t*\t*\t%d\t*\t*\t%d\t%d\t0", s->len, r->qoff[0], r->qoff[0] + r->qlen, r->rlen, r->mlen, r->blen);
 					rb3_sprintf_lite(&out, "\tAS:i:%d\tqh:i:%d\trh:i:%ld\tcg:Z:", r->score, r->n_qoff, (long)(r->hi - r->lo));
 					for (k = 0; k < r->n_cigar; ++k)
 						rb3_sprintf_lite(&out, "%d%c", r->cigar[k]>>4, "MIDNSHP=X"[r->cigar[k]&0xf]);
@@ -183,7 +183,7 @@ int main_search(int argc, char *argv[])
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgdwN:A:B:O:E:S:m:", long_options)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgdwN:A:B:O:E:S:m:e:", long_options)) >= 0) {
 		if (c == 'L') is_line = 1;
 		else if (c == 'g') opt.algo = RB3_SA_GREEDY;
 		else if (c == 'w') opt.algo = RB3_SA_MEM_ORI;
@@ -200,6 +200,7 @@ int main_search(int argc, char *argv[])
 		else if (c == 'E') opt.swo.gap_ext = atoi(o.arg);
 		else if (c == 'S') opt.swo.r2cache_size = rb3_parse_num(o.arg);
 		else if (c == 'm') opt.swo.min_sc = atoi(o.arg);
+		else if (c == 'e') opt.swo.end_len = atoi(o.arg);
 		else if (c == 501) opt.no_kalloc = 1;
 		else if (c == 502) rb3_dbg_flag |= RB3_DBG_DAWG;
 		else if (c == 503) rb3_dbg_flag |= RB3_DBG_SW;
@@ -220,6 +221,7 @@ int main_search(int argc, char *argv[])
 		fprintf(stderr, "  BWA-SW (experimental):\n");
 		fprintf(stderr, "    -d          use the BWA-SW algorithm (output incomplete PAF)\n");
 		fprintf(stderr, "    -N INT      keep up to INT hits per DAWG node [%d]\n", opt.swo.n_best);
+		fprintf(stderr, "    -e INT      initiate alignment with INT-mer matches [%d]\n", opt.swo.end_len);
 		fprintf(stderr, "    -m INT      min alignment score [%d]\n", opt.swo.min_sc);
 		fprintf(stderr, "    -A INT      match score [%d]\n", opt.swo.match);
 		fprintf(stderr, "    -B INT      mismatch penalty [%d]\n", opt.swo.mis);

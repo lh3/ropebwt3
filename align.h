@@ -5,7 +5,7 @@
 
 typedef struct {
 	int32_t n_best;
-	int32_t min_sc;
+	int32_t min_sc, end_len;
 	int32_t match, mis;
 	int32_t gap_open, gap_ext;
 	int32_t r2cache_size;

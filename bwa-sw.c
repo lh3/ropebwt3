@@ -19,6 +19,7 @@ void rb3_swopt_init(rb3_swopt_t *opt)
 	opt->min_sc = 30;
 	opt->match = 1, opt->mis = 3;
 	opt->gap_open = 3, opt->gap_ext = 1;
+	opt->end_len = 11;
 	opt->r2cache_size = 0x10000;
 }
 
@@ -31,7 +32,7 @@ void rb3_swopt_init(rb3_swopt_t *opt)
 
 #define SW_F_UNSET (0xfffffff) // 28 bits
 
-typedef struct {
+typedef struct { // 48 bytes
 	int32_t H, E, F;
 	uint32_t H_from:2, E_from:1, F_from:1, F_from_off:28;
 	uint32_t H_from_pos, E_from_pos;
@@ -240,7 +241,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 				else
 					r.E_from = SW_FROM_EXT,  r.E = p->E;
 				r.E -= opt->gap_ext;
-				if (r.E > 0) { // add to row
+				if (r.E > 0 && p->qlen >= opt->end_len) { // add to row
 					r.lo = p->lo, r.hi = p->hi;
 					r.H = r.E;
 					r.H_from = SW_FROM_E;
@@ -255,6 +256,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 				for (c = 1; c < 6; ++c) {
 					int32_t sc = c == t->c? opt->match : -opt->mis;
 					if (p->H + sc <= 0) continue;
+					if (c != t->c && p->qlen < opt->end_len) continue;
 					r.lo = f->acc[c] + clo[c];
 					r.hi = f->acc[c] + chi[c];
 					if (r.lo == r.hi) continue;
@@ -279,7 +281,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 			heap[j] = heap[heap_sz - j - 1];
 			heap[heap_sz - j - 1] = tmp;
 		}
-		{ // update F
+		if (p->qlen >= opt->end_len) { // update F
 			int32_t n_fstack = 0;
 			for (j = ri->n - 1; j >= 0; --j)
 				if (ri->a[j].H > opt->gap_open + opt->gap_ext)
