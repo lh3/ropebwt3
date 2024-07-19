@@ -124,10 +124,18 @@ static void *worker_pipeline(void *shared, int step, void *in)
 			m_seq_t *s = &t->seq[j];
 			free(s->seq);
 			if (p->opt->algo == RB3_SA_SW) {
+				rb3_swrst_t *r = &s->rst;
+				int32_t k;
 				out.l = 0;
 				if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
 				else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
-				rb3_sprintf_lite(&out, "\t%d\t%d\t%d\t%ld\n", s->rst.qlo, s->rst.qhi, s->rst.score, (long)(s->rst.rhi - s->rst.rlo));
+				rb3_sprintf_lite(&out, "\t%d\t%d:%d\t%d:%ld\t", s->rst.score, r->qlen, r->rlen, r->qhi - r->qlo, (long)(r->rhi - r->rlo));
+				for (k = 0; k < r->n_cigar; ++k)
+					rb3_sprintf_lite(&out, "%d%c", r->cigar[k]>>4, "MIDNSHP=X"[r->cigar[k]&0xf]);
+				rb3_sprintf_lite(&out, "\t");
+				for (k = 0; k < r->rlen; ++k)
+					rb3_sprintf_lite(&out, "%c", "$ACGTN"[r->rseq[k]]);
+				rb3_sprintf_lite(&out, "\n");
 				fputs(out.s, stdout);
 			} else {
 				for (i = 0; i < s->n_mem; ++i) {

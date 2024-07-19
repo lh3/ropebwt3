@@ -265,7 +265,7 @@ KSORT_INIT(rb3_64, uint64_t, heap_lt)
 void rb3_swopt_init(rb3_swopt_t *opt)
 {
 	memset(opt, 0, sizeof(*opt));
-	opt->n_best = 10;
+	opt->n_best = 25;
 	opt->min_sc = 30;
 	opt->match = 1, opt->mis = 3;
 	opt->gap_open = 3, opt->gap_ext = 1;
@@ -327,15 +327,15 @@ static void sw_backtrack_core(const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		for (c = 1; c < 7; ++c)
 			if (f->acc[c] > p->lo) break;
 		--c; // this is the reference base
-		fprintf(stderr, "(%d,%d): sai=[%lld,%lld),c=%c,H_from=%d,state=%d,%d\n", r, pos%n_col, p->lo, p->hi, "$ACGTN"[c], p->H_from, last, state);
+		//fprintf(stderr, "(%d,%d): sai=[%lld,%lld),c=%c,H=%d,H_from=%d,state=%d,%d\n", r, pos%n_col, p->lo, p->hi, "$ACGTN"[c], p->H, p->H_from, last, state);
 		if (state == SW_FROM_H) {
 			op = c == g->node[r].c? 7 : 8;
 			pos = p->H_from_pos;
 		} else if (state == SW_FROM_E) {
+			assert(p->E > 0 && p->E_from_pos != UINT32_MAX);
 			pos = p->E_from_pos;
 		} else if (state == SW_FROM_F) {
-			assert(p->F > 0);
-			assert(p->F_from_off != SW_F_UNSET);
+			assert(p->F > 0 && p->F_from_off != SW_F_UNSET);
 			pos = r * n_col + p->F_from_off;
 		}
 		sw_push_state(last_op, op, c, rst, len_only);
@@ -352,15 +352,15 @@ static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_da
 	sw_backtrack_core(opt, f, g, row, pos, rst, 0);
 }
 
-static sw_cell_t *sw_update_candset(sw_candset_t *h, sw_cell_t *p)
+static sw_cell_t *sw_update_candset(sw_candset_t *h, const sw_cell_t *p)
 {
 	khint_t k;
 	int absent;
 	k = sw_candset_put(h, *p, &absent);
 	if (!absent) {
 		sw_cell_t *q = &kh_key(h, k);
-		if (q->E < p->E) q->E = q->E, q->E_from = p->E_from, q->E_from_pos = p->E_from_pos;
-		if (q->F < p->F) q->F = q->F, q->F_from = p->F_from; // NB: F_from_off is populated differently
+		if (q->E < p->E) q->E = p->E, q->E_from = p->E_from, q->E_from_pos = p->E_from_pos;
+		if (q->F < p->F) q->F = p->F, q->F_from = p->F_from; // NB: F_from_off is populated differently
 		if (q->H < p->H) {
 			q->H = p->H, q->H_from = p->H_from;
 			if (p->H_from == SW_FROM_H)
@@ -387,7 +387,7 @@ static inline int32_t sw_heap_insert1(uint64_t *heap, int32_t max, int32_t *sz, 
 
 static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, sw_row_t *row)
 {
-	int32_t j, n_F = 0, n_err = 0;
+	int32_t j, n_F = 0;
 	for (j = 0; j < row->n; ++j)
 		if (row->a[j].F > 0)
 			++n_F;
@@ -414,10 +414,11 @@ static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, 
 			if (k != kh_end(h))
 				row->a[kh_key(h, k).H].F_from_off = j;
 		}
-		if (row->a[j].F > 0 && row->a[j].F_from_off == SW_F_UNSET) // if F is set, F_from_off must be set; otherwise a bug
-			++n_err;
+		if (row->a[j].F_from_off == SW_F_UNSET) {
+			assert(row->a[j].H_from != SW_FROM_F);
+			row->a[j].F = 0;
+		}
 	}
-	assert(n_err == 0);
 }
 
 static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g, rb3_swrst_t *rst)
@@ -474,7 +475,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 				// calculate H
 				rb3_fmi_rank2a_cached(f, rc, p->lo, p->hi, clo, chi);
 				r.H_from = SW_FROM_H;
-				r.E_from_pos = UINT32_MAX, r.H_from_pos = pid * n_col + k;
+				r.E = 0, r.E_from_pos = UINT32_MAX, r.H_from_pos = pid * n_col + k;
 				for (c = 1; c < 6; ++c) {
 					int32_t sc = c == t->c? opt->match : -opt->mis;
 					if (p->H + sc <= 0) continue;
@@ -534,7 +535,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		}
 		heap_sz = 0;
 		kh_foreach(h, itr)
-			sw_heap_insert1(heap, opt->n_best, &heap_sz, kh_key(h, itr).H, itr);
+		sw_heap_insert1(heap, opt->n_best, &heap_sz, kh_key(h, itr).H, itr);
 		ks_heapsort_rb3_64(heap_sz, heap);
 		assert(heap_sz > 0);
 		ri->n = heap_sz;
