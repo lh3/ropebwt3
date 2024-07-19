@@ -140,6 +140,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 					rb3_sprintf_lite(&out, "\n");
 					fputs(out.s, stdout);
 				}
+				rb3_swrst_free(r);
 			} else {
 				for (i = 0; i < s->n_mem; ++i) {
 					rb3_sai_t *q = &s->mem[i];

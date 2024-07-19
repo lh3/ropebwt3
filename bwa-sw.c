@@ -4,158 +4,9 @@
 #include "fm-index.h"
 #include "align.h"
 #include "kalloc.h"
-#include "bwtl.h"
-
-/*********************
- * Constructing DAWG *
- *********************/
-
+#include "dawg.h"
 #define kh_packed
 #include "khashl-km.h"
-
-typedef struct {
-	int32_t deg, cnt, id;
-} deg_cell_t;
-
-KHASHL_MAP_INIT(KH_LOCAL, sw_deg_t, sw_deg, uint64_t, deg_cell_t, kh_hash_uint64, kh_eq_generic)
-
-static sw_deg_t *sw_cal_deg(void *km, const rb3_bwtl_t *bwt) // calculate the in-degree of each node in DAWG
-{
-	sw_deg_t *h;
-	int32_t n = 0, m = 16, c, absent;
-	uint64_t *a;
-	khint_t itr;
-
-	h = sw_deg_init2(km);
-	sw_deg_resize(h, bwt->seq_len + 1); // preallocate for efficiency
-	itr = sw_deg_put(h, bwt->seq_len + 1, &absent); // put the root
-	kh_val(h, itr).deg = 0;
-
-	a = Kmalloc(km, uint64_t, m);
-	a[n++] = bwt->seq_len + 1; // the root interval is [0,bwt->seq_len + 1)
-	while (n > 0) { // count the in-degree of each node in DAWG
-		uint64_t x = a[--n]; // pop
-		int32_t rlo[4], rhi[4];
-		rb3_bwtl_rank2a(bwt, x>>32, (int32_t)x, rlo, rhi);
-		for (c = 3; c >= 0; --c) { // traverse children
-			uint64_t key;
-			int32_t lo = bwt->acc[c] + rlo[c];
-			int32_t hi = bwt->acc[c] + rhi[c];
-			if (lo == hi) continue;
-			key = (uint64_t)lo << 32 | hi;
-			itr = sw_deg_put(h, key, &absent);
-			if (absent) {
-				kh_val(h, itr).deg = 0;
-				Kgrow(km, uint64_t, a, n, m);
-				a[n++] = key;
-			}
-			kh_val(h, itr).deg++;
-		}
-	}
-	kfree(km, a);
-	return h;
-}
-
-typedef struct {
-	int32_t n_pre, c;
-	int32_t lo, hi;
-	int32_t *pre;
-} sw_node_t;
-
-typedef struct {
-	int32_t n_node, n_pre;
-	sw_node_t *node;
-	int32_t *pre;
-	const rb3_bwtl_t *bwt;
-} sw_dawg_t;
-
-static sw_dawg_t *sw_dawg_gen(void *km, const rb3_bwtl_t *q) // generate DAWG
-{
-	khint_t itr;
-	sw_deg_t *h;
-	sw_dawg_t *g;
-	int32_t i, off_pre = 0, n_a = 0, id = 0;
-	uint64_t *a;
-	sw_node_t *p;
-
-	h = sw_cal_deg(km, q);
-	g = Kcalloc(km, sw_dawg_t, 1); // allocate the DAWG upfront
-	g->bwt = q;
-	g->n_node = kh_size(h);
-	g->node = Kcalloc(km, sw_node_t, g->n_node);
-	kh_foreach(h, itr) {
-		g->n_pre += kh_val(h, itr).deg; // n_pre is sum of in-degrees across all nodes
-		kh_val(h, itr).cnt = kh_val(h, itr).id = 0;
-	}
-	g->pre = Kcalloc(km, int32_t, g->n_pre);
-
-	a = Kmalloc(km, uint64_t, g->n_node); // this is way over-allocated, but that is fine
-	p = &g->node[id++];
-	p->lo = 0, p->hi = q->seq_len + 1, p->n_pre = 0, p->pre = g->pre;
-	a[n_a++] = q->seq_len + 1; // the root interval
-	while (n_a > 0) { // topological sorting; this while loop is different from the one in sw_cal_deg()
-		uint64_t x = a[--n_a]; // pop
-		int32_t rlo[4], rhi[4], c;
-		rb3_bwtl_rank2a(q, x>>32, (int32_t)x, rlo, rhi);
-		for (c = 3; c >= 0; --c) { // traverse children
-			uint64_t key;
-			int32_t lo = q->acc[c] + rlo[c];
-			int32_t hi = q->acc[c] + rhi[c];
-			if (lo == hi) continue;
-			key = (uint64_t)lo << 32 | hi;
-			itr = sw_deg_get(h, key);
-			assert(itr != kh_end(h));
-			kh_val(h, itr).cnt++;
-			if (kh_val(h, itr).cnt == kh_val(h, itr).deg) { // the predecessors being visited
-				kh_val(h, itr).id = id;
-				p = &g->node[id++];
-				p->lo = lo, p->hi = hi, p->c = c + 1, p->n_pre = 0, p->pre = &g->pre[off_pre]; // c+1 for the nt6 encoding
-				off_pre += kh_val(h, itr).deg;
-				a[n_a++] = key;
-			}
-		}
-	}
-	assert(id == g->n_node && off_pre == g->n_pre);
-	kfree(km, a);
-
-	for (i = 0; i < g->n_node; ++i) { // populate predecessors
-		int32_t rlo[4], rhi[4], c;
-		rb3_bwtl_rank2a(q, g->node[i].lo, g->node[i].hi, rlo, rhi);
-		for (c = 0; c < 4; ++c) { // traverse i's children
-			int32_t lo = q->acc[c] + rlo[c];
-			int32_t hi = q->acc[c] + rhi[c];
-			if (lo == hi) continue;
-			itr = sw_deg_get(h, (uint64_t)lo << 32 | hi);
-			p = &g->node[kh_val(h, itr).id];
-			p->pre[p->n_pre++] = i;
-		}
-	}
-	sw_deg_destroy(h);
-
-	if (rb3_dbg_flag & RB3_DBG_DAWG) { // for debugging
-		for (i = 0; i < g->n_node; ++i) {
-			sw_node_t *p = &g->node[i];
-			int j;
-			fprintf(stderr, "DG\t%d\t[%d,%d)\t", i, p->lo, p->hi);
-			for (j = 0; j < p->n_pre; ++j) {
-				if (j) fputc(',', stderr);
-				fprintf(stderr, "%d", p->pre[j]);
-			}
-			fputc('\n', stderr);
-		}
-	}
-	return g;
-}
-
-static void sw_dawg_destroy(void *km, sw_dawg_t *g)
-{
-	kfree(km, g->pre); kfree(km, g->node); kfree(km, g);
-}
-
-/**********
- * BWA-SW *
- **********/
-
 #include "ksort.h" // for binary heap
 
 #define heap_lt(a, b) ((a) > (b)) // this is not a bug
@@ -212,7 +63,7 @@ static void sw_push_state(int32_t last_op, int32_t op, int c, rb3_swrst_t *rst, 
 	else if (op == 2) rst->rlen++;
 }
 
-static void sw_backtrack_core(const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g, const sw_row_t *row, uint32_t pos, rb3_swrst_t *rst, int32_t len_only)
+static void sw_backtrack_core(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const sw_row_t *row, uint32_t pos, rb3_swrst_t *rst, int32_t len_only)
 { // this is adapted from ns_backtrack() in miniprot
 	int32_t n_col = opt->n_best, last = 0, last_op = -1;
 	rst->n_cigar = rst->rlen = rst->qlen = 0;
@@ -242,10 +93,10 @@ static void sw_backtrack_core(const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	}
 }
 
-static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g, const sw_row_t *row, uint32_t pos, rb3_swrst_t *rst)
+static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const sw_row_t *row, uint32_t pos, rb3_swrst_t *rst)
 {
 	int32_t k;
-	const sw_node_t *p;
+	const rb3_dawg_node_t *p;
 	const sw_cell_t *q;
 
 	// get CIGAR
@@ -342,7 +193,7 @@ static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, 
 	}
 }
 
-static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g, const rb3_bwtl_t *bwt, rb3_swrst_t *rst)
+static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const rb3_bwtl_t *bwt, rb3_swrst_t *rst)
 {
 	uint32_t best_pos = 0;
 	int32_t i, c, n_col = opt->n_best, m_fstack = opt->n_best * 2;
@@ -368,7 +219,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	h = sw_candset_init2(km);
 	sw_candset_resize(h, opt->n_best * 4);
 	for (i = 1; i < g->n_node; ++i) { // traverse all nodes in the DAWG in the topological order
-		const sw_node_t *t = &g->node[i];
+		const rb3_dawg_node_t *t = &g->node[i];
 		sw_row_t *ri = &row[i];
 		int32_t j, k, heap_sz;
 		khint_t itr;
@@ -494,12 +345,12 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const uint8_t *seq, rb3_swrst_t *rst)
 {
 	rb3_bwtl_t *q;
-	sw_dawg_t *g;
+	rb3_dawg_t *g;
 	rst->score = rst->n_qoff = rst->n_cigar = rst->rlen = rst->qlen = rst->blen = rst->mlen = 0;
 	q = rb3_bwtl_gen(km, len, seq);
-	g = sw_dawg_gen(km, q);
+	g = rb3_dawg_gen(km, q);
 	sw_core(km, opt, f, g, q, rst);
-	sw_dawg_destroy(km, g); // this doesn't deallocate q
+	rb3_dawg_destroy(km, g); // this doesn't deallocate q
 	rb3_bwtl_destroy(q);
 }
 
