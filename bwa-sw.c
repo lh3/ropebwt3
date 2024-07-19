@@ -272,16 +272,19 @@ void rb3_swopt_init(rb3_swopt_t *opt)
 	opt->r2cache_size = 0x10000;
 }
 
-#define SW_FROM_M    0
+// NB: don't change these values!
+#define SW_FROM_H    0
 #define SW_FROM_E    1
 #define SW_FROM_F    2
 #define SW_FROM_OPEN 0
 #define SW_FROM_EXT  1
 
+#define SW_F_UNSET (0xfffffff) // 28 bits
+
 typedef struct {
 	int32_t H, E, F;
-	uint32_t H_from:2, E_from:1, F_from:1, F_off:28;
-	uint32_t M_cell, E_cell;
+	uint32_t H_from:2, E_from:1, F_from:1, F_from_off:28;
+	uint32_t H_from_pos, E_from_pos;
 	int64_t lo, hi;
 } sw_cell_t;
 
@@ -294,6 +297,61 @@ typedef struct {
 #define sw_cell_eq(x, y) ((x).lo == (y).lo && (x).hi == (y).hi)
 KHASHL_SET_INIT(KH_LOCAL, sw_candset_t, sw_candset, sw_cell_t, sw_cell_hash, sw_cell_eq)
 
+static void sw_push_state(int32_t last_op, int32_t op, int c, rb3_swrst_t *rst, int32_t len_only)
+{
+	if (!len_only) {
+		rst->rseq[rst->rlen] = c;
+		if (last_op == op)
+			rst->cigar[rst->n_cigar - 1] += 1U<<4;
+		else
+			rst->cigar[rst->n_cigar++] = 1U<<4 | op;
+	} else {
+		rst->n_cigar += last_op == op? 0 : 1;
+	}
+	if (op == 7 || op == 8) rst->qlen++, rst->rlen++;
+	else if (op == 1) rst->qlen++;
+	else if (op == 2) rst->rlen++;
+}
+
+static void sw_backtrack_core(const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g, const sw_row_t *row, uint32_t pos, rb3_swrst_t *rst, int32_t len_only)
+{
+	int32_t n_col = opt->n_best, last = 0, last_op = -1;
+	rst->n_cigar = rst->rlen = rst->qlen = 0;
+	while (pos > 0) {
+		int32_t r = pos / n_col, c;
+		const sw_cell_t *p = &row[r].a[pos%n_col];
+		int32_t x = (int32_t)p->H_from | (int32_t)p->E_from<<2 | (int32_t)p->F_from<<3;
+		int32_t state = last == 0? x&0x3 : last;
+		int32_t ext = state == 1 || state == 2? x>>(state+1)&1 : 0;
+		int32_t op = state; // cigar operator
+		for (c = 1; c < 7; ++c)
+			if (f->acc[c] > p->lo) break;
+		--c; // this is the reference base
+		fprintf(stderr, "(%d,%d): sai=[%lld,%lld),c=%c,H_from=%d,state=%d,%d\n", r, pos%n_col, p->lo, p->hi, "$ACGTN"[c], p->H_from, last, state);
+		if (state == SW_FROM_H) {
+			op = c == g->node[r].c? 7 : 8;
+			pos = p->H_from_pos;
+		} else if (state == SW_FROM_E) {
+			pos = p->E_from_pos;
+		} else if (state == SW_FROM_F) {
+			assert(p->F > 0);
+			assert(p->F_from_off != SW_F_UNSET);
+			pos = r * n_col + p->F_from_off;
+		}
+		sw_push_state(last_op, op, c, rst, len_only);
+		last_op = op;
+		last = (state == 1 || state == 2) && ext? state : 0;
+	}
+}
+
+static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g, const sw_row_t *row, uint32_t pos, rb3_swrst_t *rst)
+{
+	sw_backtrack_core(opt, f, g, row, pos, rst, 1);
+	rst->rseq = RB3_CALLOC(uint8_t, rst->rlen);
+	rst->cigar = RB3_CALLOC(uint32_t, rst->n_cigar);
+	sw_backtrack_core(opt, f, g, row, pos, rst, 0);
+}
+
 static sw_cell_t *sw_update_candset(sw_candset_t *h, sw_cell_t *p)
 {
 	khint_t k;
@@ -301,12 +359,12 @@ static sw_cell_t *sw_update_candset(sw_candset_t *h, sw_cell_t *p)
 	k = sw_candset_put(h, *p, &absent);
 	if (!absent) {
 		sw_cell_t *q = &kh_key(h, k);
-		if (q->E < p->E) q->E = q->E, q->E_from = p->E_from, q->E_cell = p->E_cell;
-		if (q->F < p->F) q->F = q->F, q->F_from = p->F_from; // NB: F_off is populated differently
+		if (q->E < p->E) q->E = q->E, q->E_from = p->E_from, q->E_from_pos = p->E_from_pos;
+		if (q->F < p->F) q->F = q->F, q->F_from = p->F_from; // NB: F_from_off is populated differently
 		if (q->H < p->H) {
 			q->H = p->H, q->H_from = p->H_from;
-			if (p->H_from == SW_FROM_M)
-				q->M_cell = p->M_cell; // TODO: is this correct
+			if (p->H_from == SW_FROM_H)
+				q->H_from_pos = p->H_from_pos; // TODO: is this correct
 		}
 	}
 	return &kh_key(h, k);
@@ -354,9 +412,9 @@ static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, 
 			if (r.lo == r.hi) continue;
 			k = sw_candset_get(h, r);
 			if (k != kh_end(h))
-				row->a[kh_key(h, k).H].F_off = j;
+				row->a[kh_key(h, k).H].F_from_off = j;
 		}
-		if (row->a[j].F > 0 && row->a[j].F_off == 0xfffffff) // if F is set, F_off must be set; otherwise a bug
+		if (row->a[j].F > 0 && row->a[j].F_from_off == SW_F_UNSET) // if F is set, F_from_off must be set; otherwise a bug
 			++n_err;
 	}
 	assert(n_err == 0);
@@ -364,7 +422,8 @@ static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, 
 
 static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const sw_dawg_t *g, rb3_swrst_t *rst)
 {
-	int32_t i, c, m_fstack = opt->n_best * 2;
+	uint32_t best_pos = 0;
+	int32_t i, c, n_col = opt->n_best, m_fstack = opt->n_best * 2;
 	sw_cell_t *cell, *fstack, *p;
 	sw_row_t *row;
 	int64_t clo[6], chi[6];
@@ -376,10 +435,10 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	cell = Kcalloc(km, sw_cell_t, opt->n_best * g->n_node);
 	row = Kcalloc(km, sw_row_t, g->n_node);
 	for (i = 0; i < g->n_node; ++i)
-		row[i].a = &cell[i * opt->n_best];
+		row[i].a = &cell[i * n_col];
 	p = &row[0].a[row[0].n++];
 	p->lo = 0, p->hi = f->acc[6];
-	p->H_from = SW_FROM_M;
+	p->H_from = SW_FROM_H;
 	rst->score = 0;
 
 	fstack = Kcalloc(km, sw_cell_t, m_fstack);
@@ -398,7 +457,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 				sw_cell_t r;
 				p = &row[pid].a[k];
 				memset(&r, 0, sizeof(sw_cell_t));
-				r.F_off = 0xfffffff; // 28 bits
+				r.F_from_off = SW_F_UNSET;
 				// calculate E
 				if (p->H - opt->gap_open > p->E)
 					r.E_from = SW_FROM_OPEN, r.E = p->H - opt->gap_open;
@@ -409,13 +468,13 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 					r.lo = p->lo, r.hi = p->hi;
 					r.H = r.E;
 					r.H_from = SW_FROM_E;
-					r.E_cell = p - cell, r.M_cell = UINT32_MAX;
+					r.E_from_pos = pid * n_col + k, r.H_from_pos = UINT32_MAX;
 					sw_update_candset(h, &r);
 				}
 				// calculate H
 				rb3_fmi_rank2a_cached(f, rc, p->lo, p->hi, clo, chi);
-				r.H_from = SW_FROM_M;
-				r.E_cell = UINT32_MAX, r.M_cell = p - cell;
+				r.H_from = SW_FROM_H;
+				r.E_from_pos = UINT32_MAX, r.H_from_pos = pid * n_col + k;
 				for (c = 1; c < 6; ++c) {
 					int32_t sc = c == t->c? opt->match : -opt->mis;
 					if (p->H + sc <= 0) continue;
@@ -450,7 +509,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 				sw_cell_t r, z = fstack[--n_fstack];
 				int32_t min = heap_sz < opt->n_best? 0 : heap[0]>>32;
 				memset(&r, 0, sizeof(sw_cell_t));
-				r.M_cell = r.E_cell = UINT32_MAX, r.F_off = 0xfffffff;
+				r.H_from_pos = r.E_from_pos = UINT32_MAX, r.F_from_off = SW_F_UNSET;
 				if (z.H - opt->gap_open > z.F)
 					r.F_from = SW_FROM_OPEN, r.F = z.H - opt->gap_open;
 				else
@@ -499,8 +558,10 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 			rst->score = ri->a->H;
 			rst->qlo = t->lo, rst->qhi = t->hi;
 			rst->rlo = ri->a->lo, rst->rhi = ri->a->hi;
+			best_pos = i * n_col;
 		}
 	}
+	sw_backtrack(opt, f, g, row, best_pos, rst);
 	kfree(km, fstack);
 	sw_candset_destroy(h);
 	kfree(km, heap);
