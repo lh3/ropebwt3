@@ -39,14 +39,17 @@ echo CTCCAGTTGACACAAAATAGtCTACGAAAGTGGCTTTAACAT | ./ropebwt3 search -L human100.
 
 ## <a name="intro"></a>Introduction
 
-Ropebwt3 constructs the BWT of a large DNA sequence set and finds super-maximal
-exact matches of a query sequence against the BWT. It is optimized for
-repetitive sequences such as a pangenome or sequence reads at high coverage. It
-can incrementally add new sequences to an existing BWT and is one of the few
-methods that can construct the double-strand BWT of 100 human genomes or 315k *E. coli* genomes using
-reasonable resources (see [Performance](#perf) below). This BWT can be
-downloaded [from Zenodo][zenodo].
-
+Ropebwt3 constructs the BWT of a large DNA sequence set and searches for
+matches of a query sequence against the BWT. It is optimized for
+repetitive sequences such as a pangenome or sequence reads at high coverage.
+On BWT construction, ropebwt3 is one of the few methods that can construct the
+double-strand BWT of 100 human genomes using reasonable resources (see
+[Performance](#perf) below). It also indexes 7.3Tb of common bacterial
+genomes into a 30GB run-length encoded BWT file. These BWTs can be downloaded
+[from Zenodo][zenodo]. On alignment, ropebwt3 finds supermaximal exact matches
+(SMEMs) efficiently or inexact hits with mismatches and gaps at
+slower speed. It does not report the locations of these hits for now.
+<!--
 Ropebwt3 largely replaces [ropebwt2][rb2] and works better for long sequences
 such as chromsomes and assembled contigs. It additionally includes
 functionality in [fermi2][fm2] such as counting and searching.
@@ -54,7 +57,7 @@ functionality in [fermi2][fm2] such as counting and searching.
 Ropebwt3 is mostly a research project I use to understand the performance of
 BWT construction. It may also be useful if you want to get the occurrence of a
 string of arbitrary length, or count long matches against a large pangenome.
-
+-->
 ## <a name="use"></a>Usage
 
 ### <a name="build"></a>Constructing a BWT
@@ -146,7 +149,7 @@ ropebwt3 search -t4 bwt.fmd query.fa > matches.bed
 In the output, the first three columns give the query sequence name, start and
 end of a match and the fourth column gives the number of hits. As of now,
 **ropebwt3 does not report the locations of matches**.
-
+<!--
 If searching for SMEMs is slow, you may add option `-g` to look for greedy MEMs
 which are found by a forward search followed by a backward search from the
 furthest forward search. Similar to SMEMs, greedy MEMs are MEMs and are not
@@ -158,7 +161,7 @@ the longest matching suffix of a query sequence:
 ```sh
 ropebwt3 suffix bwt.fmd query.fa > suffixes.bed
 ```
-
+-->
 ## <a name="dev"></a>For Developers
 
 You can encode and decode a FMD file with [rld0.h](rld0.h) and
@@ -246,20 +249,26 @@ the [fermi paper][fm-paper] for details.
 
 ## <a name="perf"></a>Performance
 
-The following table shows the time to construct the BWT for two datasets: 100
-human genomes assembled with long reads and 315k *E. coli* genomes from
-[AllTheBacteria v0.2][atb02]. In the leftmost column in the table, the numbers
-in parentheses indicates the number of symbols in the input multiplied by two
-strands.
+The following table shows the time to construct the BWT for three datasets:
+
+1. human100 (300Gb): 100 human genomes assembled with long reads from the pangene paper
+2. ecoli315k (1.6Tb): 315k *E. coli* genomes from [AllTheBacteria v0.2][atb02]
+3. CommonBacteria (7.3Tb): genomes from AllTheBacteria excluding those in the "dustbin" and "unknown" categories
+
+BWTs are constructed from both strands, so the size of each BWT doubles the
+number of input bases.
 
 |Dataset        | Metric          |rb3 bulid|rb3 merge|grlBWT|pfp-thresholds|
 |:--------------|:----------------|--------:|--------:|-----:|-------------:|
 |human100       |Elapsed time (h) |     33.7|     24.2|   8.3| 51.7 |
-|(300Gb&times;2)|CPU time (h)     |    803.6|    757.2|  29.6| 51.5 |
+|               |CPU time (h)     |    803.6|    757.2|  29.6| 51.5 |
 |               |Peak memory (GB) |     82.3|     70.7|  84.8| 788.1 |
 |ecoli315k      |Elapsed time (h) |    128.7|
-|(1.6Tb&times;2)|CPU time (h)     |   3826.8|
+|               |CPU time (h)     |   3826.8|
 |               |Peak memory (GB) |     20.5|
+|CommonBacteria |Elapsed time (d) |     26.5|
+|               |CPU time (d)     |    830.3|
+|               |Peak memory (GB) |     67.3|
 
 For human100, the following methods were evaluated:
 
