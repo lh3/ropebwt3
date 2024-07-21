@@ -37,7 +37,7 @@ typedef struct __rld_t {
 	int n; // number of blocks (unchanged in decoding)
 	uint64_t n_bytes; // total number of bits (unchanged in decoding)
 	uint64_t **z; // the actual data (unchanged in decoding)
-	uint64_t *cnt, *mcnt; // after enc_finish, cnt keeps the accumulative count and mcnt keeps the marginal (0 for all counts; why?)
+	uint64_t *cnt, *mcnt; // after enc_finish, cnt keeps the accumulative count and mcnt keeps the marginal (mcnt[c]=cnt[c]-cnt[c-1]; mcnt[0] for all counts)
 	// modified during indexing
 	uint64_t n_frames;
 	uint64_t *frame;

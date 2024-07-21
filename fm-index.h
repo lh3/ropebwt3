@@ -28,6 +28,14 @@ typedef struct {
 	int64_t info;
 } rb3_sai_t;
 
+typedef struct {
+	int32_t ms;
+	int32_t ss;
+	int64_t m, n_ssa;
+	uint64_t *r2i; // rank -> index
+	uint64_t *ssa; // sampled suffix array
+} rb3_ssa_t;
+
 typedef struct { size_t n, m; rb3_sai_t *a; } rb3_sai_v;
 
 rld_t *rb3_enc_plain2rld(int64_t len, const uint8_t *bwt, int cbits);
