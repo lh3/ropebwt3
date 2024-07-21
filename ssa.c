@@ -77,6 +77,7 @@ rb3_ssa_t *rb3_ssa_gen(const rb3_fmi_t *f, int ssa_shift, int n_threads)
 
 void rb3_ssa_destroy(rb3_ssa_t *sa)
 {
+	if (sa == 0) return;
 	free(sa->r2i); free(sa->ssa); free(sa);
 }
 
@@ -148,7 +149,7 @@ rb3_ssa_t *rb3_ssa_restore(const char *fn)
 
 int main_ssa(int argc, char *argv[])
 {
-	int c, n_threads = 4, ssa_shift = 6;
+	int c, n_threads = 4, ssa_shift = 8;
 	rb3_ssa_t *sa;
 	rb3_fmi_t f;
 	char *fn = 0;
@@ -163,7 +164,7 @@ int main_ssa(int argc, char *argv[])
 		fprintf(stderr, "Usage: ropebwt3 ssa [options] <in.fmd>\n");
 		fprintf(stderr, "Options:\n");
 		fprintf(stderr, "  -t INT     number of threads [%d]\n", n_threads);
-		fprintf(stderr, "  -s INT     sample rate one SA per 1<<INT bases [%d]\n", ssa_shift);
+		fprintf(stderr, "  -s INT     sample rate one SA per 2**INT bases [%d]\n", ssa_shift);
 		fprintf(stderr, "  -o FILE    output to file [stdout]\n");
 		return 1;
 	}

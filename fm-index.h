@@ -16,13 +16,6 @@ extern "C" {
 typedef enum { RB3_PLAIN, RB3_FMD, RB3_FMR, RB3_TREE } rb3_fmt_t;
 
 typedef struct {
-	int32_t is_fmd;
-	rld_t *e;
-	mrope_t *r;
-	int64_t acc[RB3_ASIZE+1];
-} rb3_fmi_t;
-
-typedef struct {
 	int64_t x[2]; // 0: start of the interval, backward; 1: forward
 	int64_t size;
 	int64_t info;
@@ -35,6 +28,14 @@ typedef struct {
 	uint64_t *r2i; // rank -> index
 	uint64_t *ssa; // sampled suffix array
 } rb3_ssa_t;
+
+typedef struct {
+	int32_t is_fmd;
+	rld_t *e;
+	mrope_t *r;
+	rb3_ssa_t *ssa;
+	int64_t acc[RB3_ASIZE+1];
+} rb3_fmi_t;
 
 typedef struct { size_t n, m; rb3_sai_t *a; } rb3_sai_v;
 
@@ -55,6 +56,12 @@ void rb3_fmd_extend(const rb3_fmi_t *f, const rb3_sai_t *ik, rb3_sai_t ok[RB3_AS
 int64_t rb3_fmd_smem(void *km, const rb3_fmi_t *f, int64_t len, const uint8_t *q, rb3_sai_v *mem, int64_t min_occ, int64_t min_len);
 int64_t rb3_fmd_gmem(void *km, const rb3_fmi_t *f, int64_t len, const uint8_t *q, rb3_sai_v *mem, int64_t min_occ, int64_t min_len);
 int64_t rb3_fmd_smem_TG(void *km, const rb3_fmi_t *f, int64_t len, const uint8_t *q, rb3_sai_v *mem, int64_t min_occ, int64_t min_len);
+
+int64_t rb3_ssa(const rb3_fmi_t *f, const rb3_ssa_t *sa, int64_t k, int64_t *si);
+void rb3_ssa_destroy(rb3_ssa_t *sa);
+int rb3_ssa_dump(const rb3_ssa_t *sa, const char *fn);
+rb3_ssa_t *rb3_ssa_restore(const char *fn);
+rb3_ssa_t *rb3_ssa_gen(const rb3_fmi_t *f, int ssa_shift, int n_threads);
 
 static inline int rb3_comp(int c)
 {
@@ -78,6 +85,7 @@ static inline void rb3_fmi_init(rb3_fmi_t *f, rld_t *e, mrope_t *r)
 {
 	if (e) f->is_fmd = 1, f->e = e, f->r = 0;
 	else f->is_fmd = 0, f->e = 0, f->r = r;
+	f->ssa = 0;
 	rb3_fmi_get_acc(f, f->acc);
 }
 
@@ -96,11 +104,13 @@ static inline void rb3_fmi_destroy(rb3_fmi_t *fmi)
 {
 	if (fmi->is_fmd) rld_destroy(fmi->e);
 	else mr_destroy(fmi->r);
+	if (fmi->ssa) rb3_ssa_destroy(fmi->ssa);
+	fmi->e = 0, fmi->r = 0, fmi->ssa = 0;
 }
 
 static inline void rb3_fmi_restore(rb3_fmi_t *fmi, const char *fn, int use_mmap)
 {
-	fmi->r = 0, fmi->e = 0;
+	fmi->r = 0, fmi->e = 0, fmi->ssa = 0;
 	fmi->e = use_mmap? rld_restore_mmap(fn) : rld_restore(fn);
 	if (fmi->e == 0) {
 		fmi->r = mr_restore_file(fn);
@@ -108,6 +118,11 @@ static inline void rb3_fmi_restore(rb3_fmi_t *fmi, const char *fn, int use_mmap)
 	} else fmi->is_fmd = 1;
 	if (fmi->e == 0 && fmi->r == 0) return;
 	rb3_fmi_get_acc(fmi, fmi->acc);
+}
+
+static inline void rb3_fmi_load_ssa(rb3_fmi_t *fmi, const char *fn)
+{
+	fmi->ssa = rb3_ssa_restore(fn);
 }
 
 static inline int64_t rb3_fmi_extend1(const rb3_fmi_t *f, int64_t *k, int64_t *l, int c)

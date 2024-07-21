@@ -125,7 +125,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 		for (j = 0; j < t->n_seq; ++j) {
 			m_seq_t *s = &t->seq[j];
 			free(s->seq);
-			if (p->opt->algo == RB3_SA_SW) {
+			if (p->opt->algo == RB3_SA_SW) { // BWA-SW
 				rb3_swrst_t *r = &s->rst;
 				int32_t k;
 				out.l = 0;
@@ -180,10 +180,11 @@ int main_search(int argc, char *argv[])
 	rb3_mopt_t opt;
 	pipeline_t p;
 	ketopt_t o = KETOPT_INIT;
+	char *fn_ssa = 0;
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgdwN:A:B:O:E:S:m:e:", long_options)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgdwN:A:B:O:E:C:m:e:S:", long_options)) >= 0) {
 		if (c == 'L') is_line = 1;
 		else if (c == 'g') opt.algo = RB3_SA_GREEDY;
 		else if (c == 'w') opt.algo = RB3_SA_MEM_ORI;
@@ -198,9 +199,10 @@ int main_search(int argc, char *argv[])
 		else if (c == 'B') opt.swo.mis = atoi(o.arg);
 		else if (c == 'O') opt.swo.gap_open = atoi(o.arg);
 		else if (c == 'E') opt.swo.gap_ext = atoi(o.arg);
-		else if (c == 'S') opt.swo.r2cache_size = rb3_parse_num(o.arg);
+		else if (c == 'C') opt.swo.r2cache_size = rb3_parse_num(o.arg);
 		else if (c == 'm') opt.swo.min_sc = atoi(o.arg);
 		else if (c == 'e') opt.swo.end_len = atoi(o.arg);
+		else if (c == 'S') fn_ssa = o.arg;
 		else if (c == 501) opt.no_kalloc = 1;
 		else if (c == 502) rb3_dbg_flag |= RB3_DBG_DAWG;
 		else if (c == 503) rb3_dbg_flag |= RB3_DBG_SW;
@@ -227,8 +229,9 @@ int main_search(int argc, char *argv[])
 		fprintf(stderr, "    -B INT      mismatch penalty [%d]\n", opt.swo.mis);
 		fprintf(stderr, "    -O INT      gap open penalty [%d]\n", opt.swo.gap_open);
 		fprintf(stderr, "    -E INT      gap extension penalty; a k-long gap costs O+k*E [%d]\n", opt.swo.gap_ext);
-		fprintf(stderr, "    -S NUM      size of the ranking cache [%d]\n", opt.swo.r2cache_size);
+		fprintf(stderr, "    -C NUM      size of the ranking cache [%d]\n", opt.swo.r2cache_size);
 		fprintf(stderr, "  Input/output:\n");
+		fprintf(stderr, "    -S FILE     sampled suffix array []\n");
 		fprintf(stderr, "    -t INT      number of threads [%d]\n", opt.n_threads);
 		fprintf(stderr, "    -L          one sequence per line in the input\n");
 		fprintf(stderr, "    -K NUM      query batch size [100m]\n");
@@ -248,6 +251,12 @@ int main_search(int argc, char *argv[])
 	}
 	if (rb3_verbose >= 3)
 		fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the index\n", __func__, rb3_realtime(), rb3_percent_cpu());
+	if (fn_ssa) {
+		rb3_fmi_load_ssa(&p.fmi, fn_ssa);
+		assert(p.fmi.ssa);
+		if (rb3_verbose >= 3)
+			fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the sampled suffix array\n", __func__, rb3_realtime(), rb3_percent_cpu());
+	}
 	for (j = o.ind + 1; j < argc; ++j) {
 		p.fp = rb3_seq_open(argv[j], is_line);
 		kt_pipeline(2, worker_pipeline, &p, 3);
