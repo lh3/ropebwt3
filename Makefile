@@ -57,4 +57,4 @@ rope.o: rle.h rope.h
 sais-ss.o: rb3priv.h libsais16.h libsais16x64.h
 search.o: fm-index.h rb3priv.h rld0.h mrope.h rope.h align.h io.h ketopt.h
 search.o: kthread.h kalloc.h
-ssa.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h kalloc.h kthread.h
+ssa.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h kalloc.h kthread.h ketopt.h
