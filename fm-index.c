@@ -142,20 +142,18 @@ mrope_t *rb3_enc_plain2fmr(int64_t len, const uint8_t *bwt, int max_nodes, int b
 
 void rb3_mg_rank1(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int64_t p)
 {
-	int64_t aca[RB3_ASIZE+1], acb[RB3_ASIZE+1], ka, kb;
+	int64_t ka, kb;
 	int c, last_c = 0;
-	rb3_fmi_get_acc(fa, aca);
-	rb3_fmi_get_acc(fb, acb);
-	ka = aca[1], kb = p;
+	ka = fa->acc[1], kb = p;
 	while (1) {
 		int64_t oa[RB3_ASIZE], ob[RB3_ASIZE];
 		c = rb3_fmi_rank1a(fb, kb, ob);
 		rb[kb] = (ka + kb) << 6 | c << 3 | last_c;
 		last_c = c;
 		if (c == 0) break;
-		kb = acb[c] + ob[c];
+		kb = fb->acc[c] + ob[c];
 		rb3_fmi_rank1a(fa, ka, oa);
-		ka = aca[c] + oa[c];
+		ka = fa->acc[c] + oa[c];
 	}
 }
 
@@ -172,14 +170,13 @@ static void worker_cal_rank(void *data, long k, int tid)
 
 void rb3_mg_rank(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int n_threads)
 {
-	int64_t k, acb[RB3_ASIZE+1];
-	rb3_fmi_get_acc(fb, acb);
+	int64_t k;
 	if (n_threads > 1) {
 		mgrank_aux_t a;
 		a.fa = fa, a.fb = fb, a.rb = rb;
-		kt_for(n_threads, worker_cal_rank, &a, acb[1]);
+		kt_for(n_threads, worker_cal_rank, &a, fb->acc[1]);
 	} else {
-		for (k = 0; k < acb[1]; ++k)
+		for (k = 0; k < fb->acc[1]; ++k)
 			rb3_mg_rank1(fa, fb, rb, k);
 	}
 }
@@ -510,15 +507,14 @@ int64_t rb3_fmi_get_acc(const rb3_fmi_t *fmi, int64_t acc[RB3_ASIZE+1])
 
 int64_t rb3_fmi_retrieve(const rb3_fmi_t *f, int64_t k, kstring_t *s)
 {
-	int64_t i, ok[RB3_ASIZE], acc[RB3_ASIZE+1];
+	int64_t i, ok[RB3_ASIZE];
 	int c;
 	s->l = 0;
-	rb3_fmi_get_acc(f, acc);
-	if (k < 0 || k >= acc[RB3_ASIZE]) return -1;
+	if (k < 0 || k >= f->acc[RB3_ASIZE]) return -1;
 	while ((c = rb3_fmi_rank1a(f, k, ok)) > 0) {
 		RB3_GROW(char, s->s, s->l + 1, s->m);
 		s->s[s->l++] = "$ACGTN"[c];
-		k = acc[c] + ok[c];
+		k = f->acc[c] + ok[c];
 	}
 	s->s[s->l] = 0;
 	for (i = 0; i < s->l>>1; ++i) // reverse
