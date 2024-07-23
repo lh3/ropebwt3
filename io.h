@@ -8,6 +8,13 @@
 extern "C" {
 #endif
 
+typedef struct {
+	int64_t tot_len;
+	int64_t n_seq;
+	char **name;
+	int32_t *len;
+} rb3_seqlist_t;
+
 struct rb3_seqio_s;
 typedef struct rb3_seqio_s rb3_seqio_t;
 
@@ -23,6 +30,9 @@ void rb3_revcomp6(int64_t l, uint8_t *s);
 void rb3_reverse_all(int64_t len, uint8_t *seq);
 
 void rb3_sprintf_lite(kstring_t *s, const char *fmt, ...);
+
+rb3_seqlist_t *rb3_sl_read(const char *fn);
+void rb3_sl_destroy(rb3_seqlist_t *sl);
 
 #ifdef __cplusplus
 }

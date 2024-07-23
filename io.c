@@ -154,6 +154,62 @@ void rb3_reverse_all(int64_t len, uint8_t *seq)
 	}
 }
 
+/***********
+ * seqlist *
+ ***********/
+
+rb3_seqlist_t *rb3_sl_read(const char *fn)
+{
+	rb3_seqlist_t *sl;
+	gzFile fp;
+	kstream_t *ks;
+	int32_t l, dret;
+	int64_t m_seq = 0;
+	kstring_t str = {0,0,0};
+
+	fp = fn && strcmp(fn, "-")? gzopen(fn, "r") : gzdopen(0, "r");
+	if (fp == 0) return 0;
+	ks = ks_init(fp);
+	sl = RB3_CALLOC(rb3_seqlist_t, 1);
+	while ((l = ks_getuntil(ks, KS_SEP_LINE, &str, &dret)) >= 0) {
+		int32_t i;
+		char *p, *q, *name = 0;
+		int64_t len = -1;
+		for (p = q = str.s, i = 0;; ++p) {
+			if (*p == ' ' || *p == '\t' || *p == 0) {
+				int32_t c = *p;
+				*p = 0;
+				if (i == 0) {
+					name = p;
+				} else if (i == 1) {
+					len = atol(p);
+				}
+				++i, q = p + 1;
+				if (c == 0 || i == 2) break;
+			}
+		}
+		if (i == 2 && len > 0) {
+			assert(len <= INT32_MAX);
+			RB3_GROW(char*, sl->name, sl->n_seq, m_seq);
+			sl->len = RB3_REALLOC(int32_t, sl->len, m_seq);
+			sl->name[sl->n_seq] = rb3_strdup(name);
+			sl->len[sl->n_seq++] = len;
+		}
+	}
+	ks_destroy(ks);
+	gzclose(fp);
+	return sl;
+}
+
+void rb3_sl_destroy(rb3_seqlist_t *sl)
+{
+	int64_t i;
+	if (sl == 0) return;
+	for (i = 0; i < sl->n_seq; ++i)
+		free(sl->name[i]);
+	free(sl->name); free(sl->len); free(sl);
+}
+
 /**********************
  * Simplified sprintf *
  **********************/
