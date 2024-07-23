@@ -180,8 +180,6 @@ static void *worker_pipeline(void *shared, int step, void *in)
 }
 
 static ko_longopt_t long_options[] = {
-	{ "ssa",             ko_required_argument, 301 },
-	{ "sid",             ko_required_argument, 302 },
 	{ "no-kalloc",       ko_no_argument,       501 },
 	{ "dbg-dawg",        ko_no_argument,       502 },
 	{ "dbg-sw",          ko_no_argument,       503 },
@@ -191,11 +189,10 @@ static ko_longopt_t long_options[] = {
 
 int main_search(int argc, char *argv[])
 {
-	int32_t c, j, is_line = 0, use_mmap = 0;
+	int32_t c, j, is_line = 0, ret, load_flag = 0;
 	rb3_mopt_t opt;
 	pipeline_t p;
 	ketopt_t o = KETOPT_INIT;
-	char *fn_ssa = 0, *fn_sid = 0;
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
@@ -203,13 +200,13 @@ int main_search(int argc, char *argv[])
 		if (c == 'L') is_line = 1;
 		else if (c == 'g') opt.algo = RB3_SA_GREEDY;
 		else if (c == 'w') opt.algo = RB3_SA_MEM_ORI;
-		else if (c == 'd') opt.algo = RB3_SA_SW;
+		else if (c == 'd') opt.algo = RB3_SA_SW, load_flag |= RB3_LOAD_RSA | RB3_LOAD_SSA | RB3_LOAD_SID;
 		else if (c == 'l') opt.min_len = atol(o.arg);
 		else if (c == 'c') opt.min_occ = atol(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
 		else if (c == 'K') opt.batch_size = rb3_parse_num(o.arg);
 		else if (c == 'N') opt.swo.n_best = atoi(o.arg);
-		else if (c == 'M') use_mmap = 1;
+		else if (c == 'M') load_flag |= RB3_LOAD_MMAP;
 		else if (c == 'A') opt.swo.match = atoi(o.arg);
 		else if (c == 'B') opt.swo.mis = atoi(o.arg);
 		else if (c == 'O') opt.swo.gap_open = atoi(o.arg);
@@ -217,8 +214,6 @@ int main_search(int argc, char *argv[])
 		else if (c == 'C') opt.swo.r2cache_size = rb3_parse_num(o.arg);
 		else if (c == 'm') opt.swo.min_sc = atoi(o.arg);
 		else if (c == 'e') opt.swo.end_len = atoi(o.arg);
-		else if (c == 301) fn_ssa = o.arg;
-		else if (c == 302) fn_sid = o.arg;
 		else if (c == 501) opt.no_kalloc = 1;
 		else if (c == 502) rb3_dbg_flag |= RB3_DBG_DAWG;
 		else if (c == 503) rb3_dbg_flag |= RB3_DBG_SW;
@@ -234,7 +229,7 @@ int main_search(int argc, char *argv[])
 		fprintf(stderr, "  Maximal exact matches:\n");
 		fprintf(stderr, "    -l INT      min MEM length [%ld]\n", (long)opt.min_len);
 		fprintf(stderr, "    -s INT      min interval size [%ld]\n", (long)opt.min_occ);
-		fprintf(stderr, "    -g          find greedy MEMs (faster but not always SMEMs)\n");
+		//fprintf(stderr, "    -g          find greedy MEMs (faster but not always SMEMs)\n");
 		fprintf(stderr, "    -w          use the original MEM algorithm (for testing)\n");
 		fprintf(stderr, "  BWA-SW (experimental):\n");
 		fprintf(stderr, "    -d          use the BWA-SW algorithm (output incomplete PAF)\n");
@@ -247,46 +242,26 @@ int main_search(int argc, char *argv[])
 		fprintf(stderr, "    -E INT      gap extension penalty; a k-long gap costs O+k*E [%d]\n", opt.swo.gap_ext);
 		fprintf(stderr, "    -C NUM      size of the ranking cache [%d]\n", opt.swo.r2cache_size);
 		fprintf(stderr, "  Input/output:\n");
-		fprintf(stderr, "    --ssa=FILE  sampled suffix array []\n");
-		fprintf(stderr, "    --sid=FILE  sequence names []\n");
 		fprintf(stderr, "    -t INT      number of threads [%d]\n", opt.n_threads);
 		fprintf(stderr, "    -L          one sequence per line in the input\n");
 		fprintf(stderr, "    -K NUM      query batch size [100m]\n");
 		fprintf(stderr, "    -M          use mmap to load FMD\n");
 		return 0;
 	}
-	rb3_fmi_restore(&p.fmi, argv[o.ind], use_mmap);
-	if (p.fmi.e == 0 && p.fmi.r == 0) {
-		if (rb3_verbose >= 1)
-			fprintf(stderr, "ERROR: failed to load index file '%s'\n", argv[o.ind]);
-		return 1;
-	}
-	if (p.fmi.acc[2] - p.fmi.acc[1] != p.fmi.acc[5] - p.fmi.acc[4] || p.fmi.acc[3] - p.fmi.acc[2] != p.fmi.acc[4] - p.fmi.acc[3]) {
-		if (rb3_verbose >= 1)
-			fprintf(stderr, "ERROR: #A != #T or #C != $G\n");
-		return 1;
-	}
-	if (rb3_verbose >= 3)
-		fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the index\n", __func__, rb3_realtime(), rb3_percent_cpu());
-	if (fn_ssa) {
-		rb3_fmi_load_ssa(&p.fmi, fn_ssa);
-		assert(p.fmi.ssa);
-		if (rb3_verbose >= 3)
-			fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the sampled suffix array\n", __func__, rb3_realtime(), rb3_percent_cpu());
-	}
-	if (fn_sid) {
-		rb3_fmi_load_sid(&p.fmi, fn_sid);
-		assert(p.fmi.sid);
-		fprintf(stderr, "%lld, %lld\n", p.fmi.sid->n_seq, p.fmi.acc[1]);
-		assert(p.fmi.sid->n_seq * 2 == p.fmi.acc[1]);
-		if (rb3_verbose >= 3)
-			fprintf(stderr, "[M::%s::%.3f*%.2f] loaded sequence IDs\n", __func__, rb3_realtime(), rb3_percent_cpu());
+	ret = rb3_fmi_load_all(&p.fmi, argv[o.ind], load_flag);
+	if (ret < 0) return 1;
+	if (opt.algo != RB3_SA_SW) {
+		if (!rb3_fmi_is_symmetric(&p.fmi)) {
+			if (rb3_verbose >= 1)
+				fprintf(stderr, "ERROR: BWT doesn't contain both strands, which is required for MEM\n");
+			return 1;
+		}
 	}
 	for (j = o.ind + 1; j < argc; ++j) {
 		p.fp = rb3_seq_open(argv[j], is_line);
 		kt_pipeline(2, worker_pipeline, &p, 3);
 		rb3_seq_close(p.fp);
 	}
-	rb3_fmi_destroy(&p.fmi);
+	rb3_fmi_free(&p.fmi);
 	return 0;
 }

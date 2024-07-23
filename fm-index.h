@@ -16,6 +16,11 @@ extern "C" {
 
 typedef enum { RB3_PLAIN, RB3_FMD, RB3_FMR, RB3_TREE } rb3_fmt_t;
 
+#define RB3_LOAD_MMAP  0x1
+#define RB3_LOAD_RSA   0x2 // TODO: not implemented yet
+#define RB3_LOAD_SSA   0x4
+#define RB3_LOAD_SID   0x8
+
 typedef struct {
 	int64_t x[2]; // 0: start of the interval, backward; 1: forward
 	int64_t size;
@@ -53,6 +58,7 @@ void rb3_fmi_rank2a_cached(const rb3_fmi_t *fmi, void *rc_, int64_t k, int64_t l
 void rb3_mg_rank(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int n_threads);
 void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb);
 
+int64_t rb3_fmi_get_acc(const rb3_fmi_t *fmi, int64_t acc[RB3_ASIZE+1]);
 int64_t rb3_fmi_retrieve(const rb3_fmi_t *f, int64_t k, kstring_t *s);
 void rb3_fmd_extend(const rb3_fmi_t *f, const rb3_sai_t *ik, rb3_sai_t ok[RB3_ASIZE], int is_back);
 int64_t rb3_fmd_smem(void *km, const rb3_fmi_t *f, int64_t len, const uint8_t *q, rb3_sai_v *mem, int64_t min_occ, int64_t min_len);
@@ -65,6 +71,8 @@ int rb3_ssa_dump(const rb3_ssa_t *sa, const char *fn);
 rb3_ssa_t *rb3_ssa_restore(const char *fn);
 rb3_ssa_t *rb3_ssa_gen(const rb3_fmi_t *f, int ssa_shift, int n_threads);
 
+int rb3_fmi_load_all(rb3_fmi_t *f, const char *fn, int32_t load_flag);
+
 static inline int rb3_comp(int c)
 {
 	return c >= 1 && c <= 4? 5 - c : c;
@@ -73,14 +81,6 @@ static inline int rb3_comp(int c)
 static inline void rb3_fmd_set_intv(const rb3_fmi_t *f, int c, rb3_sai_t *ik)
 {
 	ik->x[0] = f->acc[c], ik->size = f->acc[c+1] - f->acc[c], ik->x[1] = f->acc[rb3_comp(c)], ik->info = 0;
-}
-
-static inline int64_t rb3_fmi_get_acc(const rb3_fmi_t *fmi, int64_t acc[RB3_ASIZE+1])
-{
-	if (fmi->is_fmd) {
-		memcpy(acc, fmi->e->cnt, (RB3_ASIZE+1) * sizeof(int64_t));
-		return fmi->e->cnt[RB3_ASIZE];
-	} else return mr_get_ac(fmi->r, acc);
 }
 
 static inline void rb3_fmi_init(rb3_fmi_t *f, rld_t *e, mrope_t *r)
@@ -102,7 +102,7 @@ static inline int rb3_fmi_rank1a(const rb3_fmi_t *fmi, int64_t k, int64_t *ok)
 	return fmi->is_fmd? rld_rank1a(fmi->e, k, (uint64_t*)ok) : mr_rank1a(fmi->r, k, ok);
 }
 
-static inline void rb3_fmi_destroy(rb3_fmi_t *fmi)
+static inline void rb3_fmi_free(rb3_fmi_t *fmi)
 {
 	if (fmi->is_fmd) rld_destroy(fmi->e);
 	else mr_destroy(fmi->r);
@@ -123,14 +123,9 @@ static inline void rb3_fmi_restore(rb3_fmi_t *fmi, const char *fn, int use_mmap)
 	rb3_fmi_get_acc(fmi, fmi->acc);
 }
 
-static inline void rb3_fmi_load_ssa(rb3_fmi_t *fmi, const char *fn)
+static inline int rb3_fmi_is_symmetric(const rb3_fmi_t *f)
 {
-	fmi->ssa = rb3_ssa_restore(fn);
-}
-
-static inline void rb3_fmi_load_sid(rb3_fmi_t *fmi, const char *fn)
-{
-	fmi->sid = rb3_sid_read(fn);
+	return ((f->acc[1]&1) == 0 && f->acc[2] - f->acc[1] == f->acc[5] - f->acc[4] && f->acc[3] - f->acc[2] == f->acc[4] - f->acc[3]);
 }
 
 static inline int64_t rb3_fmi_extend1(const rb3_fmi_t *f, int64_t *k, int64_t *l, int c)

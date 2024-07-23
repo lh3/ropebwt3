@@ -5,7 +5,7 @@
 #include "io.h"
 #include "ketopt.h"
 
-#define RB3_VERSION "3.1-r133-dirty"
+#define RB3_VERSION "3.1-r134-dirty"
 
 int main_build(int argc, char *argv[]);
 int main_merge(int argc, char *argv[]);
@@ -149,7 +149,7 @@ int main_get(int argc, char *argv[])
 		}
 	}
 	free(s.s);
-	rb3_fmi_destroy(&fmi);
+	rb3_fmi_free(&fmi);
 	return 0;
 }
 
@@ -201,7 +201,7 @@ int main_suffix(int argc, char *argv[])
 		rb3_seq_close(fp);
 	}
 	free(out.s);
-	rb3_fmi_destroy(&fmi);
+	rb3_fmi_free(&fmi);
 	return 0;
 }
 
@@ -361,7 +361,7 @@ int main_kount(int argc, char *argv[])
 	free(str);
 	for (i = 0; i < n; ++i) {
 		free(aux[i].stack);
-		rb3_fmi_destroy(&aux[i].fmi);
+		rb3_fmi_free(&aux[i].fmi);
 	}
 	free(aux);
 	return 0;

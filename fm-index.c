@@ -220,7 +220,7 @@ void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb)
 	rb3_fmi_get_acc(fb, acb);
 	rb = RB3_MALLOC(int64_t, acb[RB3_ASIZE]);
 	rb3_mg_rank(&fa, fb, rb, n_threads);
-	if (free_fb) rb3_fmi_destroy(fb);
+	if (free_fb) rb3_fmi_free(fb);
 	if (rb3_verbose >= 3)
 		fprintf(stderr, "[M::%s::%.3f*%.2f] caculated ranks for %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)acb[RB3_ASIZE]);
 
@@ -500,6 +500,14 @@ int64_t rb3_fmd_smem_TG(void *km, const rb3_fmi_t *f, int64_t len, const uint8_t
  * Other utilities *
  *******************/
 
+int64_t rb3_fmi_get_acc(const rb3_fmi_t *fmi, int64_t acc[RB3_ASIZE+1])
+{
+	if (fmi->is_fmd) {
+		memcpy(acc, fmi->e->cnt, (RB3_ASIZE+1) * sizeof(int64_t));
+		return fmi->e->cnt[RB3_ASIZE];
+	} else return mr_get_ac(fmi->r, acc);
+}
+
 int64_t rb3_fmi_retrieve(const rb3_fmi_t *f, int64_t k, kstring_t *s)
 {
 	int64_t i, ok[RB3_ASIZE], acc[RB3_ASIZE+1];
@@ -516,4 +524,58 @@ int64_t rb3_fmi_retrieve(const rb3_fmi_t *f, int64_t k, kstring_t *s)
 	for (i = 0; i < s->l>>1; ++i) // reverse
 		c = s->s[i], s->s[i] = s->s[s->l - 1 - i], s->s[s->l - 1 - i] = c;
 	return k;
+}
+
+int rb3_fmi_load_all(rb3_fmi_t *f, const char *fn, int32_t load_flag)
+{
+	FILE *fp;
+	char *buf;
+	rb3_fmi_restore(f, fn, load_flag&RB3_LOAD_MMAP);
+	if (f->e == 0 && f->r == 0) {
+		if (rb3_verbose >= 1)
+			fprintf(stderr, "ERROR: failed to load BWT from file \"%s\"\n", fn);
+		return -1;
+	}
+	if (rb3_verbose >= 3)
+		fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the BWT\n", __func__, rb3_realtime(), rb3_percent_cpu());
+	if (load_flag&RB3_LOAD_MMAP) return 0; // don't load other components
+	buf = RB3_CALLOC(char, strlen(fn) + 8);
+	if (load_flag & RB3_LOAD_SSA) {
+		strcat(strcpy(buf, fn), ".ssa");
+		if ((fp = fopen(buf, "r")) != 0) {
+			fclose(fp);
+			f->ssa = rb3_ssa_restore(buf);
+			if (f->ssa == 0) {
+				if (rb3_verbose >= 1)
+					fprintf(stderr, "ERROR: failed to load sampled suffix array from file \"%s\"\n", buf);
+			} else if (f->ssa->m != f->acc[1]) {
+				if (rb3_verbose >= 1)
+					fprintf(stderr, "ERROR: number of sequences do not match between BWT and sampled suffix array\n");
+				rb3_ssa_destroy(f->ssa);
+				f->ssa = 0;
+			}
+			if (rb3_verbose >= 3)
+				fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the sampled suffix array\n", __func__, rb3_realtime(), rb3_percent_cpu());
+		}
+	}
+	if ((load_flag & RB3_LOAD_SSA) && (load_flag & RB3_LOAD_SID)) {
+		strcat(strcpy(buf, fn), ".len.gz");
+		if ((fp = fopen(buf, "r")) != 0) {
+			fclose(fp);
+			f->sid = rb3_sid_read(buf);
+			if (f->sid == 0) {
+				if (rb3_verbose >= 1)
+					fprintf(stderr, "ERROR: failed to load sequence names and lengths from file \"%s\"\n", buf);
+			} else if (f->sid->n_seq * 2 != f->acc[1]) {
+				if (rb3_verbose >= 1)
+					fprintf(stderr, "ERROR: number of sequences do not match between BWT and the sequence list\n");
+				rb3_sid_destroy(f->sid);
+				f->sid = 0;
+			}
+			if (rb3_verbose >= 3)
+				fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the sequence names and lengths\n", __func__, rb3_realtime(), rb3_percent_cpu());
+		}
+	}
+	free(buf);
+	return 0;
 }

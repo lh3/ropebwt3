@@ -176,7 +176,7 @@ int main_ssa(int argc, char *argv[])
 	sa = rb3_ssa_gen(&f, ssa_shift, n_threads);
 
 	rb3_ssa_dump(sa, fn);
-	rb3_fmi_destroy(&f);
+	rb3_fmi_free(&f);
 	rb3_ssa_destroy(sa);
 	return 0;
 }
