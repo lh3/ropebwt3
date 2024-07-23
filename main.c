@@ -5,7 +5,7 @@
 #include "io.h"
 #include "ketopt.h"
 
-#define RB3_VERSION "3.1-r135-dirty"
+#define RB3_VERSION "3.1-r136-dirty"
 
 int main_build(int argc, char *argv[]);
 int main_merge(int argc, char *argv[]);
@@ -22,8 +22,9 @@ static int usage(FILE *fp)
 	fprintf(fp, "Usage: ropebwt3 <command> <arguments>\n");
 	fprintf(fp, "Commands:\n");
 	fprintf(fp, "  Search:\n");
-	fprintf(fp, "    search     find local hits (requring both strands)\n");
-	fprintf(fp, "    suffix     find the longest matching suffix (aka backward search)\n");
+	fprintf(fp, "    sw         find local alignment\n");
+	fprintf(fp, "    mem        find maximal exact matches\n");
+	fprintf(fp, "    suffix     find the longest matching suffix\n");
 	fprintf(fp, "  Construction:\n");
 	fprintf(fp, "    build      construct a BWT\n");
 	fprintf(fp, "    merge      merge BWTs\n");
@@ -42,7 +43,9 @@ int main(int argc, char *argv[])
 	int ret = 0;
 	rb3_init();
 	if (argc == 1) return usage(stdout);
-	else if (strcmp(argv[1], "search") == 0 || strcmp(argv[1], "match") == 0) ret = main_search(argc-1, argv+1);
+	else if (strcmp(argv[1], "search") == 0) ret = main_search(argc-1, argv+1);
+	else if (strcmp(argv[1], "sw") == 0) ret = main_search(argc-1, argv+1);
+	else if (strcmp(argv[1], "mem") == 0) ret = main_search(argc-1, argv+1);
 	else if (strcmp(argv[1], "build") == 0) ret = main_build(argc-1, argv+1);
 	else if (strcmp(argv[1], "merge") == 0) ret = main_merge(argc-1, argv+1);
 	else if (strcmp(argv[1], "ssa") == 0) ret = main_ssa(argc-1, argv+1);

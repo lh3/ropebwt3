@@ -16,7 +16,10 @@ gzip -d human100.fmr.gz  # decompress
 ./ropebwt build -i human100.fmr -do human100.fmd  # not required but recommended
 
 # Count super-maximal exact matches (no contig positions)
-echo CTCCAGTTGACACAAAATAGtCTACGAAAGTGGCTTTAACAT | ./ropebwt3 search -L human100.fmd -l20 -
+echo CTCCAGTTGACACAAAATAGtCTACGAAAGTGGCTTTAACAT | ./ropebwt3 mem -L human100.fmd -l20 -
+
+# Local alignment
+echo CTCCAGTTGACACAAAATAGtCTACGAAAGTGGCTTTAACAT | ./ropebwt3 sw -L human100.fmd -l20 -
 
 # Retrieve chrM of CHM13. It is the 25th sequence during construction. 48=(25-1)*2
 ./ropebwt3 get human100.fmd 48 > CHM13-chrM.fa
@@ -29,7 +32,8 @@ echo CTCCAGTTGACACAAAATAGtCTACGAAAGTGGCTTTAACAT | ./ropebwt3 search -L human100.
 - [Usage](#use)
   - [Constructing a BWT](#build)
   - [Binary BWT formats](#format)
-  - [Counting maximal exact matches](#match)
+  - [Counting maximal exact matches](#mem)
+  - [Local alignment](#bwasw)
 - [For developers](#dev)
 - [Algorithms](#algo)
   - [BWT construction](#algo-build)
@@ -137,14 +141,14 @@ ropebwt3 build -i in.fmd -bo out.fmr
 ropebwt3 build -i in.fmr -do out.fmd
 ```
 
-### <a name="match"></a>Counting maximal exact matches
+### <a name="mem"></a>Counting maximal exact matches
 
 A maximal exact match (MEM) is an exact alignment between the index and a query
 that cannot be extended in either direction. A super MEM (SMEM) is a MEM that
 is not contained in any other MEM on the query sequence. You can find the SMEMs
 of a query **provided that your BWT is constructed from both strands of sequences**.
 ```sh
-ropebwt3 search -t4 bwt.fmd query.fa > matches.bed
+ropebwt3 mem -t4 bwt.fmd query.fa > matches.bed
 ```
 In the output, the first three columns give the query sequence name, start and
 end of a match and the fourth column gives the number of hits. As of now,
@@ -162,6 +166,11 @@ the longest matching suffix of a query sequence:
 ropebwt3 suffix bwt.fmd query.fa > suffixes.bed
 ```
 -->
+### <a name="bwasw"></a>Local alignment
+```sh
+ropebwt3 sw -t4 bwt.fmd query.fa > aln.paf
+```
+
 ## <a name="dev"></a>For Developers
 
 You can encode and decode a FMD file with [rld0.h](rld0.h) and
