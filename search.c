@@ -136,7 +136,12 @@ static void *worker_pipeline(void *shared, int step, void *in)
 					if (p->fmi.ssa) {
 						int64_t pos, sid;
 						pos = rb3_ssa(&p->fmi, p->fmi.ssa, r->lo, &sid);
-						rb3_sprintf_lite(&out, "\t%c\t%ld\t%d\t%ld\t%ld", "+-"[sid&1], sid, r->rlen, pos, pos + r->rlen);
+						rb3_sprintf_lite(&out, "\t%c", "+-"[sid&1]);
+						if (p->fmi.sid)
+							rb3_sprintf_lite(&out, "\t%s\t%d", p->fmi.sid->name[sid>>1], p->fmi.sid->len[sid>>1]);
+						else
+							rb3_sprintf_lite(&out, "\t%ld\t%d", sid, r->rlen);
+						rb3_sprintf_lite(&out, "\t%ld\t%ld", pos, pos + r->rlen);
 					} else {
 						rb3_sprintf_lite(&out, "\t*\t*\t%d\t*\t*", r->rlen);
 					}
@@ -176,6 +181,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 
 static ko_longopt_t long_options[] = {
 	{ "ssa",             ko_required_argument, 301 },
+	{ "sid",             ko_required_argument, 302 },
 	{ "no-kalloc",       ko_no_argument,       501 },
 	{ "dbg-dawg",        ko_no_argument,       502 },
 	{ "dbg-sw",          ko_no_argument,       503 },
@@ -189,7 +195,7 @@ int main_search(int argc, char *argv[])
 	rb3_mopt_t opt;
 	pipeline_t p;
 	ketopt_t o = KETOPT_INIT;
-	char *fn_ssa = 0;
+	char *fn_ssa = 0, *fn_sid = 0;
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
@@ -212,6 +218,7 @@ int main_search(int argc, char *argv[])
 		else if (c == 'm') opt.swo.min_sc = atoi(o.arg);
 		else if (c == 'e') opt.swo.end_len = atoi(o.arg);
 		else if (c == 301) fn_ssa = o.arg;
+		else if (c == 302) fn_sid = o.arg;
 		else if (c == 501) opt.no_kalloc = 1;
 		else if (c == 502) rb3_dbg_flag |= RB3_DBG_DAWG;
 		else if (c == 503) rb3_dbg_flag |= RB3_DBG_SW;
@@ -241,6 +248,7 @@ int main_search(int argc, char *argv[])
 		fprintf(stderr, "    -C NUM      size of the ranking cache [%d]\n", opt.swo.r2cache_size);
 		fprintf(stderr, "  Input/output:\n");
 		fprintf(stderr, "    --ssa=FILE  sampled suffix array []\n");
+		fprintf(stderr, "    --sid=FILE  sequence names []\n");
 		fprintf(stderr, "    -t INT      number of threads [%d]\n", opt.n_threads);
 		fprintf(stderr, "    -L          one sequence per line in the input\n");
 		fprintf(stderr, "    -K NUM      query batch size [100m]\n");
@@ -265,6 +273,14 @@ int main_search(int argc, char *argv[])
 		assert(p.fmi.ssa);
 		if (rb3_verbose >= 3)
 			fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the sampled suffix array\n", __func__, rb3_realtime(), rb3_percent_cpu());
+	}
+	if (fn_sid) {
+		rb3_fmi_load_sid(&p.fmi, fn_sid);
+		assert(p.fmi.sid);
+		fprintf(stderr, "%lld, %lld\n", p.fmi.sid->n_seq, p.fmi.acc[1]);
+		assert(p.fmi.sid->n_seq * 2 == p.fmi.acc[1]);
+		if (rb3_verbose >= 3)
+			fprintf(stderr, "[M::%s::%.3f*%.2f] loaded sequence IDs\n", __func__, rb3_realtime(), rb3_percent_cpu());
 	}
 	for (j = o.ind + 1; j < argc; ++j) {
 		p.fp = rb3_seq_open(argv[j], is_line);

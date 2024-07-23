@@ -158,9 +158,9 @@ void rb3_reverse_all(int64_t len, uint8_t *seq)
  * seqlist *
  ***********/
 
-rb3_seqlist_t *rb3_sl_read(const char *fn)
+rb3_sid_t *rb3_sid_read(const char *fn)
 {
-	rb3_seqlist_t *sl;
+	rb3_sid_t *sl;
 	gzFile fp;
 	kstream_t *ks;
 	int32_t l, dret;
@@ -170,7 +170,7 @@ rb3_seqlist_t *rb3_sl_read(const char *fn)
 	fp = fn && strcmp(fn, "-")? gzopen(fn, "r") : gzdopen(0, "r");
 	if (fp == 0) return 0;
 	ks = ks_init(fp);
-	sl = RB3_CALLOC(rb3_seqlist_t, 1);
+	sl = RB3_CALLOC(rb3_sid_t, 1);
 	while ((l = ks_getuntil(ks, KS_SEP_LINE, &str, &dret)) >= 0) {
 		int32_t i;
 		char *p, *q, *name = 0;
@@ -180,14 +180,15 @@ rb3_seqlist_t *rb3_sl_read(const char *fn)
 				int32_t c = *p;
 				*p = 0;
 				if (i == 0) {
-					name = p;
+					name = q;
 				} else if (i == 1) {
-					len = atol(p);
+					len = atol(q);
 				}
 				++i, q = p + 1;
 				if (c == 0 || i == 2) break;
 			}
 		}
+		//fprintf(stderr, "i=%d,name=%s,len=%ld\n", i, name, (long)len);
 		if (i == 2 && len > 0) {
 			assert(len <= INT32_MAX);
 			RB3_GROW(char*, sl->name, sl->n_seq, m_seq);
@@ -201,7 +202,7 @@ rb3_seqlist_t *rb3_sl_read(const char *fn)
 	return sl;
 }
 
-void rb3_sl_destroy(rb3_seqlist_t *sl)
+void rb3_sid_destroy(rb3_sid_t *sl)
 {
 	int64_t i;
 	if (sl == 0) return;

@@ -6,6 +6,7 @@
 #include "rb3priv.h"
 #include "rld0.h"
 #include "mrope.h"
+#include "io.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,6 +35,7 @@ typedef struct {
 	rld_t *e;
 	mrope_t *r;
 	rb3_ssa_t *ssa;
+	rb3_sid_t *sid;
 	int64_t acc[RB3_ASIZE+1];
 } rb3_fmi_t;
 
@@ -105,6 +107,7 @@ static inline void rb3_fmi_destroy(rb3_fmi_t *fmi)
 	if (fmi->is_fmd) rld_destroy(fmi->e);
 	else mr_destroy(fmi->r);
 	if (fmi->ssa) rb3_ssa_destroy(fmi->ssa);
+	if (fmi->sid) rb3_sid_destroy(fmi->sid);
 	fmi->e = 0, fmi->r = 0, fmi->ssa = 0;
 }
 
@@ -123,6 +126,11 @@ static inline void rb3_fmi_restore(rb3_fmi_t *fmi, const char *fn, int use_mmap)
 static inline void rb3_fmi_load_ssa(rb3_fmi_t *fmi, const char *fn)
 {
 	fmi->ssa = rb3_ssa_restore(fn);
+}
+
+static inline void rb3_fmi_load_sid(rb3_fmi_t *fmi, const char *fn)
+{
+	fmi->sid = rb3_sid_read(fn);
 }
 
 static inline int64_t rb3_fmi_extend1(const rb3_fmi_t *f, int64_t *k, int64_t *l, int c)
