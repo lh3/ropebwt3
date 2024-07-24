@@ -10,19 +10,17 @@ echo -e 'AGG\nAGC' | ./ropebwt3 build -LR -
 echo TGAACTCTACACAACATATTTTGTCACCAAG | ./ropebwt3 build -Lbo idx.fmr -
 echo ACTCTACACAAgATATTTTGTC | ./ropebwt3 search -Ll10 idx.fmr -
 
-# Download the BWT of a human pangenome consisting of 100 haplotypes on both strands
-wget -O human100.fmr.gz https://zenodo.org/records/11533211/files/human100.fmr.gz?download=1
-gzip -d human100.fmr.gz  # decompress
-./ropebwt build -i human100.fmr -do human100.fmd  # not required but recommended
+# Download the prebuilt BWT of 152 M. tuberculosis genomes
+wget -O- https://zenodo.org/records/12803206/files/mtb152.tar.gz?download=1 | tar -zxf -
 
 # Count super-maximal exact matches (no contig positions)
-echo CTCCAGTTGACACAAAATAGtCTACGAAAGTGGCTTTAACAT | ./ropebwt3 mem -L human100.fmd -l20 -
+echo ACCTACAACACCGGTGGCTACAACGTGG  | ./ropebwt3 mem -L mtb152.fmd -
 
 # Local alignment
-echo CTCCAGTTGACACAAAATAGtCTACGAAAGTGGCTTTAACAT | ./ropebwt3 sw -L human100.fmd -l20 -
+echo ACCTACAACACCGGTaGGCTACAACGTGG | ./ropebwt3 sw -Lm20 mtb152.fmd -
 
-# Retrieve chrM of CHM13. It is the 25th sequence during construction. 48=(25-1)*2
-./ropebwt3 get human100.fmd 48 > CHM13-chrM.fa
+# Retrieve R15311, the 46th genome in the collection, where 90=(46-1)*2
+./ropebwt3 get mtb152.fmd 90 > R15311.fa
 ```
 
 ## Table of Contents
@@ -151,8 +149,7 @@ of a query **provided that your BWT is constructed from both strands of sequence
 ropebwt3 mem -t4 bwt.fmd query.fa > matches.bed
 ```
 In the output, the first three columns give the query sequence name, start and
-end of a match and the fourth column gives the number of hits. As of now,
-**ropebwt3 does not report the locations of matches**.
+end of a match and the fourth column gives the number of hits.
 <!--
 If searching for SMEMs is slow, you may add option `-g` to look for greedy MEMs
 which are found by a forward search followed by a backward search from the
@@ -303,10 +300,8 @@ build may be helpful for large datasets.
 
 ## <a name="limit"></a>Limitations
 
-* The "search" command of ropebwt3 only counts the number of hits but does not
-  report the locations of the hits. [Fermi2][fm2] already supports such
-  functionality using standard sampled suffix array but it needs to be
-  reworked.
+* Ropebwt3 only supports sampled suffix array for retrieving positions. An
+  r-index will probably do better.
 
 * The "merge" command can be accelerated by 10-30% with a more efficient data
   structure but grlBWT will be faster anyway.

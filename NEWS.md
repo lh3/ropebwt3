@@ -1,3 +1,22 @@
+Release 3.2-r137 (23 July 2024)
+-------------------------------
+
+This release implemented several critical features for sequence search:
+
+ * New feature: Travis Gagie's algorithm for finding long MEMs. It is faster
+   and now the default algorithm for MEM finding.
+
+ * New feature: BWA-SW for local alignment. This algorithm allows mismatches
+   and short gaps.
+
+ * New feature: sampled suffix array for obtaining mapping positions.
+
+ * Breaking: renamed `match` to `mem`.
+
+(3.2: 23 July 2024, r137)
+
+
+
 Release 3.1-r77 (15 June 2024)
 ------------------------------
 
