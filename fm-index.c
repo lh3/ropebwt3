@@ -522,6 +522,20 @@ int64_t rb3_fmi_retrieve(const rb3_fmi_t *f, int64_t k, kstring_t *s)
 	return k;
 }
 
+int64_t rb3_fmi_get_r(const rb3_fmi_t *f)
+{
+	int64_t l, r = 0;
+	int c;
+	assert(f->e != 0); // not implemented for rope yet
+	if (f->e) {
+		rlditr_t itr;
+		rld_itr_init(f->e, &itr, 0);
+		while ((l = rld_dec(f->e, &itr, &c, 0)) > 0)
+			++r;
+	}
+	return r;
+}
+
 int rb3_fmi_load_all(rb3_fmi_t *f, const char *fn, int32_t load_flag)
 {
 	FILE *fp;

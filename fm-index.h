@@ -59,6 +59,7 @@ void rb3_fmi_rank2a_cached(const rb3_fmi_t *fmi, void *rc_, int64_t k, int64_t l
 void rb3_mg_rank(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int n_threads);
 void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb);
 
+int64_t rb3_fmi_get_r(const rb3_fmi_t *f);
 int64_t rb3_fmi_get_acc(const rb3_fmi_t *fmi, int64_t acc[RB3_ASIZE+1]);
 int64_t rb3_fmi_retrieve(const rb3_fmi_t *f, int64_t k, kstring_t *s);
 void rb3_fmd_extend(const rb3_fmi_t *f, const rb3_sai_t *ik, rb3_sai_t ok[RB3_ASIZE], int is_back);
@@ -114,7 +115,7 @@ static inline void rb3_fmi_free(rb3_fmi_t *fmi)
 
 static inline void rb3_fmi_restore(rb3_fmi_t *fmi, const char *fn, int use_mmap)
 {
-	fmi->r = 0, fmi->e = 0, fmi->ssa = 0;
+	fmi->r = 0, fmi->e = 0, fmi->ssa = 0, fmi->sid = 0;
 	fmi->e = use_mmap? rld_restore_mmap(fn) : rld_restore(fn);
 	if (fmi->e == 0) {
 		fmi->r = mr_restore_file(fn);
