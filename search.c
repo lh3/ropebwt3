@@ -180,6 +180,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 }
 
 static ko_longopt_t long_options[] = {
+	{ "no-ssa",          ko_no_argument,       301 },
 	{ "no-kalloc",       ko_no_argument,       501 },
 	{ "dbg-dawg",        ko_no_argument,       502 },
 	{ "dbg-sw",          ko_no_argument,       503 },
@@ -189,7 +190,7 @@ static ko_longopt_t long_options[] = {
 
 int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 {
-	int32_t c, j, is_line = 0, ret, load_flag = 0;
+	int32_t c, j, is_line = 0, ret, load_flag = 0, no_ssa = 0;
 	rb3_mopt_t opt;
 	pipeline_t p;
 	ketopt_t o = KETOPT_INIT;
@@ -200,7 +201,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		if (c == 'L') is_line = 1;
 		else if (c == 'g') opt.algo = RB3_SA_GREEDY;
 		else if (c == 'w') opt.algo = RB3_SA_MEM_ORI;
-		else if (c == 'd') opt.algo = RB3_SA_SW, load_flag |= RB3_LOAD_RSA | RB3_LOAD_SSA | RB3_LOAD_SID;
+		else if (c == 'd') opt.algo = RB3_SA_SW, load_flag |= RB3_LOAD_ALL;
 		else if (c == 'l') opt.min_len = atol(o.arg);
 		else if (c == 'c') opt.min_occ = atol(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
@@ -214,6 +215,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		else if (c == 'C') opt.swo.r2cache_size = rb3_parse_num(o.arg);
 		else if (c == 'm') opt.swo.min_sc = atoi(o.arg);
 		else if (c == 'k') opt.swo.end_len = atoi(o.arg);
+		else if (c == 301) no_ssa = 1;
 		else if (c == 501) opt.no_kalloc = 1;
 		else if (c == 502) rb3_dbg_flag |= RB3_DBG_DAWG;
 		else if (c == 503) rb3_dbg_flag |= RB3_DBG_SW;
@@ -223,8 +225,10 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 			return 1;
 		}
 	}
-	if (strcmp(argv[0], "sw") == 0)
-		opt.algo = RB3_SA_SW, load_flag |= RB3_LOAD_ALL;
+	if (strcmp(argv[0], "sw") == 0) {
+		opt.algo = RB3_SA_SW;
+		if (!no_ssa) load_flag |= RB3_LOAD_ALL;
+	}
 	if (argc - o.ind < 2) {
 		fprintf(stdout, "Usage: ropebwt3 %s [options] <idx.fmr> <seq.fa> [...]\n", argv[0]);
 		fprintf(stderr, "Options:\n");
@@ -245,6 +249,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 			fprintf(stderr, "  -O INT      gap open penalty [%d]\n", opt.swo.gap_open);
 			fprintf(stderr, "  -E INT      gap extension penalty; a k-long gap costs O+k*E [%d]\n", opt.swo.gap_ext);
 			fprintf(stderr, "  -C NUM      size of the ranking cache [%d]\n", opt.swo.r2cache_size);
+			fprintf(stderr, "  --no-ssa    ignore the sampled suffix array\n");
 		}
 		fprintf(stderr, "  -t INT      number of threads [%d]\n", opt.n_threads);
 		fprintf(stderr, "  -L          one sequence per line in the input\n");

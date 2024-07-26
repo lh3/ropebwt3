@@ -17,10 +17,9 @@ extern "C" {
 typedef enum { RB3_PLAIN, RB3_FMD, RB3_FMR, RB3_TREE } rb3_fmt_t;
 
 #define RB3_LOAD_MMAP  0x1
-#define RB3_LOAD_RSA   0x2 // TODO: not implemented yet
-#define RB3_LOAD_SSA   0x4
-#define RB3_LOAD_SID   0x8
-#define RB3_LOAD_ALL   (RB3_LOAD_RSA|RB3_LOAD_SSA|RB3_LOAD_SID)
+#define RB3_LOAD_SSA   0x2
+#define RB3_LOAD_SID   0x4
+#define RB3_LOAD_ALL   (RB3_LOAD_SSA|RB3_LOAD_SID)
 
 typedef struct {
 	int64_t x[2]; // 0: start of the interval, backward; 1: forward
