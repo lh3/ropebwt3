@@ -9,7 +9,7 @@
 typedef enum { RB3_SA_MEM_TG, RB3_SA_MEM_ORI, RB3_SA_GREEDY, RB3_SA_SW } rb3_search_algo_t;
 
 typedef struct {
-	int32_t n_threads, no_kalloc;
+	int32_t n_threads, no_kalloc, write_rs;
 	rb3_search_algo_t algo;
 	int64_t min_occ, min_len;
 	int64_t batch_size;
@@ -149,9 +149,11 @@ static void *worker_pipeline(void *shared, int step, void *in)
 					rb3_sprintf_lite(&out, "\tAS:i:%d\tqh:i:%d\trh:i:%ld\tcg:Z:", r->score, r->n_qoff, (long)(r->hi - r->lo));
 					for (k = 0; k < r->n_cigar; ++k)
 						rb3_sprintf_lite(&out, "%d%c", r->cigar[k]>>4, "MIDNSHP=X"[r->cigar[k]&0xf]);
-					rb3_sprintf_lite(&out, "\trs:Z:");
-					for (k = 0; k < r->rlen; ++k)
-						rb3_sprintf_lite(&out, "%c", "$ACGTN"[r->rseq[k]]);
+					if (p->opt->write_rs) {
+						rb3_sprintf_lite(&out, "\trs:Z:");
+						for (k = 0; k < r->rlen; ++k)
+							rb3_sprintf_lite(&out, "%c", "$ACGTN"[r->rseq[k]]);
+					}
 					rb3_sprintf_lite(&out, "\n");
 					fputs(out.s, stdout);
 				}
@@ -181,6 +183,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 
 static ko_longopt_t long_options[] = {
 	{ "no-ssa",          ko_no_argument,       301 },
+	{ "seq",             ko_no_argument,       302 },
 	{ "no-kalloc",       ko_no_argument,       501 },
 	{ "dbg-dawg",        ko_no_argument,       502 },
 	{ "dbg-sw",          ko_no_argument,       503 },
@@ -216,6 +219,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		else if (c == 'm') opt.swo.min_sc = atoi(o.arg);
 		else if (c == 'k') opt.swo.end_len = atoi(o.arg);
 		else if (c == 301) no_ssa = 1;
+		else if (c == 302) opt.write_rs = 1;
 		else if (c == 501) opt.no_kalloc = 1;
 		else if (c == 502) rb3_dbg_flag |= RB3_DBG_DAWG;
 		else if (c == 503) rb3_dbg_flag |= RB3_DBG_SW;
@@ -249,6 +253,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 			fprintf(stderr, "  -O INT      gap open penalty [%d]\n", opt.swo.gap_open);
 			fprintf(stderr, "  -E INT      gap extension penalty; a k-long gap costs O+k*E [%d]\n", opt.swo.gap_ext);
 			fprintf(stderr, "  -C NUM      size of the ranking cache [%d]\n", opt.swo.r2cache_size);
+			fprintf(stderr, "  --seq       write reference sequence to the rs tag\n");
 			fprintf(stderr, "  --no-ssa    ignore the sampled suffix array\n");
 		}
 		fprintf(stderr, "  -t INT      number of threads [%d]\n", opt.n_threads);
