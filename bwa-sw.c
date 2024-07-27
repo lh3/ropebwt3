@@ -137,6 +137,7 @@ static sw_cell_t *sw_update_candset(sw_candset_t *h, const sw_cell_t *p)
 		if (q->F < p->F) q->F = p->F, q->F_from = p->F_from; // NB: F_from_off is populated differently
 		if (q->H < p->H) {
 			q->H = p->H, q->H_from = p->H_from;
+			q->rlen = p->rlen, q->qlen = p->qlen;
 			if (p->H_from == SW_FROM_H)
 				q->H_from_pos = p->H_from_pos; // TODO: is this correct?
 		}
@@ -270,8 +271,9 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		if (kh_size(h) == 0) continue;
 		// find top-n hits
 		heap_sz = 0;
-		kh_foreach(h, itr)
+		kh_foreach(h, itr) {
 			sw_heap_insert1(heap, opt->n_best, &heap_sz, kh_key(h, itr).H, itr);
+		}
 		ks_heapsort_rb3_64(heap_sz, heap);
 		ri->n = heap_sz;
 		for (j = 0; j < ri->n; ++j)
