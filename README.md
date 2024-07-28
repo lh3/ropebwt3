@@ -91,7 +91,7 @@ the `sw` command outputs standard PAF but it only outputs one hit per query
 even if there are multiple equally best hits. The number of hits in BWT is
 written to the `rh` tag.
 
-**Local alignment is tens of times slower than find SMEMs.** It is not designed
+**Local alignment is tens of times slower than finding SMEMs.** It is not designed
 for aligning high-throughput sequence reads.
 
 ### <a name="build"></a>Constructing a BWT

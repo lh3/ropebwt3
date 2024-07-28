@@ -9,7 +9,7 @@
 typedef enum { RB3_SA_MEM_TG, RB3_SA_MEM_ORI, RB3_SA_GREEDY, RB3_SA_SW } rb3_search_algo_t;
 
 typedef struct {
-	int32_t n_threads, no_kalloc, write_rs;
+	int32_t n_threads, no_kalloc, write_rs, min_gap_len;
 	rb3_search_algo_t algo;
 	int64_t min_occ, min_len;
 	int64_t batch_size;
@@ -29,6 +29,8 @@ void rb3_mopt_init(rb3_mopt_t *opt)
 
 typedef struct mp_tbuf_s {
 	void *km;
+	int32_t n_gap, m_gap;
+	uint64_t *gap;
 	rb3_sai_v mem; // this is allocated from km
 } m_tbuf_t;
 
@@ -36,7 +38,8 @@ typedef struct {
 	char *name;
 	uint8_t *seq;
 	int64_t id;
-	int32_t len, n_mem;
+	int32_t len, n_mem, n_gap;
+	uint64_t *gap;
 	rb3_sai_t *mem;
 	rb3_swrst_t rst;
 } m_seq_t;
@@ -77,6 +80,24 @@ static void worker_for(void *data, long i, int tid)
 		s->n_mem = b->mem.n;
 		s->mem = RB3_MALLOC(rb3_sai_t, s->n_mem);
 		memcpy(s->mem, b->mem.a, s->n_mem * sizeof(rb3_sai_t));
+		if (p->opt->min_gap_len > 0) {
+			int32_t i, last = 0;
+			b->n_gap = 0;
+			Kgrow(b->km, uint64_t, b->gap, b->mem.n + 1, b->m_gap);
+			for (i = 0; i < b->mem.n; ++i) {
+				int32_t st = b->mem.a[i].info>>32, en = (int32_t)b->mem.a[i].info;
+				if (st > last) {
+					if (st - last >= p->opt->min_gap_len)
+						b->gap[b->n_gap++] = (uint64_t)last<<32 | st;
+					last = en;
+				} else last = last > en? last : en;
+			}
+			if (s->len - last >= p->opt->min_gap_len)
+				b->gap[b->n_gap++] = (uint64_t)last<<32 | s->len;
+			s->n_gap = b->n_gap;
+			s->gap = RB3_MALLOC(uint64_t, s->n_gap);
+			memcpy(s->gap, b->gap, s->n_gap * 8);
+		}
 	}
 }
 
@@ -158,19 +179,29 @@ static void *worker_pipeline(void *shared, int step, void *in)
 					fputs(out.s, stdout);
 				}
 				rb3_swrst_free(r);
-			} else {
+			} else if (p->opt->min_gap_len > 0) { // output regions not covered by long MEMs
+				for (i = 0; i < s->n_gap; ++i) {
+					int32_t st = s->gap[i]>>32, en = (int32_t)s->gap[i];
+					out.l = 0;
+					if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
+					else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
+					rb3_sprintf_lite(&out, "\t%d\t%d\t%d\n", st, en, s->len);
+					fputs(out.s, stdout);
+				}
+			} else { // output long MEMs
 				for (i = 0; i < s->n_mem; ++i) {
 					rb3_sai_t *q = &s->mem[i];
 					int32_t st = q->info>>32, en = (int32_t)q->info;
 					out.l = 0;
 					if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
 					else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
-					rb3_sprintf_lite(&out, "\t%ld\t%ld\t%ld\n", st, en, (long)q->size);
+					rb3_sprintf_lite(&out, "\t%d\t%d\t%ld\n", st, en, (long)q->size);
 					fputs(out.s, stdout);
 				}
 			}
 			free(s->name);
 			free(s->mem);
+			free(s->gap);
 		}
 		free(out.s);
 		free(t->seq);
@@ -184,6 +215,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 static ko_longopt_t long_options[] = {
 	{ "no-ssa",          ko_no_argument,       301 },
 	{ "seq",             ko_no_argument,       302 },
+	{ "gap",             ko_required_argument, 303 },
 	{ "no-kalloc",       ko_no_argument,       501 },
 	{ "dbg-dawg",        ko_no_argument,       502 },
 	{ "dbg-sw",          ko_no_argument,       503 },
@@ -220,6 +252,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		else if (c == 'k') opt.swo.end_len = atoi(o.arg);
 		else if (c == 301) no_ssa = 1;
 		else if (c == 302) opt.write_rs = 1;
+		else if (c == 303) opt.min_gap_len = rb3_parse_num(o.arg);
 		else if (c == 501) opt.no_kalloc = 1;
 		else if (c == 502) rb3_dbg_flag |= RB3_DBG_DAWG;
 		else if (c == 503) rb3_dbg_flag |= RB3_DBG_SW;
@@ -241,6 +274,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 			fprintf(stderr, "  -s INT      min interval size [%ld]\n", (long)opt.min_occ);
 			fprintf(stderr, "  -g          find greedy MEMs (faster but not always SMEMs)\n");
 			fprintf(stderr, "  -w          use the original MEM algorithm (for testing)\n");
+			fprintf(stderr, "  --gap=NUM   output regions >=NUM that are not covered by MEMs [%d]\n", opt.min_gap_len);
 		}
 		if (strcmp(argv[0], "search") == 0)
 			fprintf(stderr, "  -d          use BWA-SW for local alignment\n");
