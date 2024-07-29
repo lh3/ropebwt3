@@ -8,8 +8,13 @@
 
 typedef enum { RB3_SA_MEM_TG, RB3_SA_MEM_ORI, RB3_SA_GREEDY, RB3_SA_SW } rb3_search_algo_t;
 
+#define RB3_MF_NO_KALLOC   0x1
+#define RB3_MF_WRITE_RS    0x2
+#define RB3_MF_WRITE_UNMAP 0x4
+
 typedef struct {
-	int32_t n_threads, no_kalloc, write_rs, min_gap_len;
+	uint32_t flag;
+	int32_t n_threads, min_gap_len;
 	rb3_search_algo_t algo;
 	int64_t min_occ, min_len;
 	int64_t batch_size;
@@ -132,7 +137,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 			t->n_seq = n_seq;
 			t->buf = RB3_CALLOC(m_tbuf_t, p->opt->n_threads);
 			for (i = 0; i < p->opt->n_threads; ++i)
-				t->buf[i].km = p->opt->no_kalloc? 0 : km_init();
+				t->buf[i].km = p->opt->flag & RB3_MF_NO_KALLOC? 0 : km_init();
 			return t;
 		}
 	} else if (step == 1) {
@@ -150,7 +155,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 				rb3_swrst_t *r = &s->rst;
 				int32_t k;
 				out.l = 0;
-				if (r->score > 0 && r->n_qoff > 0) {
+				if (r->score > 0 && r->n_qoff > 0) { // mapped
 					if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
 					else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
 					rb3_sprintf_lite(&out, "\t%d\t%d\t%d", s->len, r->qoff[0], r->qoff[0] + r->qlen);
@@ -170,12 +175,17 @@ static void *worker_pipeline(void *shared, int step, void *in)
 					rb3_sprintf_lite(&out, "\tAS:i:%d\tqh:i:%d\trh:i:%ld\tcg:Z:", r->score, r->n_qoff, (long)(r->hi - r->lo));
 					for (k = 0; k < r->n_cigar; ++k)
 						rb3_sprintf_lite(&out, "%d%c", r->cigar[k]>>4, "MIDNSHP=X"[r->cigar[k]&0xf]);
-					if (p->opt->write_rs) {
+					if (p->opt->flag & RB3_MF_WRITE_RS) {
 						rb3_sprintf_lite(&out, "\trs:Z:");
 						for (k = 0; k < r->rlen; ++k)
 							rb3_sprintf_lite(&out, "%c", "$ACGTN"[r->rseq[k]]);
 					}
 					rb3_sprintf_lite(&out, "\n");
+					fputs(out.s, stdout);
+				} else if (p->opt->flag & RB3_MF_WRITE_UNMAP) { // unmapped
+					if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
+					else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
+					rb3_sprintf_lite(&out, "\t%d\t*\t*\t*\t*\t*\t*\t*\t0\t0\t0\n", s->len);
 					fputs(out.s, stdout);
 				}
 				rb3_swrst_free(r);
@@ -232,7 +242,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgdwN:A:B:O:E:C:m:k:", long_options)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgdwN:A:B:O:E:C:m:k:u", long_options)) >= 0) {
 		if (c == 'L') is_line = 1;
 		else if (c == 'g') opt.algo = RB3_SA_GREEDY;
 		else if (c == 'w') opt.algo = RB3_SA_MEM_ORI;
@@ -250,10 +260,11 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		else if (c == 'C') opt.swo.r2cache_size = rb3_parse_num(o.arg);
 		else if (c == 'm') opt.swo.min_sc = atoi(o.arg);
 		else if (c == 'k') opt.swo.end_len = atoi(o.arg);
+		else if (c == 'u') opt.flag |= RB3_MF_WRITE_UNMAP;
 		else if (c == 301) no_ssa = 1;
-		else if (c == 302) opt.write_rs = 1;
+		else if (c == 302) opt.flag |= RB3_MF_WRITE_RS;
 		else if (c == 303) opt.min_gap_len = rb3_parse_num(o.arg);
-		else if (c == 501) opt.no_kalloc = 1;
+		else if (c == 501) opt.flag |= RB3_MF_NO_KALLOC;
 		else if (c == 502) rb3_dbg_flag |= RB3_DBG_DAWG;
 		else if (c == 503) rb3_dbg_flag |= RB3_DBG_SW;
 		else if (c == 504) rb3_dbg_flag |= RB3_DBG_QNAME;
@@ -272,7 +283,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		if (strcmp(argv[0], "mem") == 0 || strcmp(argv[0], "search") == 0) {
 			fprintf(stderr, "  -l INT      min MEM length [%ld]\n", (long)opt.min_len);
 			fprintf(stderr, "  -s INT      min interval size [%ld]\n", (long)opt.min_occ);
-			fprintf(stderr, "  -g          find greedy MEMs (faster but not always SMEMs)\n");
+			fprintf(stderr, "  -g          find greedy MEMs (not always SMEMs; for testing)\n");
 			fprintf(stderr, "  -w          use the original MEM algorithm (for testing)\n");
 			fprintf(stderr, "  --gap=NUM   output regions >=NUM that are not covered by MEMs [%d]\n", opt.min_gap_len);
 		}
@@ -287,6 +298,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 			fprintf(stderr, "  -O INT      gap open penalty [%d]\n", opt.swo.gap_open);
 			fprintf(stderr, "  -E INT      gap extension penalty; a k-long gap costs O+k*E [%d]\n", opt.swo.gap_ext);
 			fprintf(stderr, "  -C NUM      size of the ranking cache [%d]\n", opt.swo.r2cache_size);
+			fprintf(stderr, "  -u          write unmapped queries to PAF\n");
 			fprintf(stderr, "  --seq       write reference sequence to the rs tag\n");
 			fprintf(stderr, "  --no-ssa    ignore the sampled suffix array\n");
 		}
