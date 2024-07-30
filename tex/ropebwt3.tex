@@ -1,0 +1,101 @@
+\documentclass[webpdf,contemporary,large,namedate]{oup-authoring-template}%
+
+%\PassOptionsToPackage{hyphens}{url}
+%\PassOptionsToPackage{colorlinks,linkcolor=blue,urlcolor=blue,citecolor=blue,anchorcolor=blue}{hyperref}
+
+\DeclareMathOperator*{\argmax}{argmax}
+
+\usepackage{algorithmicx}
+\usepackage{lmodern}
+\renewcommand{\ttdefault}{cmtt}
+
+\begin{document}
+\journaltitle{TBD}
+\DOI{TBD}
+\copyrightyear{2024}
+\pubyear{2024}
+\access{Advance Access Publication Date: Day Month Year}
+\appnotes{Preprint}
+\firstpage{1}
+
+\title[Pangene graphs]{Exploring gene content with pangene graphs}
+\author[1,2,3,$\ast$]{Heng Li\ORCID{0000-0003-4874-2874}}
+\address[1]{Department of Data Science, Dana-Farber Cancer Institute, 450 Brookline Ave, Boston, MA 02215, USA}
+\address[2]{Department of Biomedical Informatics, Harvard Medical School, 10 Shattuck St, Boston, MA 02215, USA}
+\address[3]{Broad Insitute of Harvard and MIT, 415 Main St, Cambridge, MA 02142, USA}
+\corresp[$\ast$]{Corresponding author. \href{mailto:hli@ds.dfci.harvard.edu}{hli@ds.dfci.harvard.edu}}
+
+%\received{Date}{0}{Year}
+%\revised{Date}{0}{Year}
+%\accepted{Date}{0}{Year}
+
+\abstract{
+\sffamily\footnotesize
+\textbf{Motivation:}
+blabla\vspace{0.5em}\\
+\textbf{Results:}
+blabla\vspace{0.5em}\\
+\textbf{Availability and implementation:}
+\url{https://github.com/lh3/ropebwt3}
+}
+
+\maketitle
+
+\section{Introduction}
+
+\section{Methods}
+
+\begin{algorithm}
+	\caption{The revised BWA-SW algorithm}\label{algo:bwa-sw}
+	\begin{algorithmic}[1]
+		\Procedure{BwaSW}{$G_P,G_T$}
+			\For{$u\in V(G_P)$ in topological order}
+				\For{$u'\in{\rm pre}(u)$}\Comment{predecessors of $u$}
+					\For{$v\in V(G_T)$ \emph{s.t.} $H_{u'v}>0$}\Comment{insertion}
+						\State $E_{uv}\gets\max\{E_{uv},\max\{H_{u'v}-q,E_{u'v}\}-e\}$
+						\State $H_{uv}\gets\max\{H_{uv},E_{uv}\}$
+					\EndFor
+					\For{$v'\in V(G_T)$ \emph{s.t.} $H_{u'v'}>0$}\Comment{match}
+						\For{$v\in{\rm child}(v')$}\Comment{children of $v'$}
+							\State $H_{uv}\gets \max\{H_{uv},H_{u'v'}+s(u',u;v',v)\}$
+						\EndFor
+					\EndFor
+				\EndFor
+				\For{$v'\in V(G_T)$ \emph{s.t.} $H_{uv'}>0$}\Comment{deletion}
+					\For{$v\in{\rm child}(v')$}\Comment{children of $v'$}
+						\State $F_{uv}\gets\max\{F_{uv},\max\{H_{uv'}-q,F_{uv'}\}-e\}$
+						\State $H_{uv}\gets\max\{H_{uv},F_{uv}\}$
+					\EndFor
+				\EndFor
+			\EndFor
+		\EndProcedure
+	\end{algorithmic}
+\end{algorithm}
+
+\section{Results}
+
+\section{Discussions}
+
+\section*{Acknowledgements}
+
+\section*{Author contributions}
+
+H.L. conceived the project, implemented the algorithms, analyzed the data and drafted the manuscript.
+
+\section*{Conflict of interest}
+
+None declared.
+
+\section*{Funding}
+
+This work is supported by National Institute of Health grant R01HG010040 and U01HG010961 (to H.L.).
+
+\section*{Data availability}
+
+Source code available at \url{https://github.com/lh3/ropebwt3}
+
+\bibliographystyle{apalike}
+{\sffamily\small
+\bibliography{ropebwt3}}
+
+\end{document}
