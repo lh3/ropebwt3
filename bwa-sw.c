@@ -362,7 +362,7 @@ void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const
 	rb3_bwtl_t *q;
 	rb3_dawg_t *g;
 	rst->score = rst->n_qoff = rst->n_cigar = rst->rlen = rst->qlen = rst->blen = rst->mlen = 0;
-	if (opt->min_mem_len > 0 && opt->min_mem_len > end_len) {
+	if (opt->min_mem_len > 0 && opt->min_mem_len > opt->end_len) {
 		if (!rb3_fmd_smem_present(f, len, seq, opt->min_mem_len))
 			return;
 	}
