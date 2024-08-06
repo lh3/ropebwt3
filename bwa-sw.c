@@ -186,8 +186,11 @@ static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, 
 			r.hi = f->acc[c] + chi[c];
 			if (r.lo == r.hi) continue;
 			k = sw_candset_get(h, r);
-			if (k != kh_end(h))
-				row->a[kh_key(h, k).H].F_from_off = j;
+			if (k != kh_end(h)) {
+				int32_t i = kh_key(h, k).H;
+				if (row->a[i].F_from_off == SW_F_UNSET)
+					row->a[i].F_from_off = j;
+			}
 		}
 	}
 	for (j = 0; j < row->n - 1; ++j) {
