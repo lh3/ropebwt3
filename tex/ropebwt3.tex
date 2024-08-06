@@ -18,7 +18,7 @@
 \appnotes{Preprint}
 \firstpage{1}
 
-\title[Pangene graphs]{Exploring gene content with pangene graphs}
+\title[BWT construction and query]{In-memory BWT construction and search for redundant sequences at terabyte scale}
 \author[1,2,3,$\ast$]{Heng Li\ORCID{0000-0003-4874-2874}}
 \address[1]{Department of Data Science, Dana-Farber Cancer Institute, 450 Brookline Ave, Boston, MA 02215, USA}
 \address[2]{Department of Biomedical Informatics, Harvard Medical School, 10 Shattuck St, Boston, MA 02215, USA}
@@ -32,9 +32,19 @@
 \abstract{
 \sffamily\footnotesize
 \textbf{Motivation:}
-blabla\vspace{0.5em}\\
+Burrows-Wheeler Transform (BWT) is a common component in full-text indices.
+Initially developed for data compression, it is particularly powerful for encoding redundant sequences such as pangenome data.
+However, BWT construction is resource intensive and hard to be parallelized,
+and most methods for querying large full-text indices only report exact matches.
+These limitations have hampered the application of full-text indices to large datasets.
+\vspace{0.5em}\\
 \textbf{Results:}
-blabla\vspace{0.5em}\\
+We developed ropebwt3 for efficient BWT construction and query.
+Ropebwt3 could index 100 assembled human genomes in 1.5 days and index 7.3 terabases of commonly studied bacterial assemblies in less than a month.
+This was achieved using 82 gigabytes of memory at the peak without working disk space.
+Ropebwt3 can also find maximal exact matches and inexact alignment with affine-gap penalties.
+It demonstrates the feasibility of full-text indexing at terabyte scale.
+\vspace{0.5em}\\
 \textbf{Availability and implementation:}
 \url{https://github.com/lh3/ropebwt3}
 }
@@ -43,7 +53,165 @@ blabla\vspace{0.5em}\\
 
 \section{Introduction}
 
+Although millions of genomes have been sequenced since the advent of high-throughput sequencing technologies,
+the majority of them were sequenced from a small number of species such as human, \emph{E. coli} and \emph{M. tuberculosis}.
+As a result, existing genome sequences are highly redundant.
+This is how \citet{Hunt2024.03.08.584059} compressed 7.86 terabases (Tb) of bacterial assemblies, also known as AllTheBacteria, into 78.5 gigabytes (GB)
+after grouping phylogenetically related genomes~\citep{Brinda:2024aa}.
+The resultant compressed files losslessly keep all the sequences but are not directly searchable.
+Indexing is necessary to enable fast sequence search.
+
+K-mer data structures are a popular choice for sequence indexing~\citep{Marchet:2021aa}.
+They can be classified into three categories.
+The first category does not associate k-mers with their precise positions in the database sequences.
+These data structures support membership query, sketching or pseudoalignment,
+but cannot report base alignment.
+The second category associates a subset of k-mers with their positions.
+Upon finding k-mer matches, algorithms in this category go back to the database sequences and perform base alignment.
+Most aligners work this way.
+However, because the database sequences are usually not well compressed,
+these algorithms may require large RAM or disk space to store them.
+The last category keeps all k-mers and their precise positions.
+Algorithms in this category can reconstruct all the database sequences without explicitly storing them.
+Nonetheless, although positions of k-mers can be compressed efficiently,
+they still take large space.
+
+As an alternative to k-mer indices, we can use a full-text index.
+
+The primary outcome of this article.
+
 \section{Methods}
+
+\subsection{Basic concepts}
+
+Let $\Sigma$ be an alphabet of symbols.
+Given a string $P\in\Sigma^*$, $|P|$ is its length and $P[i]\in\Sigma$, $0\le i<|P|$, is the $i$-th symbol in $P$.
+Operator ``$\circ$'' concatenates two strings or between strings and symbols.
+It may be omitted if concatenation is apparent from the context.
+
+Suppose $\mathcal{T}=(P_0,P_1,\ldots,P_{m-1})$ is an ordered list of $m$ strings over $\Sigma$.
+$T\triangleq P_0\$_0P_1\$_1\cdots P_{m-1}\$_{m-1}$ is the concatenation of the strings in $\mathcal{T}$
+with sentiels ordered by $\$_0<\$_1<\cdots<\$_{m-1}$.
+There are other ways to define string concatenation on ordered string lists or unordered string sets~\citep{Cenzato:2024ab,Li:2014ab}.
+They will be not discussed in this article.
+
+For convenience, let $n\triangleq|T|$ and $T[-1]=T[n-1]$.
+The \emph{suffix array} of $T$ is an integer array $S$ such that $S(i)$,
+$0\le i<n$, is the start position of the $i$-th smallest suffix among all suffixes of $T$ (Fig.~\ref{fig:1}a).
+The \emph{Burrows-Wheeler Transform} (\emph{BWT}) of $T$ is a string $B$ computed by $B[i]=T[S(i)-1]$.
+In BWT string $B$, all sentiels are represented by the same symbol ``$\$$'' and are not distinguished from each other.
+
+For $a\in\Sigma\cup\{\$\}$, let $C_B(a)\triangleq|\{i:B[i]<a\}|$ be the number of symbols smaller than $a$
+and ${\rm rank}_B(a,k)\triangleq|\{i<k:B[i]=a\}|$ be the number of $a$ before position $k$ in $B$.
+We may omit subscription $B$ when we are describing one string only.
+
+The last-to-first mapping (\emph{LF mapping}) $\pi$ is defined by $\pi(i)\triangleq S^{-1}(S(i)-1)$,
+where $S^{-1}$ is the inservse function of suffix array $S$.
+It can be calculated as $\pi(i)=C(B[i])+{\rm rank}(B[i],i)$.
+As $B[\pi(i)]$ immediately preceeds $B[i]$ on $T$, we can use $\pi$ to decode the $i$-th sequence in $B$ (Algorithm~\ref{algo:get}).
+
+\begin{figure}[tb]
+\centering
+\includegraphics[width=.49\textwidth]{fig1}
+\caption{BWT, prefix trie and directed acyclic prefix graph (DAPG).}\label{fig:1}
+\end{figure}
+
+\begin{algorithm}[!htb]
+	\caption{Retrieve the $i$-th sequence, $0\le i<m$}\label{algo:get}
+	\begin{algorithmic}[1]
+		\Procedure{Retrieve}{$B$,$i$}
+			\State $P\gets\epsilon$\Comment{empty string}
+			\While{$B[i]\not=\$$}
+			\State $P\gets B[i]\circ P$
+			\State $i\gets C_B(B[i])+{\rm rank}(B[i],i)$\Comment{i.e. $i\gets\pi(i)$}
+			\EndWhile
+			\State \Return{$P$}
+		\EndProcedure
+	\end{algorithmic}
+\end{algorithm}
+
+\subsection{Suffix array internval and backward search}
+
+For a string $P\in\Sigma^*$ (i.e. not including sentinels), let $L(P)$ be the number of $T$'s suffixes prefixed with $P$.
+Define ${\rm lo}(P)$ to be the number of suffixes that lexicographically smaller than $P$
+and ${\rm hi}(P)\triangleq {\rm lo}(P)+L(P)$.
+$[{\rm lo}(P),{\rm hi}(P))$ is called the \emph{suffix array interval} of $P$, or \emph{SA interval} in brief.
+
+If we know the SA interval of $P$, we can calculate the SA interval of $aP$ with:
+\begin{eqnarray*}
+{\rm lo}(aP)&=&C(a)+{\rm rank}(a,{\rm lo}(P))\\
+{\rm hi}(aP)&=&C(a)+{\rm rank}(a,{\rm hi}(P))
+\end{eqnarray*}
+To count the occurrence of a string $P$,
+we can start with the SA interval $[0,n)$ of an empty string and repeatedly apply the equation above from the last symbol in $P$ to the first.
+This procedure is called \emph{backward search}.
+
+\subsection{Double-strand BWT}
+
+The definitions above are applicable to generic strings.
+With one BWT, we can only achieve backward search;
+forward search requires the BWT of reverse strings~\citep{DBLP:conf/bibm/LamLTWWY09}.
+Nonetheless, due to the strand symmetry of DNA strings,
+it is possible to achieve both forward and backward search with one BWT provided that the BWT contains both strands of DNA strings.
+
+Formally, a DNA alphabet is $\Sigma=\{{\tt A},{\tt C},{\tt G},{\tt T},{\tt N}\}$.
+$\overline{a}$ denotes the Watson-Crick complement of symbol $a\in\Sigma$.
+The complement of $\$$, ${\tt A}$, ${\tt C}$, ${\tt G}$, ${\tt T}$ and ${\tt N}$
+are $\$$, ${\tt T}$, ${\tt G}$, ${\tt C}$, ${\tt A}$ and ${\tt N}$, respectively.
+
+For string $P$, $\overline{P}$ is its reverse complement string.
+The double-strand concatenation of a DNA string list $\mathcal{T}=(P_0,P_1,\ldots,P_{m-1})$ is
+$\tilde{T}=P_0\$_0\overline{P}_0\$_1P_1\$_2\overline{P}_1\$_3\cdots P_{m-1}\$_{2m-2}\overline{P}_{m-1}\$_{2m-1}$.
+The \emph{double-strand BWT} (\emph{DS-BWT}) of $\mathcal{T}$ is the BWT of $\tilde{T}$.
+
+We note that if $P$ is a substring of $\tilde{T}$,
+$\overline{P}$ must be a substring as well and the occurrences of $P$ and $\overline{P}$ are identical.
+We can thus define the \emph{suffix array bidirectional interval} (\emph{SA bi-interval}) of $P$
+as a 3-tuple $(k,k',s)$ where $[k,k+s)$ is the SA interval of $P$ and $[k',k'+s)$ is the SA interval of $\overline{P}$.
+It is easy to see that if $(k,k',s)$ is the SA bi-interval of $P$, $(k',k,s)$ will be the SA bi-interval of $\overline{P}$, and vice versa.
+
+\begin{algorithm}[!htb]
+	\caption{Backward and forward extensions with DS-BWT}
+	\begin{algorithmic}[1]
+		\Procedure{BackwardExt}{$B,(k,k',s),a$}
+			\State $t\gets 0$
+			\ForAll{$b<\overline{a}$}\Comment{$b$ can be $\$$}
+				\State $t\gets t+\big[{\rm rank}(\overline{b},k+s)-{\rm rank}(\overline{b},k)\big]$
+			\EndFor
+			\State $s\gets {\rm rank}(a,k+s)-{\rm rank}(a,k)$
+			\State $k\gets C(a)+{\rm rank}(a,k)$
+			\State \Return{$(k,k'+t,s)$}
+		\EndProcedure
+		\Procedure{ForwardExt}{$B,(k,k',s),a$}
+			\State $(k',k,s)\gets${\sc BackwardExt}$(B,(k',k,s),\overline{a})$
+			\State \Return{$(k,k',s)$}
+		\EndProcedure
+	\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[!htb]
+	\caption{Append BWT $B_2$ into BWT $B_1$}\label{algo:merge}
+	\begin{algorithmic}[1]
+		\Procedure{AppendBWT}{$B_1,B_2$}
+			\State $m_1\gets\mbox{number of sentinels in $B_1$ }$
+			\State $m_2\gets\mbox{number of sentinels in $B_2$ }$
+			\State $A\gets \emptyset$
+			\For{$i\gets 0$ {\bf to} $m_2$}
+				\State $k\gets i$
+				\State $l\gets m_1$
+				\Repeat
+					\State $a\gets B_2[k]$
+					\State $A\gets A\cup \{(k+l,a)\}$
+					\State $k\gets C_{B_2}(a)+{\rm rank}_{B_2}(a,k)$
+					\State $l\gets C_{B_1}(a)+{\rm rank}_{B_1}(a,l)$
+				\Until{$a=\$$}
+			\EndFor
+			\For{$(k,a)\in A$ in ascending order of $k$}
+				\State ${\rm insert}_{B_1}(a,k)$
+			\EndFor
+		\EndProcedure
+	\end{algorithmic}
+\end{algorithm}
 
 \begin{algorithm}
 	\caption{The revised BWA-SW algorithm}\label{algo:bwa-sw}
