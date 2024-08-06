@@ -20,6 +20,7 @@ void rb3_swopt_init(rb3_swopt_t *opt)
 	opt->match = 1, opt->mis = 3;
 	opt->gap_open = 3, opt->gap_ext = 1;
 	opt->end_len = 11;
+	opt->min_mem_len = 0;
 	opt->r2cache_size = 0x10000;
 }
 
@@ -361,6 +362,10 @@ void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const
 	rb3_bwtl_t *q;
 	rb3_dawg_t *g;
 	rst->score = rst->n_qoff = rst->n_cigar = rst->rlen = rst->qlen = rst->blen = rst->mlen = 0;
+	if (opt->min_mem_len > 0 && opt->min_mem_len > end_len) {
+		if (!rb3_fmd_smem_present(f, len, seq, opt->min_mem_len))
+			return;
+	}
 	q = rb3_bwtl_gen(km, len, seq);
 	g = rb3_dawg_gen(km, q);
 	sw_core(km, opt, f, g, q, rst);

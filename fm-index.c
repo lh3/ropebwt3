@@ -447,10 +447,10 @@ int64_t rb3_fmd_gmem(void *km, const rb3_fmi_t *f, int64_t len, const uint8_t *q
 	return mem->n;
 }
 
-int64_t rb3_fmd_smem1_TG(void *km, const rb3_fmi_t *f, int64_t min_occ, int64_t min_len, int64_t len, const uint8_t *q, int64_t x, rb3_sai_v *mem)
+int64_t rb3_fmd_smem1_TG(void *km, const rb3_fmi_t *f, int64_t min_occ, int64_t min_len, int64_t len, const uint8_t *q, int64_t x, rb3_sai_v *mem, int32_t check_long)
 {
 	int64_t i, j;
-	rb3_sai_t ik, ok[6], *p;
+	rb3_sai_t ik, ok[6];
 
 	assert(len <= INT32_MAX); // this can be relaxed if we define a new struct for mem
 	if (len - x < min_len) return len;
@@ -462,6 +462,7 @@ int64_t rb3_fmd_smem1_TG(void *km, const rb3_fmi_t *f, int64_t min_occ, int64_t 
 		ik = ok[c];
 	}
 	if (i >= x) return i + 1; // no MEM found
+	if (check_long) return -1;
 	for (j = x + min_len; j < len; ++j) { // forward extension
 		int c = rb3_comp(q[j]);
 		rb3_fmd_extend(f, &ik, ok, 0);
@@ -469,7 +470,7 @@ int64_t rb3_fmd_smem1_TG(void *km, const rb3_fmi_t *f, int64_t min_occ, int64_t 
 		ik = ok[c];
 	}
 	Kgrow(km, rb3_sai_t, mem->a, mem->n, mem->m);
-	p = &mem->a[mem->n++];
+	rb3_sai_t *p = &mem->a[mem->n++];
 	*p = ik;
 	p->info = (uint64_t)x<<32 | j;
 	if (j == len) return len;
@@ -488,9 +489,19 @@ int64_t rb3_fmd_smem_TG(void *km, const rb3_fmi_t *f, int64_t len, const uint8_t
 	int64_t x = 0;
 	mem->n = 0;
 	do {
-		x = rb3_fmd_smem1_TG(km, f, min_occ, min_len, len, q, x, mem);
+		x = rb3_fmd_smem1_TG(km, f, min_occ, min_len, len, q, x, mem, 0);
 	} while (x < len);
 	return mem->n;
+}
+
+int32_t rb3_fmd_smem_present(const rb3_fmi_t *f, int64_t len, const uint8_t *q, int64_t min_len)
+{
+	int64_t x = 0;
+	do {
+		x = rb3_fmd_smem1_TG(0, f, 1, min_len, len, q, x, 0, 1);
+		if (x < 0) return 1;
+	} while (x < len);
+	return 0;
 }
 
 /*******************
