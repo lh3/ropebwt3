@@ -267,17 +267,14 @@ The following table shows the time to construct the BWT for three datasets:
 BWTs are constructed from both strands, so the size of each BWT doubles the
 number of input bases.
 
-|Dataset        | Metric          |rb3 bulid|rb3 merge|grlBWT|pfp-thresholds|
-|:--------------|:----------------|--------:|--------:|-----:|-------------:|
-|human100       |Elapsed time (h) |     33.7|     24.2|   8.3| 51.7 |
-|               |CPU time (h)     |    803.6|    757.2|  29.6| 51.5 |
-|               |Peak memory (GB) |     82.3|     70.7|  84.8| 788.1 |
-|ecoli315k      |Elapsed time (h) |    128.7|
-|               |CPU time (h)     |   3826.8|
-|               |Peak memory (GB) |     20.5|
-|CommonBacteria |Elapsed time (d) |     26.5|
-|               |CPU time (d)     |    830.3|
-|               |Peak memory (GB) |     67.3|
+|Dataset        |Algorithm |Elapsed|CPU time|Peak RAM|
+|:--------------|:---------|------:|-------:|-------:|
+|human100       |rb3 build |  33.7h|  803.6h|  82.3GB|
+|               |rb3 merge |  24.2h|  757.2h|  70.7GB|
+|               |grlBWT    |   8.3h|   29.6h|  84.8GB|
+|               |pfp-thres |  51.7h|   51.5h| 788.1GB|
+|ecoli315k      |rb3 build | 128.7h| 3826.8h|  20.5GB|
+|CommonBacteria |rb3 build |  26.5d|  830.3d|  67.3GB|
 
 For human100, the following methods were evaluated:
 
