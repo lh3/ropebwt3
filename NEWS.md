@@ -1,3 +1,31 @@
+Release 3.3-r149 (6 August 2024)
+--------------------------------
+
+Notable changes in the `sw` command:
+
+ * New feature: option to try SW only when there is a long MEM. This is not
+   enabled by default.
+
+ * New feature: option to output unmapped reads in PAF
+
+ * Bugfix: backtracking the F state could be wrong in corner cases
+
+ * Bugfix: coordinates on the reverse strand were not flipped in PAF
+
+ * Breaking: don't output the reference sequence in the rs tag by default
+
+Other new features:
+
+ * New feature: added the stat command to report the number of runs. Only
+   working for the FMD format for now.
+
+ * New feature: added `--min-gap` to the `mem` command to output regions not
+   covered by long MEMs.
+
+(3.3: 6 August 2024, r149)
+
+
+
 Release 3.2-r137 (23 July 2024)
 -------------------------------
 

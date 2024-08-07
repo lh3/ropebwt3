@@ -269,12 +269,12 @@ number of input bases.
 
 |Dataset        |Algorithm |Elapsed|CPU time|Peak RAM|
 |:--------------|:---------|------:|-------:|-------:|
-|human100       |rb3 build |  33.7h|  803.6h|  82.3GB|
-|               |rb3 merge |  24.2h|  757.2h|  70.7GB|
-|               |grlBWT    |   8.3h|   29.6h|  84.8GB|
-|               |pfp-thres |  51.7h|   51.5h| 788.1GB|
-|ecoli315k      |rb3 build | 128.7h| 3826.8h|  20.5GB|
-|CommonBacteria |rb3 build |  26.5d|  830.3d|  67.3GB|
+|human100       |rb3 build | 33.7 h| 803.6 h|  82.3 G|
+|               |rb3 merge | 24.2 h| 757.2 h|  70.7 G|
+|               |grlBWT    |  8.3 h|  29.6 h|  84.8 G|
+|               |pfp-thres | 51.7 h|  51.5 h| 788.1 G|
+|ecoli315k      |rb3 build |128.7 h|3826.8 h|  20.5 G|
+|CommonBacteria |rb3 build | 26.5 d| 830.3 d|  67.3 G|
 
 For human100, the following methods were evaluated:
 
