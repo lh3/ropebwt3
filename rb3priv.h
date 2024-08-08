@@ -7,6 +7,7 @@
 #define RB3_DBG_DAWG   0x1
 #define RB3_DBG_SW     0x2
 #define RB3_DBG_QNAME  0x4
+#define RB3_DBG_BT     0x8
 
 #ifdef __cplusplus
 extern "C" {

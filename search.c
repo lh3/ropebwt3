@@ -234,6 +234,7 @@ static ko_longopt_t long_options[] = {
 	{ "dbg-dawg",        ko_no_argument,       502 },
 	{ "dbg-sw",          ko_no_argument,       503 },
 	{ "dbg-qname",       ko_no_argument,       504 },
+	{ "dbg-bt",          ko_no_argument,       505 },
 	{ 0, 0, 0 }
 };
 
@@ -273,6 +274,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		else if (c == 502) rb3_dbg_flag |= RB3_DBG_DAWG;
 		else if (c == 503) rb3_dbg_flag |= RB3_DBG_SW;
 		else if (c == 504) rb3_dbg_flag |= RB3_DBG_QNAME;
+		else if (c == 505) rb3_dbg_flag |= RB3_DBG_BT;
 		else {
 			fprintf(stderr, "ERROR: unknown option\n");
 			return 1;

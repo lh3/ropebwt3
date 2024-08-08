@@ -77,6 +77,8 @@ static void sw_backtrack_core(const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		int32_t state = last == 0? x&0x3 : last;
 		int32_t ext = state == 1 || state == 2? x>>(state+1)&1 : 0; // gap extension or not
 		int32_t op = state; // cigar operator
+		if (rb3_dbg_flag & RB3_DBG_BT)
+			fprintf(stderr, "BT\t%d\t%d\t%d\n", r, pos%n_col, p->H);
 		for (c = 1; c < 7; ++c)
 			if (f->acc[c] > p->lo) break;
 		--c; // this is the reference base
@@ -330,7 +332,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 			ri->a[j] = kh_key(h, (uint32_t)heap[j]);
 		sw_track_F(km, f, rc, h, &row[i]);
 		if (rb3_dbg_flag & RB3_DBG_SW) { // NB: single-threaded only
-			fprintf(stderr, "SW\t%d\t[%d,%d)\t%d:%.3f\t", i, t->lo, t->hi, ri->n, rb3_cputime());
+			fprintf(stderr, "SW\t%d\t[%d,%d)\t%d\t", i, t->lo, t->hi, ri->n);
 			for (j = 0; j < t->n_pre; ++j) {
 				if (j) fputc(',', stderr);
 				fprintf(stderr, "%d", t->pre[j]);
@@ -338,7 +340,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 			fputc('\t', stderr);
 			for (j = 0; j < ri->n; ++j) {
 				if (j) fputc(',', stderr);
-				fprintf(stderr, "%d(%d,%d)", ri->a[j].H, ri->a[j].rlen, ri->a[j].qlen);
+				fprintf(stderr, "%d(%d)", ri->a[j].H, ri->a[j].qlen - ri->a[j].rlen);
 			}
 			fputc('\n', stderr);
 		}
