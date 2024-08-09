@@ -289,7 +289,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		fprintf(stderr, "Options:\n");
 		if (strcmp(argv[0], "mem") == 0 || strcmp(argv[0], "search") == 0) {
 			fprintf(stderr, "  -l INT      min MEM length [%ld]\n", (long)opt.min_len);
-			fprintf(stderr, "  -s INT      min interval size [%ld]\n", (long)opt.min_occ);
+			fprintf(stderr, "  -c INT      min interval size [%ld]\n", (long)opt.min_occ);
 			fprintf(stderr, "  -g          find greedy MEMs (not always SMEMs; for testing)\n");
 			fprintf(stderr, "  -w          use the original MEM algorithm (for testing)\n");
 			fprintf(stderr, "  --gap=NUM   output regions >=NUM that are not covered by MEMs [%d]\n", opt.min_gap_len);
