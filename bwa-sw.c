@@ -236,25 +236,28 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	for (i = 1; i < g->n_node; ++i) { // traverse all nodes in the DAWG in the topological order
 		const rb3_dawg_node_t *t = &g->node[i];
 		sw_row_t *ri = &row[i];
-		int32_t j, k, heap_sz, max_min_sc = 0, n_node;
+		int32_t j, k, heap_sz, max_min_sc = 0;
 		khint_t itr;
 		sw_candset_clear(h);
 
-		// calculate max_min_sc
-		for (j = 0, n_node = 0; j < t->n_pre; ++j)
-			n_node += row[t->pre[j]].n;
-		if (n_node > opt->n_best) {
-			int32_t l = 0;
-			Kgrow(km, int32_t, ks_a, n_node, ks_m);
-			for (j = 0, max_min_sc = 0; j < t->n_pre; ++j) {
-				int32_t pid = t->pre[j];
-				for (k = 0; k < row[pid].n; ++k)
-					ks_a[l++] = row[pid].a[k].H;
+		// calculate max_min_sc; ignore a cell if its score can't reach max_min_sc
+		if (t->n_pre > 1) { // only relevant if there are multiple predecessors
+			int32_t n_cell = 0;
+			for (j = 0; j < t->n_pre; ++j)
+				n_cell += row[t->pre[j]].n;
+			if (n_cell > opt->n_best) { // only relevant if there are enough cells
+				int32_t l = 0;
+				Kgrow(km, int32_t, ks_a, n_cell, ks_m);
+				for (j = 0, max_min_sc = 0; j < t->n_pre; ++j) {
+					int32_t pid = t->pre[j];
+					for (k = 0; k < row[pid].n; ++k)
+						ks_a[l++] = row[pid].a[k].H;
+				}
+				max_min_sc = ks_ksmall_rb3_32(n_cell, ks_a, opt->n_best);
 			}
-			max_min_sc = ks_ksmall_rb3_32(n_node, ks_a, opt->n_best);
+			max_min_sc -= opt->gap_open + opt->gap_ext > opt->mis? opt->gap_open + opt->gap_ext : opt->mis;
+			if (max_min_sc < 0) max_min_sc = 0;
 		}
-		max_min_sc -= opt->gap_open + opt->gap_ext > opt->mis? opt->gap_open + opt->gap_ext : opt->mis;
-		if (max_min_sc < 0) max_min_sc = 0;
 
 		// compute E and H
 		for (j = 0; j < t->n_pre; ++j) { // traverse all the predecessors
@@ -272,7 +275,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 				else
 					r.E_from = SW_FROM_EXT,  r.E = p->E;
 				r.E -= opt->gap_ext;
-				if (r.E > 0 && p->qlen >= opt->end_len) { // add to row
+				if (r.E > 0 && r.E >= max_min_sc && p->qlen >= opt->end_len) { // add to row
 					r.lo = p->lo, r.hi = p->hi;
 					r.H = r.E;
 					r.H_from = SW_FROM_E;
@@ -286,7 +289,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 				r.E = 0, r.E_from_pos = UINT32_MAX;
 				for (c = 1; c < 6; ++c) {
 					int32_t sc = c == t->c? opt->match : -opt->mis;
-					if (p->H + sc <= 0) continue;
+					if (p->H + sc <= 0 || p->H + sc < max_min_sc) continue;
 					if (c != t->c && p->qlen < opt->end_len) continue;
 					r.lo = f->acc[c] + clo[c];
 					r.hi = f->acc[c] + chi[c];
