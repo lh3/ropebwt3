@@ -236,7 +236,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		khint_t itr;
 		sw_candset_clear(h);
 
-		// calcualte max_min_sc
+		// calcualte max_min_sc; FIXME: the correct way is to pool all possible predecessors and find the value at opt->n_best
 		for (j = 0, max_min_sc = 0; j < t->n_pre; ++j) { // traverse all the predecessors
 			int32_t pid = t->pre[j];
 			if (row[pid].n == 0) continue;
@@ -244,14 +244,13 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 			max_min_sc = max_min_sc > p->H? max_min_sc : p->H;
 		}
 		max_min_sc -= opt->gap_open + opt->gap_ext > opt->mis? opt->gap_open + opt->gap_ext : opt->mis;
-		max_min_sc -= opt->match;
 		if (max_min_sc < 0) max_min_sc = 0;
 
 		// compute E and H
 		for (j = 0; j < t->n_pre; ++j) { // traverse all the predecessors
 			int32_t pid = t->pre[j]; // parent/predecessor ID
 			if (row[pid].n == 0) continue;
-			if (row[pid].a[0].H < max_min_sc) continue;
+			if (row[pid].a[0].H + opt->match < max_min_sc) continue; // ignore if the best node in this predecessor can't reach the worst in other predecessors
 			for (k = 0; k < row[pid].n; ++k) {
 				sw_cell_t r;
 				p = &row[pid].a[k];
