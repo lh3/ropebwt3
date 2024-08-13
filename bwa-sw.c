@@ -232,11 +232,26 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	for (i = 1; i < g->n_node; ++i) { // traverse all nodes in the DAWG in the topological order
 		const rb3_dawg_node_t *t = &g->node[i];
 		sw_row_t *ri = &row[i];
-		int32_t j, k, heap_sz;
+		int32_t j, k, heap_sz, max_min_sc;
 		khint_t itr;
 		sw_candset_clear(h);
+
+		// calcualte max_min_sc
+		for (j = 0, max_min_sc = 0; j < t->n_pre; ++j) { // traverse all the predecessors
+			int32_t pid = t->pre[j];
+			if (row[pid].n == 0) continue;
+			p = &row[pid].a[row[pid].n - 1];
+			max_min_sc = max_min_sc > p->H? max_min_sc : p->H;
+		}
+		max_min_sc -= opt->gap_open + opt->gap_ext > opt->mis? opt->gap_open + opt->gap_ext : opt->mis;
+		max_min_sc -= opt->match;
+		if (max_min_sc < 0) max_min_sc = 0;
+
+		// compute E and H
 		for (j = 0; j < t->n_pre; ++j) { // traverse all the predecessors
 			int32_t pid = t->pre[j]; // parent/predecessor ID
+			if (row[pid].n == 0) continue;
+			if (row[pid].a[0].H < max_min_sc) continue;
 			for (k = 0; k < row[pid].n; ++k) {
 				sw_cell_t r;
 				p = &row[pid].a[k];
@@ -275,6 +290,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		}
 		ri->n = 0;
 		if (kh_size(h) == 0) continue;
+
 		// find top-n hits
 		heap_sz = 0;
 		kh_foreach(h, itr) {
@@ -289,6 +305,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 			heap[j] = heap[heap_sz - j - 1];
 			heap[heap_sz - j - 1] = tmp;
 		}
+
 		if (p->qlen >= opt->end_len) { // update F
 			int32_t n_fstack = 0;
 			for (j = ri->n - 1; j >= 0; --j)
@@ -322,15 +339,21 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 				}
 			}
 		}
+
 		heap_sz = 0;
-		kh_foreach(h, itr)
-		sw_heap_insert1(heap, opt->n_best, &heap_sz, kh_key(h, itr).H, itr);
+		kh_foreach(h, itr) {
+			sw_heap_insert1(heap, opt->n_best, &heap_sz, kh_key(h, itr).H, itr);
+		}
 		ks_heapsort_rb3_64(heap_sz, heap);
 		assert(heap_sz > 0);
 		ri->n = heap_sz;
 		for (j = 0; j < ri->n; ++j)
 			ri->a[j] = kh_key(h, (uint32_t)heap[j]);
 		sw_track_F(km, f, rc, h, &row[i]);
+		if (ri->a[0].H > rst->score)
+			rst->score = ri->a->H, best_pos = i * n_col;
+
+		// for debugging
 		if (rb3_dbg_flag & RB3_DBG_SW) { // NB: single-threaded only
 			fprintf(stderr, "SW\t%d\t[%d,%d)\t%d\t", i, t->lo, t->hi, ri->n);
 			for (j = 0; j < t->n_pre; ++j) {
@@ -344,8 +367,6 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 			}
 			fputc('\n', stderr);
 		}
-		if (ri->a[0].H > rst->score)
-			rst->score = ri->a->H, best_pos = i * n_col;
 	}
 	if (rst->score >= opt->min_sc)
 		sw_backtrack(opt, f, g, row, best_pos, rst);
