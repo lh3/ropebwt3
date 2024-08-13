@@ -53,7 +53,7 @@ It demonstrates the feasibility of full-text indexing at terabyte scale.
 
 \section{Introduction}
 
-Although millions of genomes have been sequenced since the advent of high-throughput sequencing technologies,
+Although millions of genomes have been sequenced,
 the majority of them were sequenced from a small number of species such as human, \emph{E. coli} and \emph{M. tuberculosis}.
 As a result, existing genome sequences are highly redundant.
 This is how \citet{Hunt2024.03.08.584059} compressed 7.86 terabases (Tb) of bacterial assemblies, also known as AllTheBacteria, into 78.5 gigabytes (GB)
@@ -96,12 +96,12 @@ Due to the compressibility, BWT-based indicies have also emerged as competent da
 Existing pangenome-focused tools~\citep{Rossi:2022aa,Ahmed:2021aa,Zakeri:2024aa}
 use prefix-free parsing for BWT construction~\citep{Boucher:2019aa}.
 They require more memory than the input sequences which is impractical at the terabyte scale.
-Although some algorithms can construct BWT in memory proportional to its compressed size~\citep{Li:2014ab},
-they are inefficient for chromosome-long sequences.
+Although ropebwt2 developed by us can construct BWT in memory proportional to its compressed size and is fast for short strings~\citep{Li:2014ab},
+it is inefficient for chromosome-long sequences.
 grlBWT~\citep{DBLP:journals/iandc/DiazDominguezN23} is likely the best algorithm for constructing the BWT of a large collection of similar genomes.
 It reduces the peak memory at the cost of large working disk space and frequent disk input/output.
-The authors additionally discussed the possibility of BWT merging to avoid rebuilding BWT from scratch when new genomes come,
-but such an algorithm would need to keep additional information and the practical performance is unknown.
+In its current form, the algorithm does not support update to BWT.
+We would need to reconstruct the BWT from scratch when new genomes come.
 BWT construction for highly redundant sequences remains an active research area.
 
 With BWT-based data structures, it is trivial to test the presence of a string $P$ in the index,
@@ -114,6 +114,14 @@ Matching statistics and pseudo-matching length (PML) have also been considered~\
 All these algorithms find exact local matches only.
 
 It is also possible to identify inexact local matches.
+\citet{Lam:2008aa} developed BWT-SW wich simulated a suffix trie, a tree data structure, with BWT
+and performed sequence-to-trie alignment with affine-gap penalty to find all local matches
+between a query string and the BWT of a large genome.
+We went a step further by representing the query string with its direct acyclic word graph (DAWG; \citealt*{DBLP:journals/eatcs/BlumerBEHM83})
+and performed DAWG-to-trie alignment.
+This is the BWA-SW algorithm~\citep{Li:2010fk}.
+Nonetheless, we later realized the formulation of BWA-SW had theoretical flaws
+and its implementation was closer to DAWG-to-DAWG alignment than to DAWG-to-tree alignment.
 
 The primary outcome of this article.
 
@@ -156,7 +164,7 @@ As $B[\pi(i)]$ immediately preceeds $B[i]$ on $T$, we can use $\pi$ to decode th
 \begin{algorithm}[!htb]
 	\caption{Retrieve the $i$-th sequence, $0\le i<m$}\label{algo:get}
 	\begin{algorithmic}[1]
-		\Procedure{Retrieve}{$B$,$i$}
+		\Procedure{Retrieve}{$B,i$}
 			\State $P\gets\epsilon$\Comment{empty string}
 			\While{$B[i]\not=\$$}
 			\State $P\gets B[i]\circ P$
