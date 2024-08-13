@@ -9,8 +9,9 @@
 #include "khashl-km.h"
 #include "ksort.h" // for binary heap
 
-#define heap_lt(a, b) ((a) > (b)) // this is not a bug
-KSORT_INIT(rb3_64, uint64_t, heap_lt)
+#define reverse_lt(a, b) ((a) > (b)) // sorting will be in the descending order; this is intentional
+KSORT_INIT(rb3_64, uint64_t, reverse_lt)
+KSORT_INIT(rb3_32, int32_t, reverse_lt)
 
 void rb3_swopt_init(rb3_swopt_t *opt)
 {
@@ -207,7 +208,8 @@ static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, 
 static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const rb3_bwtl_t *bwt, rb3_swrst_t *rst)
 {
 	uint32_t best_pos = 0;
-	int32_t i, c, n_col = opt->n_best, m_fstack = opt->n_best * 2;
+	int32_t i, c, n_col = opt->n_best, m_fstack = opt->n_best * 3;
+	int32_t *ks_a, ks_m;
 	sw_cell_t *cell, *fstack, *p;
 	sw_row_t *row;
 	int64_t clo[6], chi[6];
@@ -229,19 +231,27 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	heap = Kcalloc(km, uint64_t, opt->n_best);
 	h = sw_candset_init2(km);
 	sw_candset_resize(h, opt->n_best * 4);
+	ks_m = opt->n_best * 3;
+	ks_a = Kmalloc(km, int32_t, ks_m);
 	for (i = 1; i < g->n_node; ++i) { // traverse all nodes in the DAWG in the topological order
 		const rb3_dawg_node_t *t = &g->node[i];
 		sw_row_t *ri = &row[i];
-		int32_t j, k, heap_sz, max_min_sc;
+		int32_t j, k, heap_sz, max_min_sc = 0, n_node;
 		khint_t itr;
 		sw_candset_clear(h);
 
-		// calcualte max_min_sc; FIXME: the correct way is to pool all possible predecessors and find the value at opt->n_best
-		for (j = 0, max_min_sc = 0; j < t->n_pre; ++j) { // traverse all the predecessors
-			int32_t pid = t->pre[j];
-			if (row[pid].n == 0) continue;
-			p = &row[pid].a[row[pid].n - 1];
-			max_min_sc = max_min_sc > p->H? max_min_sc : p->H;
+		// calculate max_min_sc
+		for (j = 0, n_node = 0; j < t->n_pre; ++j)
+			n_node += row[t->pre[j]].n;
+		if (n_node > opt->n_best) {
+			int32_t l = 0;
+			Kgrow(km, int32_t, ks_a, n_node, ks_m);
+			for (j = 0, max_min_sc = 0; j < t->n_pre; ++j) {
+				int32_t pid = t->pre[j];
+				for (k = 0; k < row[pid].n; ++k)
+					ks_a[l++] = row[pid].a[k].H;
+			}
+			max_min_sc = ks_ksmall_rb3_32(n_node, ks_a, opt->n_best);
 		}
 		max_min_sc -= opt->gap_open + opt->gap_ext > opt->mis? opt->gap_open + opt->gap_ext : opt->mis;
 		if (max_min_sc < 0) max_min_sc = 0;
@@ -250,10 +260,10 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		for (j = 0; j < t->n_pre; ++j) { // traverse all the predecessors
 			int32_t pid = t->pre[j]; // parent/predecessor ID
 			if (row[pid].n == 0) continue;
-			if (row[pid].a[0].H + opt->match < max_min_sc) continue; // ignore if the best node in this predecessor can't reach the worst in other predecessors
 			for (k = 0; k < row[pid].n; ++k) {
 				sw_cell_t r;
 				p = &row[pid].a[k];
+				if (p->H + opt->match < max_min_sc) continue; // this node can't reach opt->n_best
 				memset(&r, 0, sizeof(sw_cell_t));
 				r.F_from_off = SW_F_UNSET;
 				// calculate E
@@ -371,6 +381,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		sw_backtrack(opt, f, g, row, best_pos, rst);
 	else rst->cigar = 0, rst->rseq = 0, rst->qoff = 0;
 
+	kfree(km, ks_a);
 	kfree(km, fstack);
 	sw_candset_destroy(h);
 	kfree(km, heap);

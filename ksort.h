@@ -70,6 +70,35 @@
 			type_t tmp; \
 			tmp = *l; *l = l[i]; l[i] = tmp; ks_heapdown_##name(0, i, l); \
 		} \
+	} \
+	/* This function is adapted from: http://ndevilla.free.fr/median/ */ \
+	/* 0 <= kk < n */ \
+	type_t ks_ksmall_##name(size_t n, type_t arr[], size_t kk) \
+	{ \
+		type_t *low, *high, *k, *ll, *hh, *mid; \
+		low = arr; high = arr + n - 1; k = arr + kk; \
+		for (;;) { \
+			if (high <= low) return *k; \
+			if (high == low + 1) { \
+				if (__sort_lt(*high, *low)) KSORT_SWAP(type_t, *low, *high); \
+				return *k; \
+			} \
+			mid = low + (high - low) / 2; \
+			if (__sort_lt(*high, *mid)) KSORT_SWAP(type_t, *mid, *high); \
+			if (__sort_lt(*high, *low)) KSORT_SWAP(type_t, *low, *high); \
+			if (__sort_lt(*low, *mid)) KSORT_SWAP(type_t, *mid, *low); \
+			KSORT_SWAP(type_t, *mid, *(low+1)); \
+			ll = low + 1; hh = high; \
+			for (;;) { \
+				do ++ll; while (__sort_lt(*ll, *low)); \
+				do --hh; while (__sort_lt(*low, *hh)); \
+				if (hh < ll) break; \
+				KSORT_SWAP(type_t, *ll, *hh); \
+			} \
+			KSORT_SWAP(type_t, *low, *hh); \
+			if (hh <= k) low = ll; \
+			if (hh >= k) high = hh - 1; \
+		} \
 	}
 
 #define ks_lt_generic(a, b) ((a) < (b))
