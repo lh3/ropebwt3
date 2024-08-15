@@ -114,7 +114,7 @@ Matching statistics and pseudo-matching length (PML) have also been considered~\
 All these algorithms find exact local matches only.
 
 It is also possible to identify inexact local matches.
-\citet{Lam:2008aa} developed BWT-SW wich simulated a suffix trie, a tree data structure, with BWT
+With the BWT-SW algorithm, \citet{Lam:2008aa} simulated a suffix trie, a tree data structure, with BWT
 and performed sequence-to-trie alignment with affine-gap penalty to find all local matches
 between a query string and the BWT of a large genome.
 We went a step further by representing the query string with its direct acyclic word graph (DAWG; \citealt*{DBLP:journals/eatcs/BlumerBEHM83})
@@ -123,14 +123,51 @@ This is the BWA-SW algorithm~\citep{Li:2010fk}.
 Nonetheless, we later realized the formulation of BWA-SW had theoretical flaws
 and its implementation was closer to DAWG-to-DAWG alignment than to DAWG-to-tree alignment.
 
-The primary outcome of this article.
+In this article, we will describe ropebwt3 and explain our solution to BWT construction
+and to sequence search at the terabyte scale.
+Our contribution includes:
+a) a reinterpreted BWA-SW algorithm that fixes issues in our earlier work~\citep{Li:2010fk};
+b) the description of core data structures in ropebwt2~\citep{Li:2014ab} and fermi~\citep{Li:2012fk} that were published before but without technical details;
+c) an incremental in-memory BWT construction implementation that scales to large pangenome datasets.
 
 \section{Methods}
 
+In a nutshell, ropebwt3 uses the suffix array construction algorithm in libsais to compute the partial multi-string BWT of a subset of sequences
+and then merges the partial BWT to the existing BWT run-length encoded as a B+-tree~\citep{Li:2014ab}.
+It repeats this procedure until all input sequences are processed.
+The BWT by default includes input sequences on both strands.
+This enables forward-backward search~\citep{Li:2012fk} required by accelerated long MEM finding~\citep{DBLP:conf/dlt/Gagie24}.
+Ropebwt3 also reports local alignment with affine-gap penalty using a revised BWA-SW algorithm~\citep{Li:2010fk}.
+
+Ropebwt3 mostly adapts and combines existing algorithms and data structures.
+Nonetheless, the notations here differ from our early work (e.g. from 1-based to 0-based coordinates) and from other publications.
+We will describe our methods in full even though some algorithms are well known.
+
+\begin{table}[!tb]
+\caption{Notations and naming convention\label{tab:sym}}
+\begin{tabular*}{\columnwidth}{@{\extracolsep\fill}ll@{\extracolsep\fill}}
+\toprule
+Notation & Description \\
+\midrule
+$\Sigma$   & Alphabet of symbols. $\{{\tt A},{\tt C},{\tt G},{\tt T},{\tt N}\}$ for DNA \\
+$\Sigma'$  & Augmented alphabet: $\Sigma'\triangleq\Sigma\cup\{\$\}$ \\
+$a,b,c$    & Symbols in $\Sigma'$ \\
+$T$        & Concatenated reference string \\
+$S(i)$     & Suffix array: offset of the $i$-th smallest suffix \\
+$B$        & BWT string: $B[i]\triangleq T[S(i)-1]$ \\
+$n$        & Total length: $n\triangleq|T|=|B|$ \\
+$r$        & Number of runs: $r\triangleq|\{i:B[i]\not=B[i+1]\}|+1$ \\
+$C_B(a)$   & Accumulative count: $C_B(a)\triangleq|\{i:B[i]<a\}|$ \\
+${\rm rank}_B(a,k)$ & Rank: ${\rm rank}_B(a,k)\triangleq|\{i<k:B[i]=a\}|$ \\
+$\pi(i)$   & LF-mapping: $\pi(i)\triangleq S^{-1}(S(i)-1)$ \\
+\botrule
+\end{tabular*}
+\end{table}
+
 \subsection{Basic concepts}
 
-Let $\Sigma$ be an alphabet of symbols.
-Given a string $P\in\Sigma^*$, $|P|$ is its length and $P[i]\in\Sigma$, $0\le i<|P|$, is the $i$-th symbol in $P$.
+Let $\Sigma$ be an alphabet of \emph{symbols}.
+Given a string $P$ over $\Sigma$, $|P|$ is its length and $P[i]\in\Sigma$, $0\le i<|P|$, is the $i$-th symbol in $P$.
 Operator ``$\circ$'' concatenates two strings or between strings and symbols.
 It may be omitted if concatenation is apparent from the context.
 
@@ -145,11 +182,11 @@ The \emph{suffix array} of $T$ is an integer array $S$ such that $S(i)$,
 $0\le i<n$, is the start position of the $i$-th smallest suffix among all suffixes of $T$ (Fig.~\ref{fig:1}a).
 The \emph{Burrows-Wheeler Transform} (\emph{BWT}) of $T$ is a string $B$ computed by $B[i]=T[S(i)-1]$.
 In BWT string $B$, all sentiels are represented by the same symbol ``$\$$'' and are not distinguished from each other.
+$\Sigma'\triangleq\Sigma\cup\{\$\}$ denotes the alphabet augmented with the sentinel symbol.
 
-For $a\in\Sigma\cup\{\$\}$, let $C_B(a)\triangleq|\{i:B[i]<a\}|$ be the number of symbols smaller than $a$
+For $a\in\Sigma'$, let $C_B(a)\triangleq|\{i:B[i]<a\}|$ be the number of symbols smaller than $a$
 and ${\rm rank}_B(a,k)\triangleq|\{i<k:B[i]=a\}|$ be the number of $a$ before position $k$ in $B$.
 We may omit subscription $B$ when we are describing one string only.
-
 The last-to-first mapping (\emph{LF mapping}) $\pi$ is defined by $\pi(i)\triangleq S^{-1}(S(i)-1)$,
 where $S^{-1}$ is the inservse function of suffix array $S$.
 It can be calculated as $\pi(i)=C(B[i])+{\rm rank}(B[i],i)$.
