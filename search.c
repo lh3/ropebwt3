@@ -159,18 +159,16 @@ static void *worker_pipeline(void *shared, int step, void *in)
 					if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
 					else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
 					rb3_sprintf_lite(&out, "\t%d\t%d\t%d", s->len, r->qoff[0], r->qoff[0] + r->qlen);
-					if (p->fmi.ssa) {
-						int64_t pos, sid;
-						pos = rb3_ssa(&p->fmi, p->fmi.ssa, r->lo, &sid);
+					if (r->lo_pos >= 0 && r->lo_sid >= 0) {
 						if (p->fmi.sid) { // sequence names and lengths are available
-							int64_t rlen = p->fmi.sid->len[sid>>1];
-							rb3_sprintf_lite(&out, "\t%c\t%s\t%ld", "+-"[sid&1], p->fmi.sid->name[sid>>1], (long)rlen);
-							if ((sid&1) == 0) // forward strand
-								rb3_sprintf_lite(&out, "\t%ld\t%ld", pos, pos + r->rlen);
+							int64_t rlen = p->fmi.sid->len[r->lo_sid>>1];
+							rb3_sprintf_lite(&out, "\t%c\t%s\t%ld", "+-"[r->lo_sid&1], p->fmi.sid->name[r->lo_sid>>1], (long)rlen);
+							if ((r->lo_sid&1) == 0) // forward strand
+								rb3_sprintf_lite(&out, "\t%ld\t%ld", r->lo_pos, r->lo_pos + r->rlen);
 							else // reverse strand
-								rb3_sprintf_lite(&out, "\t%ld\t%ld", rlen - (pos + r->rlen), rlen - pos);
+								rb3_sprintf_lite(&out, "\t%ld\t%ld", rlen - (r->lo_pos + r->rlen), rlen - r->lo_pos);
 						} else { // sequence names and lengths are not available
-							rb3_sprintf_lite(&out, "\t+\t%ld\t*\t%ld\t%ld", sid, pos, pos + r->rlen); // always on the forward strand
+							rb3_sprintf_lite(&out, "\t+\t%ld\t*\t%ld\t%ld", r->lo_sid, r->lo_pos, r->lo_pos + r->rlen); // always on the forward strand
 						}
 					} else {
 						rb3_sprintf_lite(&out, "\t*\t*\t%d\t*\t*", r->rlen);

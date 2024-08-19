@@ -398,6 +398,7 @@ void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const
 	rb3_bwtl_t *q;
 	rb3_dawg_t *g;
 	rst->score = rst->n_qoff = rst->n_cigar = rst->rlen = rst->qlen = rst->blen = rst->mlen = 0;
+	rst->lo_pos = rst->lo_sid = -1;
 	if (opt->min_mem_len > 0 && opt->min_mem_len > opt->end_len) {
 		if (!rb3_fmd_smem_present(f, len, seq, opt->min_mem_len))
 			return;
@@ -407,6 +408,8 @@ void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const
 	sw_core(km, opt, f, g, q, rst);
 	rb3_dawg_destroy(km, g); // this doesn't deallocate q
 	rb3_bwtl_destroy(q);
+	if (f->ssa)
+		rst->lo_pos = rb3_ssa(f, f->ssa, rst->lo, &rst->lo_sid);
 }
 
 void rb3_swrst_free(rb3_swrst_t *rst)

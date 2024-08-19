@@ -17,6 +17,7 @@ typedef struct {
 	int32_t n_cigar;
 	int32_t n_qoff, blen, mlen;
 	int64_t lo, hi;
+	int64_t lo_pos, lo_sid;
 	uint8_t *rseq;
 	uint32_t *cigar;
 	int32_t *qoff;
