@@ -41,7 +41,10 @@ rb3_bwtl_t *rb3_bwtl_gen(void *km, int len, const uint8_t *seq)
 		uint8_t *s;
 		uint16_t *s16;
 		s16 = Kcalloc(km, uint16_t, len);
-		for (i = 0; i < len; ++i) s16[i] = rb3_nt6_table[seq[i]];
+		for (i = 0; i < len; ++i) {
+			s16[i] = rb3_nt6_table[seq[i]];
+			if (s16[i] == 5) s16[i] = 1; // NB: convert ambiguous bases to A
+		}
 		b->sa = Kcalloc(km, int32_t, len + 1);
 		libsais16(s16, &b->sa[1], len, 0, 0);
 		b->sa[0] = len;
