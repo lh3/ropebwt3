@@ -7,6 +7,7 @@
 
 \usepackage{algorithmicx}
 \usepackage{lmodern}
+\usepackage{setspace}
 \renewcommand{\ttdefault}{cmtt}
 
 \begin{document}
@@ -18,7 +19,7 @@
 \appnotes{Preprint}
 \firstpage{1}
 
-\title[BWT construction and query]{In-memory BWT construction and search at the terabyte scale}
+\title[BWT construction and query]{BWT construction and search at the terabase scale}
 \author[1,2,3,$\ast$]{Heng Li\ORCID{0000-0003-4874-2874}}
 \address[1]{Department of Data Science, Dana-Farber Cancer Institute, 450 Brookline Ave, Boston, MA 02215, USA}
 \address[2]{Department of Biomedical Informatics, Harvard Medical School, 10 Shattuck St, Boston, MA 02215, USA}
@@ -139,9 +140,9 @@ The BWT by default includes input sequences on both strands.
 This enables forward-backward search~\citep{Li:2012fk} required by accelerated long MEM finding~\citep{DBLP:conf/dlt/Gagie24}.
 Ropebwt3 also reports local alignment with affine-gap penalty using a revised BWA-SW algorithm~\citep{Li:2010fk}.
 
-Ropebwt3 mostly adapts and combines existing algorithms and data structures.
+Ropebwt3 combines and adapts existing algorithms and data structures.
 Nonetheless, the notations here differ from our early work (e.g. from 1-based to 0-based coordinates) and from other publications.
-We will describe our methods in full even though some algorithms are well known.
+We will describe our methods in full for completeness.
 
 \begin{table}[!tb]
 \caption{Notations and naming convention\label{tab:sym}}
@@ -152,9 +153,10 @@ Notation & Description \\
 $\Sigma$   & Alphabet of symbols. $\{{\tt A},{\tt C},{\tt G},{\tt T},{\tt N}\}$ for DNA \\
 $\Sigma'$  & Augmented alphabet: $\Sigma'\triangleq\Sigma\cup\{\$\}$ \\
 $a,b,c$    & Symbols in $\Sigma'$ \\
-$T$        & Concatenated reference string \\
+$T$        & Concatenated reference string including senteniels \\
 $S(i)$     & Suffix array: offset of the $i$-th smallest suffix \\
 $B$        & BWT string: $B[i]\triangleq T[S(i)-1]$ \\
+$m$        & Number of sentinels: $m\triangleq|\{i:B[i]=\$\}|$ \\
 $n$        & Total length: $n\triangleq|T|=|B|$ \\
 $r$        & Number of runs: $r\triangleq|\{i:B[i]\not=B[i+1]\}|+1$ \\
 $C_B(a)$   & Accumulative count: $C_B(a)\triangleq|\{i:B[i]<a\}|$ \\
@@ -192,13 +194,18 @@ where $S^{-1}$ is the inservse function of suffix array $S$.
 It can be calculated as $\pi(i)=C(B[i])+{\rm rank}(B[i],i)$.
 As $B[\pi(i)]$ immediately preceeds $B[i]$ on $T$, we can use $\pi$ to decode the $i$-th sequence in $B$ (Algorithm~\ref{algo:get}).
 
-\begin{figure}[tb]
+\begin{figure}[bt]
 \centering
 \includegraphics[width=.49\textwidth]{fig1}
-\caption{BWT, prefix trie and directed acyclic prefix graph (DAPG).}\label{fig:1}
+\caption{Examples of BWT and related data structures.
+{\bf (a)} The BWT $B$, suffix arrary $S$ and LF-mapping $\pi$ of string $T$.
+Subscriptions are equal to the ranks of symbols in $B$, which are the same as the ranks among the suffixes (indicated by arrows).
+{\bf (b)} The prefix trie simulated with BWT $B$.
+In each node, the pair of integers gives the suffix array interval of the string represented by the path from the node to the root.
+{\bf (c)} The directed acyclic prefix graph (DAPG) of $T$ by merging nodes with identical suffix array intervals.}\label{fig:1}
 \end{figure}
 
-\begin{algorithm}[!htb]
+\begin{algorithm}[!b]
 	\caption{Retrieve the $i$-th sequence, $0\le i<m$}\label{algo:get}
 	\begin{algorithmic}[1]
 		\Procedure{Retrieve}{$B,i$}
@@ -323,6 +330,90 @@ It is easy to see that if $(k,k',s)$ is the SA bi-interval of $P$, $(k',k,s)$ wi
 \end{algorithm}
 
 \section{Results}
+
+\begin{table}[!tb]
+\caption{Datasets\label{tab:data}}
+\begin{tabular*}{\columnwidth}{@{\extracolsep\fill}lrrr@{\extracolsep\fill}}
+\toprule
+Name               & \#bases$^1$ & \#sequences & avg run length$^2$ \\
+\midrule
+human100$^3$       &  301.6 Gb &  38.6 k & 141.6 \\
+CommonBacteria$^4$ & 7326.6 Gb & 278.4 M & 828.6 \\
+\botrule
+\end{tabular*}
+\begin{tablenotes}\setlength\itemsep{0.0em}
+\item[$^{1}$] number of bases in the input sequences on one strand
+\item[$^{2}$] average run length in BWT constructed from both strands
+\item[$^{3}$] 100 long-read human assemblies
+\item[$^{4}$] AllTheBacteria~\citep{Hunt2024.03.08.584059} excluding ``dustbin'' and ``unknown''
+\end{tablenotes}
+\end{table}
+
+\begin{table}[!tb]
+\caption{Indexing performance\label{tab:index}}
+\begin{tabular*}{\columnwidth}{@{\extracolsep\fill}llrrr@{\extracolsep\fill}}
+\toprule
+Dataset        & Algorithm     & Elapsed$^1$ & CPU$^1$  &     RAM \\
+\midrule
+human100       & grlBWT        &  8.3 h       &  29.6 h &  84.8 GB \\
+		       & pfp-thres$^2$ & 51.7 h       &  51.5 h & 788.1 GB \\
+               & ropebwt3$^3$  & 33.7 h       & 803.6 h &  82.3 GB \\
+			   & metagraph$^4$ & 16.9 h       & 314.8 h & 251.0 GB \\
+			   & fulgor$^5$ (lossy)& 1.2 h    &  32.7 h & 165.2 GB \\
+CommonBacteria & ropebwt3$^3$  & 26.5 d       & 830.3 d &  67.3 GB \\
+\botrule
+\end{tabular*}
+\begin{tablenotes}\setlength\itemsep{0.0em}
+\item Up to 64 threads specified if multi-threading is supported.
+\item[$^{1}$] excluding time for format conversion; ``h'' for hours; ``d'' for days
+\item[$^{2}$] pfp-threshold was run on a slower machine with more RAM
+\item[$^{3}$] not using temporary disk space; supporting incremental build
+\item[$^{4}$] k-mer coordinates in the ``row\_diff\_brwt\_coord'' encoding
+\item[$^{5}$] without ``-{}-meta -{}-diff'' as the basic index is smaller; lossy index
+\end{tablenotes}
+\end{table}
+
+\begin{table}[!tb]
+\caption{Query performance\label{tab:query}}
+\begin{tabular*}{\columnwidth}{@{\extracolsep\fill}lllrr@{\extracolsep\fill}}
+\toprule
+Data   & Algorithm     &Type$^4$&Speed$^5$ (kb/s)&RAM (GB) \\
+\midrule
+SR$+^1$& ropebwt3      & MEM31  & 1758.5       &  10.6 \\
+       &               & MEM51  & 1907.5       &  10.6 \\
+       &               & suffix & 2216.4       &  10.3 \\
+	   & MONI$^6$      & MEM$-$ & 453.2        &  68.4 \\
+       & Movi          & PML    & 5894.0       &  79.4 \\
+	   &               & suffix & 6792.0       &  79.4 \\
+	   & metagraph     & PA$+$  & $<$0.1       &  65.3 \\
+	   & fulgor        & PA     & 2717.5       &   5.1 \\
+LR$+^2$& ropebwt3      & MEM31  & 1695.9       &  10.5 \\
+       &               & MEM51  & 1793.9       &  10.5 \\
+       &               & SW     & 82.7         &  15.6 \\
+	   & MONI          & MEM$-$ & 413.6        &  68.4 \\
+	   & Movi          & PML    & 16204.9      &  79.4 \\
+	   & metagraph     & PA$+$  & $<$0.1       &  65.3 \\
+	   & fulgor        & PA     & 2491.6       &   5.1 \\
+LR$-^3$& ropebwt3      & MEM31  & 1365.0       &  10.4 \\
+       &               & MEM51  & 3051.6       &  10.4 \\
+	   &               & SW     & 58.2         &  17.9 \\
+	   & MONI          & MEM$-$ & 186.8        &  68.4 \\
+	   & Movi          & PML    & 8490.9       &  79.4 \\
+	   & metagraph     & PA$+$  & 1119.3       &  65.3 \\
+	   & fulgor        & PA     & 4240.8       &   5.1 \\
+\botrule
+\end{tabular*}
+\begin{tablenotes}\setlength\itemsep{0.0em}
+\item[$^1$] first 1 million 125bp human short reads from SRR3099549
+\item[$^2$] first 10,000 human PacBio HiFi reads from SRR26545347
+\item[$^3$] first 10,000 metagenomic PacBio HiFi reads from DRR290133
+\item[$^4$] MEM31: maximal exact matches (MEMs) of 31bp or longer; MEM51: MEM of $\ge$51bp;
+suffix: longest matching suffix with counts; MEM$-$: MEM without count;
+SW: BWA-SW; PML: pseudo-matching length; PA: pseudo-alignment; PA$+$: pseudo-alignment with contig names
+\item[$^5$] kilobases processed per CPU second. Index loading time excluded
+\item[$^6$] The MONI index includes both strands
+\end{tablenotes}
+\end{table}
 
 \section{Discussions}
 
