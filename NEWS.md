@@ -1,3 +1,23 @@
+Release 3.4-r167 (20 August 2024)
+---------------------------------
+
+Notable changes:
+
+ * Improvement: in `sw`, removed out-of-band cells earlier. This speeds up
+   BWA-SW by 20%.
+
+ * Improvement: `sw` now computes positions in each thread. This improves the
+   multi-threading performance for short queries.
+
+ * Bugfix: with `mem`, ambiguous bases in query caused segmentation fault.
+   Ropebwt3 now converts ambiguous bases to "A". This does not affect `sw`.
+
+ * Breaking: removed greedy MEM
+
+(3.4: 20 August 2024, r167)
+
+
+
 Release 3.3-r149 (6 August 2024)
 --------------------------------
 
