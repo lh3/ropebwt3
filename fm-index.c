@@ -406,47 +406,6 @@ int64_t rb3_fmd_smem(void *km, const rb3_fmi_t *f, int64_t len, const uint8_t *q
 	return mem->n;
 }
 
-int64_t rb3_fmd_gmem1(const rb3_fmi_t *f, int64_t min_occ, int64_t len, const uint8_t *q, int64_t x, rb3_sai_t *gmem)
-{
-	int64_t i, ret;
-	rb3_sai_t ik, ok[6];
-	assert(len <= INT32_MAX); // this can be relaxed if we define a new struct for mem
-	rb3_fmd_set_intv(f, q[x], &ik);
-	ik.info = (int64_t)(x + 1) << 32 | (x + 1);
-	if (ik.size == 0) return x + 1;
-	for (i = x + 1; i < len; ++i) { // forward extension
-		int c = rb3_comp(q[i]);
-		rb3_fmd_extend(f, &ik, ok, 0);
-		if (ok[c].size < min_occ) break;
-		ik = ok[c];
-	}
-	ret = i;
-	for (i = x - 1; i >= 0; --i) { // backward extension
-		int c = q[i];
-		rb3_fmd_extend(f, &ik, ok, 1);
-		if (ok[c].size < min_occ) break;
-		ik = ok[c];
-	}
-	gmem->info = (int64_t)(i + 1) << 32 | ret;
-	gmem->size = ik.size;
-	return ret;
-}
-
-int64_t rb3_fmd_gmem(void *km, const rb3_fmi_t *f, int64_t len, const uint8_t *q, rb3_sai_v *mem, int64_t min_occ, int64_t min_len)
-{
-	int64_t x = 0;
-	mem->n = 0;
-	do {
-		rb3_sai_t g;
-		x = rb3_fmd_gmem1(f, min_occ, len, q, x, &g);
-		if ((int32_t)g.info - (int32_t)(g.info>>32) >= min_len) {
-			Kgrow(km, rb3_sai_t, mem->a, mem->n, mem->m);
-			mem->a[mem->n++] = g;
-		}
-	} while (x < len);
-	return mem->n;
-}
-
 int64_t rb3_fmd_smem1_TG(void *km, const rb3_fmi_t *f, int64_t min_occ, int64_t min_len, int64_t len, const uint8_t *q, int64_t x, rb3_sai_v *mem, int32_t check_long)
 {
 	int64_t i, j;

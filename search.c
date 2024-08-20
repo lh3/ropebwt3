@@ -6,7 +6,7 @@
 #include "kthread.h"
 #include "kalloc.h"
 
-typedef enum { RB3_SA_MEM_TG, RB3_SA_MEM_ORI, RB3_SA_GREEDY, RB3_SA_SW } rb3_search_algo_t;
+typedef enum { RB3_SA_MEM_TG, RB3_SA_MEM_ORI, RB3_SA_SW } rb3_search_algo_t;
 
 #define RB3_MF_NO_KALLOC   0x1
 #define RB3_MF_WRITE_RS    0x2
@@ -78,8 +78,6 @@ static void worker_for(void *data, long i, int tid)
 		b->mem.n = 0;
 		if (p->opt->algo == RB3_SA_MEM_TG)
 			rb3_fmd_smem_TG(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
-		else if (p->opt->algo == RB3_SA_GREEDY)
-			rb3_fmd_gmem(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
 		else if (p->opt->algo == RB3_SA_MEM_ORI)
 			rb3_fmd_smem(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
 		s->n_mem = b->mem.n;
@@ -245,9 +243,8 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MgdwN:A:B:O:E:C:m:k:uj:", long_options)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MdwN:A:B:O:E:C:m:k:uj:", long_options)) >= 0) {
 		if (c == 'L') is_line = 1;
-		else if (c == 'g') opt.algo = RB3_SA_GREEDY;
 		else if (c == 'w') opt.algo = RB3_SA_MEM_ORI;
 		else if (c == 'd') opt.algo = RB3_SA_SW, load_flag |= RB3_LOAD_ALL;
 		else if (c == 'l') opt.min_len = atol(o.arg);
@@ -288,7 +285,6 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		if (strcmp(argv[0], "mem") == 0 || strcmp(argv[0], "search") == 0) {
 			fprintf(stderr, "  -l INT      min MEM length [%ld]\n", (long)opt.min_len);
 			fprintf(stderr, "  -c INT      min interval size [%ld]\n", (long)opt.min_occ);
-			fprintf(stderr, "  -g          find greedy MEMs (not always SMEMs; for testing)\n");
 			fprintf(stderr, "  -w          use the original MEM algorithm (for testing)\n");
 			fprintf(stderr, "  --gap=NUM   output regions >=NUM that are not covered by MEMs [%d]\n", opt.min_gap_len);
 		}
