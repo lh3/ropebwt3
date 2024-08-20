@@ -259,7 +259,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 			if (max_min_sc < 0) max_min_sc = 0;
 		}
 
-		// compute E and H
+		// compute H and E
 		for (j = 0; j < t->n_pre; ++j) { // traverse all the predecessors
 			int32_t pid = t->pre[j]; // parent/predecessor ID
 			if (row[pid].n == 0) continue;
@@ -269,6 +269,20 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 				if (p->H + opt->match < max_min_sc) continue; // this node can't reach opt->n_best
 				memset(&r, 0, sizeof(sw_cell_t));
 				r.F_from_off = SW_F_UNSET;
+				// calculate H
+				r.H_from = SW_FROM_H, r.H_from_pos = pid * n_col + k, r.E_from_pos = UINT32_MAX;
+				rb3_fmi_rank2a_cached(f, rc, p->lo, p->hi, clo, chi);
+				for (c = 1; c < 6; ++c) {
+					int32_t sc = c == t->c? opt->match : -opt->mis;
+					if (p->H + sc <= 0 || p->H + sc < max_min_sc) continue;
+					if (c != t->c && p->qlen < opt->end_len) continue;
+					r.lo = f->acc[c] + clo[c];
+					r.hi = f->acc[c] + chi[c];
+					if (r.lo == r.hi) continue;
+					r.H = p->H + sc;
+					r.rlen = p->rlen + 1, r.qlen = p->qlen + 1;
+					sw_update_candset(h, &r);
+				}
 				// calculate E
 				if (p->H - opt->gap_open > p->E)
 					r.E_from = SW_FROM_OPEN, r.E = p->H - opt->gap_open;
@@ -281,21 +295,6 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 					r.H_from = SW_FROM_E;
 					r.E_from_pos = pid * n_col + k, r.H_from_pos = UINT32_MAX;
 					r.rlen = p->rlen, r.qlen = p->qlen + 1;
-					sw_update_candset(h, &r);
-				}
-				// calculate H
-				rb3_fmi_rank2a_cached(f, rc, p->lo, p->hi, clo, chi);
-				r.H_from = SW_FROM_H, r.H_from_pos = pid * n_col + k;
-				r.E = 0, r.E_from_pos = UINT32_MAX;
-				for (c = 1; c < 6; ++c) {
-					int32_t sc = c == t->c? opt->match : -opt->mis;
-					if (p->H + sc <= 0 || p->H + sc < max_min_sc) continue;
-					if (c != t->c && p->qlen < opt->end_len) continue;
-					r.lo = f->acc[c] + clo[c];
-					r.hi = f->acc[c] + chi[c];
-					if (r.lo == r.hi) continue;
-					r.H = p->H + sc;
-					r.rlen = p->rlen + 1, r.qlen = p->qlen + 1;
 					sw_update_candset(h, &r);
 				}
 			}
