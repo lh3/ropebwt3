@@ -11,6 +11,7 @@ typedef enum { RB3_SA_MEM_TG, RB3_SA_MEM_ORI, RB3_SA_SW } rb3_search_algo_t;
 #define RB3_MF_NO_KALLOC   0x1
 #define RB3_MF_WRITE_RS    0x2
 #define RB3_MF_WRITE_UNMAP 0x4
+#define RB3_MF_WRITE_COV   0x8
 
 typedef struct {
 	uint32_t flag;
@@ -198,6 +199,24 @@ static void *worker_pipeline(void *shared, int step, void *in)
 					rb3_sprintf_lite(&out, "\t%d\t%d\t%d\n", st, en, s->len);
 					fputs(out.s, stdout);
 				}
+			} else if (p->opt->flag & RB3_MF_WRITE_COV) { // output breadth of coverage
+				int32_t st0 = 0, en0 = 0, cov = 0;
+				for (i = 0; i < s->n_mem; ++i) {
+					rb3_sai_t *q = &s->mem[i];
+					int32_t st = q->info>>32, en = (int32_t)q->info;
+					if (st > en0) {
+						cov += en0 - st0;
+						st0 = st, en0 = en;
+					} else en0 = en0 > en? en0 : en;
+				}
+				cov += en0 - st0;
+				if (cov > 0) {
+					out.l = 0;
+					if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
+					else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
+					rb3_sprintf_lite(&out, "\t%d\t%d\n", s->len, cov);
+					fputs(out.s, stdout);
+				}
 			} else { // output long MEMs
 				for (i = 0; i < s->n_mem; ++i) {
 					rb3_sai_t *q = &s->mem[i];
@@ -226,6 +245,7 @@ static ko_longopt_t long_options[] = {
 	{ "no-ssa",          ko_no_argument,       301 },
 	{ "seq",             ko_no_argument,       302 },
 	{ "gap",             ko_required_argument, 303 },
+	{ "cov",             ko_no_argument,       304 },
 	{ "no-kalloc",       ko_no_argument,       501 },
 	{ "dbg-dawg",        ko_no_argument,       502 },
 	{ "dbg-sw",          ko_no_argument,       503 },
@@ -265,6 +285,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		else if (c == 301) no_ssa = 1;
 		else if (c == 302) opt.flag |= RB3_MF_WRITE_RS;
 		else if (c == 303) opt.min_gap_len = rb3_parse_num(o.arg);
+		else if (c == 304) opt.flag |= RB3_MF_WRITE_COV;
 		else if (c == 501) opt.flag |= RB3_MF_NO_KALLOC;
 		else if (c == 502) rb3_dbg_flag |= RB3_DBG_DAWG;
 		else if (c == 503) rb3_dbg_flag |= RB3_DBG_SW;
@@ -287,6 +308,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 			fprintf(stderr, "  -c INT      min interval size [%ld]\n", (long)opt.min_occ);
 			fprintf(stderr, "  -w          use the original MEM algorithm (for testing)\n");
 			fprintf(stderr, "  --gap=NUM   output regions >=NUM that are not covered by MEMs [%d]\n", opt.min_gap_len);
+			fprintf(stderr, "  --cov       output breadth of coverage\n");
 		}
 		if (strcmp(argv[0], "search") == 0)
 			fprintf(stderr, "  -d          use BWA-SW for local alignment\n");
