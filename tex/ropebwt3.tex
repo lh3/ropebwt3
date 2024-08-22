@@ -36,7 +36,7 @@
 Burrows-Wheeler Transform (BWT) is a common component in full-text indices.
 Initially developed for data compression, it is particularly powerful for encoding redundant sequences such as pangenome data.
 However, BWT construction is resource intensive and hard to be parallelized,
-and most methods for querying large full-text indices only report exact matches or their simple extensions.
+and many methods for querying large full-text indices only report exact matches or their simple extensions.
 These limitations have hampered the application of full-text indices to large datasets.
 \vspace{0.5em}\\
 \textbf{Results:}
@@ -169,7 +169,8 @@ $\pi(i)$   & LF-mapping: $\pi(i)\triangleq S^{-1}(S(i)-1)$ \\
 \subsection{Basic concepts}
 
 Let $\Sigma$ be an alphabet of \emph{symbols}.
-Given a string $P$ over $\Sigma$, $|P|$ is its length and $P[i]\in\Sigma$, $0\le i<|P|$, is the $i$-th symbol in $P$.
+Given a string $P$ over $\Sigma$, $|P|$ is its length and $P[i]\in\Sigma$, $0\le i<|P|$, is the $i$-th symbol in $P$,
+and $P[i,j)$ is a substring of length $j-i$ starting at $i$.
 Operator ``$\circ$'' concatenates two strings or between strings and symbols.
 It may be omitted if concatenation is apparent from the context.
 
@@ -192,7 +193,7 @@ We may omit subscription $B$ when we are describing one string only.
 The last-to-first mapping (\emph{LF mapping}) $\pi$ is defined by $\pi(i)\triangleq S^{-1}(S(i)-1)$,
 where $S^{-1}$ is the inservse function of suffix array $S$.
 It can be calculated as $\pi(i)=C(B[i])+{\rm rank}(B[i],i)$.
-As $B[\pi(i)]$ immediately preceeds $B[i]$ on $T$, we can use $\pi$ to decode the $i$-th sequence in $B$ (Algorithm~\ref{algo:get}).
+As $B[\pi(i)]$ immediately preceeds $B[i]$ on $T$, we can use $\pi$ to decode the $i$-th sequence in $B$.
 
 \begin{figure}[bt]
 \centering
@@ -202,29 +203,107 @@ As $B[\pi(i)]$ immediately preceeds $B[i]$ on $T$, we can use $\pi$ to decode th
 Subscriptions are equal to the ranks of symbols in $B$, which are the same as the ranks among the suffixes (indicated by arrows).
 {\bf (b)} The prefix trie simulated with BWT $B$.
 In each node, the pair of integers gives the suffix array interval of the string represented by the path from the node to the root.
-{\bf (c)} The directed acyclic prefix graph (DAPG) of $T$ by merging nodes with identical suffix array intervals.}\label{fig:1}
+{\bf (c)} The prefix directed acyclic word graph (DAWG) of $T$ by merging nodes with identical suffix array intervals.}\label{fig:1}
 \end{figure}
 
-\begin{algorithm}[!b]
-	\caption{Retrieve the $i$-th sequence, $0\le i<m$}\label{algo:get}
+%\begin{algorithm}[!b]
+%	\caption{Retrieve the $i$-th sequence, $0\le i<m$}\label{algo:get}
+%	\begin{algorithmic}[1]
+%		\Procedure{Retrieve}{$B,i$}
+%			\State $P\gets\epsilon$\Comment{empty string}
+%			\While{$B[i]\not=\$$}
+%			\State $P\gets B[i]\circ P$
+%			\State $i\gets C_B(B[i])+{\rm rank}(B[i],i)$\Comment{i.e. $i\gets\pi(i)$}
+%			\EndWhile
+%			\State \Return{$P$}
+%		\EndProcedure
+%	\end{algorithmic}
+%\end{algorithm}
+
+\subsection{BWT construction}
+
+\begin{algorithm}[bt]
+	\caption{Insert BWT $B_2$ into BWT $B_1$}\label{algo:merge}
 	\begin{algorithmic}[1]
-		\Procedure{Retrieve}{$B,i$}
-			\State $P\gets\epsilon$\Comment{empty string}
-			\While{$B[i]\not=\$$}
-			\State $P\gets B[i]\circ P$
-			\State $i\gets C_B(B[i])+{\rm rank}(B[i],i)$\Comment{i.e. $i\gets\pi(i)$}
-			\EndWhile
-			\State \Return{$P$}
+		\Procedure{AppendBWT}{$B_1,B_2$}
+			\State $m_1\gets\mbox{number of sentinels in $B_1$ }$
+			\State $m_2\gets\mbox{number of sentinels in $B_2$ }$
+			\For{$i\gets 0$ {\bf to} $m_2$}
+				\State $k\gets i$; $l\gets m_1$
+				\Repeat
+					\State $a\gets B_2[k]$
+					\State $R[k]\gets(a,k+l)$\Comment{position in the merged BWT}
+					\State $k\gets C_{B_2}(a)+{\rm rank}_{B_2}(a,k)$
+					\State $l\gets C_{B_1}(a)+{\rm rank}_{B_1}(a,l)$
+				\Until{$a=\$$}
+			\EndFor
+			\For{$(a,k)\in R$}\Comment{N.B. $k$ is sorted in array $R$}
+				\State ${\rm insert}_{B_1}(a,k)$\Comment{insert $a$ after $k$ symbols in $B_1$}
+			\EndFor
 		\EndProcedure
 	\end{algorithmic}
 \end{algorithm}
 
+Libsais is an efficient library for computing the suffix array of a single string.
+It does not directly support a list of strings.
+Nonetheless, we note that $T$ is a string over alphabet $\Sigma''=\{\$_0,\$_1,\ldots,\$_{m-1},{\tt A},{\tt C},{\tt G},{\tt T},{\tt N}\}$
+with lexicographical order $\$_0<\cdots<\$_{m-1}<{\tt A}<{\tt C}<{\tt G}<{\tt T}<{\tt N}$.
+We can use $m+5$ non-negative integers to encode $T$ and apply libsais.
+The suffix array derived this way will be identical to the suffix array of $T$.
+
+For $m$ that can be represented by a 32-bit integer and $n$ represented by a 64-bit integer,
+libsais will need at least $12n$ bytes to construct the suffix array.
+It is impractical for $n$ more than tens of billions.
+To construct BWT for large $n$, ropebwt3 uses libsais to build the BWT for a batch (up to 7 Gb by default)
+and merge it to the BWT of already processed batches (Algorithm~\ref{algo:merge}).
+The basic idea is well known~\citep{DBLP:conf/latin/FerraginaGM10},
+but different from existing implementations,
+ropebwt3 uses a B+-tree to encode BWT (Fig.~\ref{fig:2}a)
+for $O(\log r)$ insertion on line 14.
+The time complexity of Algorithm~\ref{algo:merge} is $O(|B_2|\log r)$
+where $r$ is the number of runs in the merged BWT.
+The space complexity is $O(r\log r+|B_2|\log n)$.
+The loop on line 4 calculates ranks.
+It does not modify $B_1$ or $B_2$ and can be parallelized if $m_2>1$.
+The batch insertion on line 13 is sequential and is much faster than rank calculation in practice.
+
+This online BWT construction algorithm does not use temporary disk space.
+The overall time complexity is $O(n\log r)$.
+The BWT takes $O(r\log r)$ in space.
+The memory required for partial BWT construction with libsais depends on the batch size and the longest string.
+B+-tree is dynamic.
+Ropebwt3 optionally converts B+-tree to the fermi binary format (Fig.~\ref{fig:2}b; \citealt*{Li:2012fk})
+which is static but is usually faster to query and can be memory-mapped.
+
+Ropebwt2~\citep{Li:2014ab} uses the same B+-tree to encode BWT and has the same time complexity.
+However, it inserts sequences, not partial BWTs, into existing BWT.
+It cannot be efficiently parallelized for long strings.
+Note that independent of our earlier work, \citet{DBLP:journals/jda/OhnoSTIS18} also used B+-tree to encode BWT.
+Its implementation~\citep{DBLP:journals/tcs/BannaiGI20} is several times slower than ropebwt2 on 152 bacterial genomes from \citet{Li:2024ab},
+possibly because ropebwt2 is optimized for the small DNA alphabet.
+
+\begin{figure}[bt]
+\centering
+\includegraphics[width=.49\textwidth]{fig2}
+\caption{Examples of binary BWT encoding.
+{\bf (a)} Encoded as a B+-tree.
+An internal node keeps the marginal counts of symbols in its descendants.
+An external node keeps the run-length encoded substring in BWT.
+A run length may be encoded in one, two, four or eight bytes in a scheme inspired by UTF-8.
+{\bf (b)} Encoded as a bit-packed array.
+The first two rows store run-length encoded BWT interleaved with marginal counts in each block.
+The Elias delta encoding is used to represent run lengths.
+The last row is an index into BWT for fast access.
+}\label{fig:2}
+\end{figure}
+
 \subsection{Suffix array internval and backward search}
 
-For a string $P\in\Sigma^*$ (i.e. not including sentinels), let $L(P)$ be the number of $T$'s suffixes prefixed with $P$.
+For a string $P\in\Sigma^*$ (i.e. not including sentinels), let ${\rm occ}(P)$ be the number of occurrences of $P$ in $T$.
 Define ${\rm lo}(P)$ to be the number of suffixes that lexicographically smaller than $P$
-and ${\rm hi}(P)\triangleq {\rm lo}(P)+L(P)$.
+and ${\rm hi}(P)\triangleq {\rm lo}(P)+{\rm occ}(P)$.
 $[{\rm lo}(P),{\rm hi}(P))$ is called the \emph{suffix array interval} of $P$, or \emph{SA interval} in brief.
+An SA interval is \emph{important} if there exists $P$ such that it is $P$'s SA interval.
 
 If we know the SA interval of $P$, we can calculate the SA interval of $aP$ with:
 \begin{eqnarray*}
@@ -254,13 +333,11 @@ $\tilde{T}=P_0\$_0\overline{P}_0\$_1P_1\$_2\overline{P}_1\$_3\cdots P_{m-1}\$_{2
 The \emph{double-strand BWT} (\emph{DS-BWT}) of $\mathcal{T}$ is the BWT of $\tilde{T}$.
 
 We note that if $P$ is a substring of $\tilde{T}$,
-$\overline{P}$ must be a substring as well and the occurrences of $P$ and $\overline{P}$ are identical.
-We can thus define the \emph{suffix array bidirectional interval} (\emph{SA bi-interval}) of $P$
-as a 3-tuple $(k,k',s)$ where $[k,k+s)$ is the SA interval of $P$ and $[k',k'+s)$ is the SA interval of $\overline{P}$.
-It is easy to see that if $(k,k',s)$ is the SA bi-interval of $P$, $(k',k,s)$ will be the SA bi-interval of $\overline{P}$, and vice versa.
+$\overline{P}$ must be a substring as well and ${\rm occ}(P)={\rm occ}(\overline{P})$.
+The \emph{suffix array bidirectional interval} (\emph{SA bi-interval}) of $P$ is a 3-tuple defined as $({\rm lo}(P),{\rm lo}(\overline{P}),{\rm occ}(P))$.
 
-\begin{algorithm}[!htb]
-	\caption{Backward and forward extensions with DS-BWT}
+\begin{algorithm}[tb]
+	\caption{Backward and forward extensions with DS-BWT}\label{algo:backfor}
 	\begin{algorithmic}[1]
 		\Procedure{BackwardExt}{$B,(k,k',s),a$}
 			\State $t\gets 0$
@@ -278,29 +355,94 @@ It is easy to see that if $(k,k',s)$ is the SA bi-interval of $P$, $(k',k,s)$ wi
 	\end{algorithmic}
 \end{algorithm}
 
-\begin{algorithm}[!htb]
-	\caption{Append BWT $B_2$ into BWT $B_1$}\label{algo:merge}
+An SA bi-interval can be extended in both backward and forward directions.
+To calculate SA bi-interval of $aP$, we can use the standard backward search to compute ${\rm lo}(aP)$ and ${\rm occ}(aP)$ from ${\rm lo}(P)$ and ${\rm occ}(P)$.
+As to ${\rm lo}(\overline{aP})$, we note that the SA interval of $\overline{aP}=\overline{P}\circ\overline{a}$ is within the SA interval of $\overline{P}$.
+It can be calculated by subdividing $\overline{P}$'s SA interval.
+It is easy to see that if $(k,k',s)$ is the SA bi-interval of $P$, $(k',k,s)$ will be the SA bi-interval of $\overline{P}$, and vice versa.
+Therefore, we can use the backward extension of $\overline{P}$ to achieve the forward extension of $P$.
+Algorithm~\ref{algo:backfor} gives the details.
+It slightly simplifies the original formutation~\citep{Li:2012fk}.
+
+\subsection{Finding supermaximal exact matches}
+
+An \emph{exact match} between string $T$ and $P$ is a 3-tuple $(l,t,p)$ such that $T[t,t+l)=P[p,p+l)$.
+A \emph{maximal exact match} (MEM) is an exact match that cannot be extended in either direction.
+A MEM may be contained in another MEM on the pattern string $P$.
+For example, suppose $T={\tt GACCTCCG}$ and $P={\tt ACCT}$.
+MEM $(2,6,1)$ is contained in MEM $(4,1,0)$ on the pattern string.
+A \emph{supermaximal exact match} (SMEM) is a MEM that is not contained in other MEMs on the pattern/query sequence.
+In the example above, only $(4,1,0)$ is a SMEM.
+There are usually much fewer SMEMs than MEMs.
+\citet{DBLP:conf/dlt/Gagie24} recently proposed a new algorithm to long SMEMs (Algorithm~\ref{algo:smem})
+that is faster than our earlier algorithm~\citep{Li:2012fk}
+especially when there are many short SMEMs to skip.
+
+\begin{algorithm}
+	\caption{Finding SMEMs no shorter than $\ell$~\citep{DBLP:conf/dlt/Gagie24}}\label{algo:smem}
 	\begin{algorithmic}[1]
-		\Procedure{AppendBWT}{$B_1,B_2$}
-			\State $m_1\gets\mbox{number of sentinels in $B_1$ }$
-			\State $m_2\gets\mbox{number of sentinels in $B_2$ }$
-			\State $A\gets \emptyset$
-			\For{$i\gets 0$ {\bf to} $m_2$}
-				\State $k\gets i$
-				\State $l\gets m_1$
-				\Repeat
-					\State $a\gets B_2[k]$
-					\State $A\gets A\cup \{(k+l,a)\}$
-					\State $k\gets C_{B_2}(a)+{\rm rank}_{B_2}(a,k)$
-					\State $l\gets C_{B_1}(a)+{\rm rank}_{B_1}(a,l)$
-				\Until{$a=\$$}
+		\Procedure{FindSMEM1}{$\ell,B,P,i$}
+			\State {\bf if} $i+\ell>|P|$ {\bf then} \Return{$|P|$}\Comment{Reaching the end of $|P|$}
+			\State $(k,k',s)\gets(0,0,|B|)$\Comment{SA bi-interval of empty string}
+			\For{$j\gets i+\ell-1$ {\bf to} $i$}\Comment{backward}
+				\State $(k,k',s)\gets${\sc BackwardExt}$(B,(k,k',s),P[j])$
+				\State {\bf if} $s=0$ {\bf then} \Return{$j+1$}
 			\EndFor
-			\For{$(k,a)\in A$ in ascending order of $k$}
-				\State ${\rm insert}_{B_1}(a,k)$
+			\For{$j\gets i+\ell$ {\bf to} $|P|-1$}\Comment{forward}
+				\State $(k,k',s)\gets${\sc ForwardExt}$(B,(k,k',s),P[j])$
+				\State {\bf if} $s=0$ {\bf then} {\bf break}
 			\EndFor
+			\State $e\gets j$ and output $[i,e)$\Comment{SMEM found}
+			\State $(k,k',s)\gets(0,0,|B|)$
+			\For{$j\gets e$ {\bf to} $i+1$}\Comment{backward again}
+				\State $(k,k',s)\gets${\sc BackwardExt}$(B,(k,k',s),P[j])$
+				\State {\bf if} $s=0$ {\bf then} \Return{$j+1$}
+			\EndFor
+		\EndProcedure
+		\Procedure{FindSMEM}{$\ell,B,P$}
+			\State $i\gets0$
+			\Repeat
+			\State $i\gets${\sc FindSMEM1}$(\ell,B,P,i)$
+			\Until{$i\ge|P|$}
 		\EndProcedure
 	\end{algorithmic}
 \end{algorithm}
+
+\subsection{Finding inexact matches}
+
+The prefix trie of $T$ is a tree that encodes all prefixes of $T$ (Fig.~\ref{fig:1}b).
+Each edge in the tree is labeled with a symbol in $\Sigma$.
+A path from a node to the root spells a substring of $T$.
+We can label a node with the SA interval of the string from the node to the root.
+When we know the label of a node, we can find the label of its child using backward search.
+We can thus simulate the top-down traversal of the prefix trie~\citep{Lam:2008aa}.
+
+As is shown in Fig.~\ref{fig:1}b, different nodes in the prefix trie may have the same label.
+If we merge nodes with the same label, we will get a prefix DAWG~\citep{DBLP:journals/eatcs/BlumerBEHM83,Li:2010fk}.
+For $|T|>1$, the DAWG has at most $2|T|-1$ nodes~\citep{DBLP:conf/icalp/BlumerBEHM84}.
+Each node uniquely corresponds to an important SA interval of $T$.
+
+Let $G_T$ denote the prefix DAWG of $T$ and $V(G_T)$ be the set of vertices in $G_T$.
+Given two strings $T$ and $P$, we can align $G_T$ and $G_P$ under an affine-gap penalty
+using the following equation:
+$$
+\left\{\begin{array}{lll}
+E_{uv}&=&\max_{u'\in{\rm pre}(u)}\{H_{u'v}-q,E_{u'v}\}-e\\
+F_{uv}&=&\max_{v'\in{\rm pre}(v)}\{H_{uv'}-q,F_{uv'}\}-e\\
+G_{uv}&=&\max_{u'\in{\rm pre}(u),v'\in{\rm pre}(v)}\{H_{u'v'}+s(u',u;v',v)\}\\
+H_{uv}&=&\max\{G_{uv},E_{uv},F_{uv}\}\\
+\end{array}\right.
+$$
+where $u\in V(G_P)$, $v\in V(G_T)$,
+${\rm pre}(u)$ and ${\rm pre}(v)$ are the sets of predecessors in $G_P$ and $G_T$ respectively,
+$q$ is the gap open penalty, $e$ is the gap extension penalty,
+and $s(u',u;v',v)$ is the match/mismatch score between the symbol labeled on edge $(u',u)$ in $G_P$
+and the symbol on $(v',v)$ in $G_T$.
+
+On real data, $G_T$ is often too large to store explicitly.
+We instead explicitly store $G_P$ only and travese it in the topological order (Algorithm~\ref{algo:bwa-sw}).
+At a node $u\in V(G_P)$, we use a hash table to keep $\{v\in V(G_T):H_{uv}>0\}$.
+This algorithm is exact in that it guarantees to the best alignment.
 
 \begin{algorithm}
 	\caption{The revised BWA-SW algorithm}\label{algo:bwa-sw}
@@ -308,14 +450,14 @@ It is easy to see that if $(k,k',s)$ is the SA bi-interval of $P$, $(k',k,s)$ wi
 		\Procedure{BwaSW}{$G_P,G_T$}
 			\For{$u\in V(G_P)$ in topological order}
 				\For{$u'\in{\rm pre}(u)$}\Comment{predecessors of $u$}
-					\For{$v\in V(G_T)$ \emph{s.t.} $H_{u'v}>0$}\Comment{insertion}
-						\State $E_{uv}\gets\max\{E_{uv},\max\{H_{u'v}-q,E_{u'v}\}-e\}$
-						\State $H_{uv}\gets\max\{H_{uv},E_{uv}\}$
-					\EndFor
 					\For{$v'\in V(G_T)$ \emph{s.t.} $H_{u'v'}>0$}\Comment{match}
 						\For{$v\in{\rm child}(v')$}\Comment{children of $v'$}
 							\State $H_{uv}\gets \max\{H_{uv},H_{u'v'}+s(u',u;v',v)\}$
 						\EndFor
+					\EndFor
+					\For{$v\in V(G_T)$ \emph{s.t.} $H_{u'v}>0$}\Comment{insertion}
+						\State $E_{uv}\gets\max\{E_{uv},\max\{H_{u'v}-q,E_{u'v}\}-e\}$
+						\State $H_{uv}\gets\max\{H_{uv},E_{uv}\}$
 					\EndFor
 				\EndFor
 				\For{$v'\in V(G_T)$ \emph{s.t.} $H_{uv'}>0$}\Comment{deletion}
@@ -418,6 +560,12 @@ SW: BWA-SW; PML: pseudo-matching length; PA: pseudo-alignment; PA$+$: pseudo-ali
 \section{Discussions}
 
 \section*{Acknowledgements}
+
+We are grateful to Travis Gagie for pointing us to his long MEM finding algorithm,
+to Ilya Grebnov for adding the support of 16-bit alphabet which helps to accelerate ropebwt3,
+to Mohsen Zakeri for providing the Movi index,
+to Massimiliano Rossi for explaining the MONI algorithm,
+and to Giulio Pibiri and Rob Patro for trouble-shooting compilation issues with fulgor.
 
 \section*{Author contributions}
 
