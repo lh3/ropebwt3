@@ -72,8 +72,8 @@ The second category associates a subset of k-mers with their positions.
 Upon finding k-mer matches, algorithms in this category go back to the database sequences and perform base alignment.
 Most aligners work this way.
 However, because the database sequences are usually not well compressed,
-these algorithms may require large memory or disk space to store them.
-The last category keeps all k-mers and their precise positions.
+these algorithms may require large space to store them.
+The last category keeps all k-mers and their positions.
 Algorithms in this category can reconstruct all the database sequences without explicitly storing them.
 Nonetheless, although positions of k-mers can be compressed efficiently~\citep{Karasikov:2020aa},
 they still take large space.
@@ -88,15 +88,15 @@ and can thus be well compressed.
 When we supplement BWT with a data structure to efficiently compute the rank of a symbol in BWT,
 we can in theory count the occurrences of a string $P$ in $O(|P|)$ time where $|P|$ is the length of $P$.
 FM-index further adds a sampled suffix array to locate $P$,
-while r-index uses an alternative method that is more efficient for highly redundant strings.
-Both of them support lossless compression and fast sequence search at the same time.
+while r-index uses an alternative method that is more efficient for redundant strings.
+Both of them support lossless compression and sequence search at the same time.
 
-BWT and FM-index have been used for read alignment~\citep{Langmead:2009aa,Li:2009uq,Li:2009aa},
-\emph{de novo} sequence assembly~\citep{Simpson:2012aa} and short-read data compression~\citep{Cox:2012ly}.
-Due to the compressibility, BWT-based indicies have also emerged as competent data structures for pangenome data.
+BWT-based indices have been used for read alignment~\citep{Langmead:2009aa,Li:2009uq,Li:2009aa},
+\emph{de novo} sequence assembly~\citep{Simpson:2012aa} and data compression~\citep{Cox:2012ly}.
+They have also emerged as competent data structures for pangenome data.
 Existing pangenome-focused tools~\citep{Rossi:2022aa,Ahmed:2021aa,Zakeri:2024aa}
 use prefix-free parsing for BWT construction~\citep{Boucher:2019aa}.
-They require more memory than the input sequences which is impractical at the terabyte scale.
+They require more memory than the input sequences which is impractical at the terabase scale.
 Although ropebwt2 developed by us can construct BWT in memory proportional to its compressed size and is fast for short strings~\citep{Li:2014ab},
 it is inefficient for chromosome-long sequences.
 grlBWT~\citep{DBLP:journals/iandc/DiazDominguezN23} is likely the best algorithm for constructing the BWT of a large collection of similar genomes.
@@ -203,6 +203,7 @@ As $B[\pi(i)]$ immediately preceeds $B[i]$ on $T$, we can use $\pi$ to decode th
 Subscriptions are equal to the ranks of symbols in $B$, which are the same as the ranks among the suffixes (indicated by arrows).
 {\bf (b)} The prefix trie simulated with BWT $B$.
 In each node, the pair of integers gives the suffix array interval of the string represented by the path from the node to the root.
+Double circles indicate nodes that can reach the beginning of $T$.
 {\bf (c)} The prefix directed acyclic word graph (DAWG) of $T$ by merging nodes with identical suffix array intervals.}\label{fig:1}
 \end{figure}
 
@@ -439,10 +440,12 @@ $q$ is the gap open penalty, $e$ is the gap extension penalty,
 and $s(u',u;v',v)$ is the match/mismatch score between the symbol labeled on edge $(u',u)$ in $G_P$
 and the symbol on $(v',v)$ in $G_T$.
 
-On real data, $G_T$ is often too large to store explicitly.
+On real data, $G_T$ may be too large to store explicitly.
 We instead explicitly store $G_P$ only and travese it in the topological order (Algorithm~\ref{algo:bwa-sw}).
 At a node $u\in V(G_P)$, we use a hash table to keep $\{v\in V(G_T):H_{uv}>0\}$.
-This algorithm is exact in that it guarantees to the best alignment.
+This algorithm is exact in that it guarantees to find the best alignment.
+In practice, however, there are often a large number of $v\in V(G_T)$ that can be aligned to $u$ with $H_{uv}>0$.
+It is slow to keep track of all possible cells.
 
 \begin{algorithm}
 	\caption{The revised BWA-SW algorithm}\label{algo:bwa-sw}
@@ -549,7 +552,7 @@ LR$-^3$& ropebwt3      & MEM31  & 1365.0       &  10.4 \\
 \item[$^1$] first 1 million 125bp human short reads from SRR3099549
 \item[$^2$] first 10,000 human PacBio HiFi reads from SRR26545347
 \item[$^3$] first 10,000 metagenomic PacBio HiFi reads from DRR290133
-\item[$^4$] MEM31: maximal exact matches (MEMs) of 31bp or longer; MEM51: MEM of $\ge$51bp;
+\item[$^4$] MEM$x$: maximal exact matches (MEMs) of $x$ bp or longer;
 suffix: longest matching suffix with counts; MEM$-$: MEM without count;
 SW: BWA-SW; PML: pseudo-matching length; PA: pseudo-alignment; PA$+$: pseudo-alignment with contig names
 \item[$^5$] kilobases processed per CPU second. Index loading time excluded
