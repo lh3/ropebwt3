@@ -5,7 +5,7 @@
 #include "io.h"
 #include "ketopt.h"
 
-#define RB3_VERSION "3.4-r171-dirty"
+#define RB3_VERSION "3.4-r172-dirty"
 
 int main_build(int argc, char *argv[]);
 int main_merge(int argc, char *argv[]);
@@ -375,16 +375,16 @@ int main_kount(int argc, char *argv[])
 
 int main_stat(int argc, char *argv[])
 {
-	int32_t c;
+	int32_t c, use_mmap = 0;
 	ketopt_t o = KETOPT_INIT;
 	rb3_fmi_t fmi;
 
-	while ((c = ketopt(&o, argc, argv, 1, "", 0)) >= 0) { }
+	while ((c = ketopt(&o, argc, argv, 1, "M", 0)) >= 0) { }
 	if (argc - o.ind == 0) {
-		fprintf(stdout, "Usage: ropebwt3 stat <idx.fmd>\n");
+		fprintf(stdout, "Usage: ropebwt3 stat [-M] <idx.fmd>\n");
 		return 0;
 	}
-	rb3_fmi_restore(&fmi, argv[o.ind], 0);
+	rb3_fmi_restore(&fmi, argv[o.ind], use_mmap);
 	if (fmi.e == 0 && fmi.r == 0) {
 		if (rb3_verbose >= 1)
 			fprintf(stderr, "ERROR: failed to load index file '%s'\n", argv[o.ind]);
