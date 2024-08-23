@@ -518,7 +518,6 @@ int rb3_fmi_load_all(rb3_fmi_t *f, const char *fn, int32_t load_flag)
 	}
 	if (rb3_verbose >= 3)
 		fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the BWT\n", __func__, rb3_realtime(), rb3_percent_cpu());
-	if (load_flag&RB3_LOAD_MMAP) return 0; // don't load other components
 	buf = RB3_CALLOC(char, strlen(fn) + 8);
 	if (load_flag & RB3_LOAD_SSA) {
 		strcat(strcpy(buf, fn), ".ssa");
