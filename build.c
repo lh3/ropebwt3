@@ -13,7 +13,6 @@
 #define RB3_BF_NO_REV     0x2
 #define RB3_BF_LINE       0x4
 #define RB3_BF_USE_RB2    0x8
-#define RB3_BF_RANK_MERGE 0x10
 
 typedef struct {
 	int64_t flag;
@@ -48,7 +47,6 @@ static int usage_build(FILE *fp, const rb3_bopt_t *opt)
 	fprintf(fp, "    -2          use the ropebwt2 algorithm (libsais by default)\n");
 	fprintf(fp, "    -s          build BWT in the reverse lexicographical order (RLO; force -2)\n");
 	fprintf(fp, "    -r          build BWT in RCLO (force -2)\n");
-	fprintf(fp, "    -P          use rank for merging\n");
 	fprintf(fp, "  Input:\n");
 	fprintf(fp, "    -i FILE     read existing index from FILE []\n");
 	fprintf(fp, "    -L          one sequence per line in the input\n");
@@ -73,7 +71,7 @@ int main_build(int argc, char *argv[])
 	char *fn_in = 0, *fn_tmp = 0;
 
 	rb3_bopt_init(&opt);
-	while ((c = ketopt(&o, argc, argv, 1, "l:n:m:t:2sri:LFRo:dbTS:P", 0)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "l:n:m:t:2sri:LFRo:dbTS:", 0)) >= 0) {
 		// algorithm
 		if (c == 'm') opt.batch_size = rb3_parse_num(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
@@ -82,7 +80,6 @@ int main_build(int argc, char *argv[])
 		else if (c == '2') opt.flag |= RB3_BF_USE_RB2;
 		else if (c == 's') opt.flag |= RB3_BF_USE_RB2, opt.sort_order = MR_SO_RLO;
 		else if (c == 'r') opt.flag |= RB3_BF_USE_RB2, opt.sort_order = MR_SO_RCLO;
-		else if (c == 'P') opt.flag |= RB3_BF_RANK_MERGE;
 		// input
 		else if (c == 'i') fn_in = o.arg;
 		else if (c == 'L') opt.flag |= RB3_BF_LINE;
@@ -135,16 +132,7 @@ int main_build(int argc, char *argv[])
 					r = rb3_enc_plain2fmr(seq.l, (uint8_t*)seq.s, opt.max_nodes, opt.block_len, opt.n_threads);
 					if (rb3_verbose >= 3) fprintf(stderr, "[M::%s::%.3f*%.2f] encoded the partial BWT for %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)seq.l);
 				} else {
-					mrope_t *p;
-					if (opt.flag & RB3_BF_RANK_MERGE) {
-						rb3_fmi_t fmi;
-						p = rb3_enc_plain2fmr(seq.l, (uint8_t*)seq.s, opt.max_nodes, opt.block_len, opt.n_threads);
-						if (rb3_verbose >= 3) fprintf(stderr, "[M::%s::%.3f*%.2f] encoded the partial BWT for %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)seq.l);
-						rb3_fmi_init(&fmi, 0, p);
-						rb3_fmi_merge(r, &fmi, opt.n_threads, 1);
-					} else {
-						rb3_fmi_merge_plain(r, seq.l, (uint8_t*)seq.s, opt.n_threads);
-					}
+					rb3_fmi_merge_plain(r, seq.l, (uint8_t*)seq.s, opt.n_threads);
 					if (rb3_verbose >= 3) fprintf(stderr, "[M::%s::%.3f*%.2f] merged the partial BWT for %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)seq.l);
 				}
 			}
