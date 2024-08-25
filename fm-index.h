@@ -56,7 +56,9 @@ void rb3_r2cache_destroy(void *rc_);
 void rb3_fmi_rank2a_cached(const rb3_fmi_t *fmi, void *rc_, int64_t k, int64_t l, int64_t ok[6], int64_t ol[6]);
 
 void rb3_mg_rank(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int n_threads);
+void rb3_mg_rank_plain(const rb3_fmi_t *fa, int64_t len, const uint8_t *seq, int64_t *rb, int64_t acc[RB3_ASIZE+1], int n_threads);
 void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb);
+void rb3_fmi_merge_plain(mrope_t *r, int64_t len, const uint8_t *seq, int n_threads);
 
 int64_t rb3_fmi_get_r(const rb3_fmi_t *f);
 int64_t rb3_fmi_get_acc(const rb3_fmi_t *fmi, int64_t acc[RB3_ASIZE+1]);

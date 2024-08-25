@@ -157,6 +157,23 @@ void rb3_mg_rank1(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int64_t
 	}
 }
 
+void rb3_mg_rank1_plain(const rb3_fmi_t *fa, int64_t *rb, int64_t p)
+{
+	int64_t ka, kb;
+	int c, last_c = 0;
+	ka = fa->acc[1], kb = p;
+	while (1) {
+		int64_t oa[RB3_ASIZE], r = rb[kb] >> 3;
+		c = rb[kb] & 7;
+		rb[kb] = (ka + kb) << 6 | c << 3 | last_c;
+		last_c = c;
+		if (c == 0) break;
+		kb = r;
+		rb3_fmi_rank1a(fa, ka, oa);
+		ka = fa->acc[c] + oa[c];
+	}
+}
+
 typedef struct {
 	const rb3_fmi_t *fa, *fb;
 	int64_t *rb;
@@ -165,7 +182,8 @@ typedef struct {
 static void worker_cal_rank(void *data, long k, int tid)
 {
 	mgrank_aux_t *a = (mgrank_aux_t*)data;
-	rb3_mg_rank1(a->fa, a->fb, a->rb, k);
+	if (a->fb) rb3_mg_rank1(a->fa, a->fb, a->rb, k);
+	else rb3_mg_rank1_plain(a->fa, a->rb, k);
 }
 
 void rb3_mg_rank(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int n_threads)
@@ -178,6 +196,31 @@ void rb3_mg_rank(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int n_th
 	} else {
 		for (k = 0; k < fb->acc[1]; ++k)
 			rb3_mg_rank1(fa, fb, rb, k);
+	}
+}
+
+void rb3_mg_rank_plain(const rb3_fmi_t *fa, int64_t len, const uint8_t *seq, int64_t *rb, int64_t acc[RB3_ASIZE+1], int n_threads)
+{
+	int64_t i, k, c[RB3_ASIZE];
+	int a;
+	memset(c, 0, 8 * RB3_ASIZE);
+	for (i = 0; i < len; ++i)
+		++c[seq[i]];
+	for (acc[0] = 0, a = 0; a < RB3_ASIZE; ++a)
+		acc[a+1] = acc[a] + c[a];
+	memset(c, 0, 8 * RB3_ASIZE);
+	for (i = 0; i < len; ++i) {
+		int a = seq[i];
+		rb[i] = (acc[a] + c[a]) << 3 | a;
+		++c[a];
+	}
+	if (n_threads > 1) {
+		mgrank_aux_t a;
+		a.fa = fa, a.fb = 0, a.rb = rb;
+		kt_for(n_threads, worker_cal_rank, &a, acc[1]);
+	} else {
+		for (k = 0; k < acc[1]; ++k)
+			rb3_mg_rank1_plain(fa, rb, k);
 	}
 }
 
@@ -218,6 +261,32 @@ void rb3_fmi_merge(mrope_t *r, rb3_fmi_t *fb, int n_threads, int free_fb)
 	rb = RB3_MALLOC(int64_t, acb[RB3_ASIZE]);
 	rb3_mg_rank(&fa, fb, rb, n_threads);
 	if (free_fb) rb3_fmi_free(fb);
+	if (rb3_verbose >= 3)
+		fprintf(stderr, "[M::%s::%.3f*%.2f] caculated ranks for %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)acb[RB3_ASIZE]);
+
+	aux.rank = rb, aux.aca = aca, aux.acb = acb, aux.r = r;
+	if (n_threads > 1) {
+		kt_for(n_threads < 6? n_threads : 6, worker_mgins, &aux, 6);
+	} else {
+		for (c = 0; c < 6; ++c)
+			worker_mgins(&aux, c, c);
+	}
+	if (rb3_verbose >= 3)
+		fprintf(stderr, "[M::%s::%.3f*%.2f] inserted %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)acb[RB3_ASIZE]);
+	free(rb);
+}
+
+void rb3_fmi_merge_plain(mrope_t *r, int64_t len, const uint8_t *seq, int n_threads)
+{
+	rb3_fmi_t fa;
+	int64_t *rb, aca[RB3_ASIZE+1], acb[RB3_ASIZE+1];
+	int c;
+	mgins_aux_t aux;
+
+	rb3_fmi_init(&fa, 0, r);
+	rb3_fmi_get_acc(&fa, aca);
+	rb = RB3_MALLOC(int64_t, len);
+	rb3_mg_rank_plain(&fa, len, seq, rb, acb, n_threads);
 	if (rb3_verbose >= 3)
 		fprintf(stderr, "[M::%s::%.3f*%.2f] caculated ranks for %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)acb[RB3_ASIZE]);
 
