@@ -41,7 +41,7 @@ These limitations have hampered the application of full-text indices to large da
 \vspace{0.5em}\\
 \textbf{Results:}
 We developed ropebwt3 for efficient BWT construction and query.
-Ropebwt3 could index 100 assembled human genomes in 1.5 days and index 7.3 terabases of commonly studied bacterial assemblies in less than a month.
+Ropebwt3 could index 100 assembled human genomes in 21 hours and index 7.3 terabases of commonly studied bacterial assemblies in 26 days.
 This was achieved using 82 gigabytes of memory at the peak without working disk space.
 Ropebwt3 can also find maximal exact matches and inexact alignment with affine-gap penalties at slower speed.
 It demonstrates the feasibility of full-text indexing at terabyte scale.
@@ -111,12 +111,12 @@ Learning from bidirectional BWT~\citep{DBLP:conf/bibm/LamLTWWY09},
 we found a BWT constructed from both strands of DNA sequences supports the extension of exact matches in both directions~\citep{Li:2012fk}.
 This gave us an algorithm to compute maximal exact matches (MEMs), which was later improved by \citet{DBLP:conf/dlt/Gagie24} for long MEMs.
 \citet{DBLP:journals/tcs/BannaiGI20} proposed a distinct algorithm to compute MEMs without requiring both strands.
-Matching statistics and pseudo-matching length (PML) have also been considered~\citep{Ahmed:2021aa}.
+Matching statistics~\citep{DBLP:journals/algorithmica/ChangL94} and pseudo-matching length (PML; \citealt*{Ahmed:2021aa}) have also been considered.
 All these algorithms find exact local matches only.
 
 It is also possible to identify inexact local matches.
 With the BWT-SW algorithm, \citet{Lam:2008aa} simulated a suffix trie, a tree data structure, with BWT
-and performed sequence-to-trie alignment with affine-gap penalty to find all local matches
+and performed sequence-to-trie alignment to find all local matches
 between a query string and the BWT of a large genome.
 We went a step further by representing the query string with its direct acyclic word graph (DAWG; \citealt*{DBLP:journals/eatcs/BlumerBEHM83})
 and performed DAWG-to-trie alignment.
@@ -227,15 +227,17 @@ Double circles indicate nodes that can reach the beginning of $T$.
 	\caption{Insert BWT $B_2$ into BWT $B_1$}\label{algo:merge}
 	\begin{algorithmic}[1]
 		\Procedure{AppendBWT}{$B_1,B_2$}
-			\State $m_1\gets\mbox{number of sentinels in $B_1$ }$
-			\State $m_2\gets\mbox{number of sentinels in $B_2$ }$
-			\For{$i\gets 0$ {\bf to} $m_2$}
+			\State $m_1\gets|\{k:B_1[k]=\$\}|$; $m_2\gets|\{k:B_2[k]=\$\}|$
+			\For{$k\gets 0$ {\bf to} $|B_2|-1$}
+				\State $a\gets B_2[k]$
+				\State $R(k)\gets (a,C_{B_2}(a)+{\rm rank}_{B_2}(a,k))$
+			\EndFor
+			\For{$i\gets 0$ {\bf to} $m_2-1$}
 				\State $k\gets i$; $l\gets m_1$
 				\Repeat
-					\State $a\gets B_2[k]$
-					\State $R[k]\gets(a,k+l)$\Comment{position in the merged BWT}
-					\State $k\gets C_{B_2}(a)+{\rm rank}_{B_2}(a,k)$
-					\State $l\gets C_{B_1}(a)+{\rm rank}_{B_1}(a,l)$
+					\State $(a,k')\gets R(k)$
+					\State $R(k)\gets(a,k+l)$\Comment{position in the merged BWT}
+					\State $k\gets k'$; $l\gets C_{B_1}(a)+{\rm rank}_{B_1}(a,l)$
 				\Until{$a=\$$}
 			\EndFor
 			\For{$(a,k)\in R$}\Comment{N.B. $k$ is sorted in array $R$}
@@ -257,16 +259,11 @@ libsais will need at least $12n$ bytes to construct the suffix array.
 It is impractical for $n$ more than tens of billions.
 To construct BWT for large $n$, ropebwt3 uses libsais to build the BWT for a batch (up to 7 Gb by default)
 and merge it to the BWT of already processed batches (Algorithm~\ref{algo:merge}).
-The basic idea is well known~\citep{DBLP:conf/latin/FerraginaGM10},
-but different from existing implementations,
-ropebwt3 uses a B+-tree to encode BWT (Fig.~\ref{fig:2}a)
-for $O(\log r)$ insertion on line 14.
-The time complexity of Algorithm~\ref{algo:merge} is $O(|B_2|\log r)$
-where $r$ is the number of runs in the merged BWT.
-The space complexity is $O(r\log r+|B_2|\log n)$.
-The loop on line 4 calculates ranks.
-It does not modify $B_1$ or $B_2$ and can be parallelized if $m_2>1$.
-The batch insertion on line 13 is sequential and is much faster than rank calculation in practice.
+The basic idea behind the algorithm is well known~\citep{DBLP:conf/latin/FerraginaGM10}
+but implementations vary~\citep{DBLP:conf/dcc/Siren16,DBLP:conf/dcc/Oliva0SMKGB21}.
+In ropebwt3, we encode BWT with a B+-tree (Fig.~\ref{fig:2}a).
+This yields $O(\log r)$ rank query (line 12) insertion (line 16), where $r$ is the number of runs in the merged BWT.
+The bottleneck of the algorithm lies in rank calculation (line 7), which can be parallelized if $m_2>1$.
 
 This online BWT construction algorithm does not use temporary disk space.
 The overall time complexity is $O(n\log r)$.
@@ -315,7 +312,7 @@ To count the occurrence of a string $P$,
 we can start with the SA interval $[0,n)$ of an empty string and repeatedly apply the equation above from the last symbol in $P$ to the first.
 This procedure is called \emph{backward search}.
 
-\subsection{Double-strand BWT}
+\subsection{Double-strand BWT}\label{sec:ds-bwt}
 
 The definitions above are applicable to generic strings.
 With one BWT, we can only achieve backward search;
@@ -441,11 +438,13 @@ and $s(u',u;v',v)$ is the match/mismatch score between the symbol labeled on edg
 and the symbol on $(v',v)$ in $G_T$.
 
 On real data, $G_T$ may be too large to store explicitly.
-We instead explicitly store $G_P$ only and travese it in the topological order (Algorithm~\ref{algo:bwa-sw}).
+Ropebwt3 instead explicitly stores $G_P$ only and travese it in the topological order (Algorithm~\ref{algo:bwa-sw}).
 At a node $u\in V(G_P)$, we use a hash table to keep $\{v\in V(G_T):H_{uv}>0\}$.
 This algorithm is exact in that it guarantees to find the best alignment.
 In practice, however, there are often a large number of $v\in V(G_T)$ that can be aligned to $u$ with $H_{uv}>0$.
-It is slow to keep track of all possible cells.
+It is slow to keep track of all cells $(u,v)$ with positive scores.
+Similar to our earlier work~\citep{Li:2010fk}, we store top $W$ cells (25 by default) at each $u$.
+This is akin to dynamic banding for linear sequences~\citep{Suzuki:2018aa}.
 
 \begin{algorithm}
 	\caption{The revised BWA-SW algorithm}\label{algo:bwa-sw}
@@ -476,23 +475,23 @@ It is slow to keep track of all possible cells.
 
 \section{Results}
 
-\begin{table}[!tb]
-\caption{Datasets\label{tab:data}}
-\begin{tabular*}{\columnwidth}{@{\extracolsep\fill}lrrr@{\extracolsep\fill}}
-\toprule
-Name               & \#bases$^1$ & \#sequences & avg run length$^2$ \\
-\midrule
-human100$^3$       &  301.6 Gb &  38.6 k & 141.6 \\
-CommonBacteria$^4$ & 7326.6 Gb & 278.4 M & 828.6 \\
-\botrule
-\end{tabular*}
-\begin{tablenotes}\setlength\itemsep{0.0em}
-\item[$^{1}$] number of bases in the input sequences on one strand
-\item[$^{2}$] average run length in BWT constructed from both strands
-\item[$^{3}$] 100 long-read human assemblies
-\item[$^{4}$] AllTheBacteria~\citep{Hunt2024.03.08.584059} excluding ``dustbin'' and ``unknown''
-\end{tablenotes}
-\end{table}
+%\begin{table}[!tb]
+%\caption{Datasets\label{tab:data}}
+%\begin{tabular*}{\columnwidth}{@{\extracolsep\fill}lrrr@{\extracolsep\fill}}
+%\toprule
+%Name               & \#bases$^1$ & \#sequences & avg run length$^2$ \\
+%\midrule
+%human100$^3$       &  301.6 Gb &  38.6 k & 141.6 \\
+%CommonBacteria$^4$ & 7326.6 Gb & 278.4 M & 828.6 \\
+%\botrule
+%\end{tabular*}
+%\begin{tablenotes}\setlength\itemsep{0.0em}
+%\item[$^{1}$] number of bases in the input sequences on one strand
+%\item[$^{2}$] average run length in BWT constructed from both strands
+%\item[$^{3}$] 100 long-read human assemblies
+%\item[$^{4}$] AllTheBacteria~\citep{Hunt2024.03.08.584059} excluding ``dustbin'' and ``unknown''
+%\end{tablenotes}
+%\end{table}
 
 \begin{table}[!tb]
 \caption{Indexing performance\label{tab:index}}
@@ -502,7 +501,7 @@ Dataset        & Algorithm     & Elapsed$^1$ & CPU$^1$  &     RAM \\
 \midrule
 human100       & grlBWT        &  8.3 h       &  29.6 h &  84.8 GB \\
 		       & pfp-thres$^2$ & 51.7 h       &  51.5 h & 788.1 GB \\
-               & ropebwt3$^3$  & 33.7 h       & 803.6 h &  82.3 GB \\
+               & ropebwt3$^3$  & 20.5 h       & 469.4 h &  83.0 GB \\
 			   & metagraph$^4$ & 16.9 h       & 314.8 h & 251.0 GB \\
 			   & fulgor$^5$ (lossy)& 1.2 h    &  32.7 h & 165.2 GB \\
 CommonBacteria & ropebwt3$^3$  & 26.5 d       & 830.3 d &  67.3 GB \\
@@ -518,6 +517,38 @@ CommonBacteria & ropebwt3$^3$  & 26.5 d       & 830.3 d &  67.3 GB \\
 \end{tablenotes}
 \end{table}
 
+\subsection{Performance on index construction}
+
+We evaluated the performance of BWT construction on 100 haplotype-resolved human assemblies collected in~\citet{Li:2024ab}.
+As we included both strands (Section~\ref{sec:ds-bwt}), each BWT construction algorithm took about 600 billion as input.
+The average run length is 141.6.
+grlBWT (commit 5b6d26a; \citealt*{DBLP:journals/iandc/DiazDominguezN23}) is the fastest algorithm (Table~\ref{tab:index})
+at the cost of more than a terabyte of working disk space including decompressed sequences.
+Ropebwt3 spent 21 hours from input sequences in gzip'd FASTA to the final index.
+It does not use working disk space and can append new sequences to an existing BWT.
+However, hardcoded for the DNA alphabet, ropebwt3 does not work with the ASCII alphabet.
+pfp-thresholds~\citep{Rossi:2022aa} used more memory than the input sequences.
+It may be impractical with increased sample size.
+
+Both MONI (v0.2.1; \citealt*{Rossi:2022aa}) and Movi (commit a828283; \citealt*{Zakeri:2024aa}) use pfp-thresholds for building BWT.
+They generate additional data structures on top of BWT.
+Time spent on these additional steps were not counted.
+The tested version of Movi used more than one terabyte of memory to construct the final index.
+The Movi developer kindly provided the Movi index for the evaluation of query performance in the next section.
+
+We also indexed the same dataset with k-mer based tools.
+In the lossless mode, metagraph (v0.3.6; \citealt*{Karasikov2020.10.01.322164}) indexed the 100 human genomes in 17 hours (Table~\ref{tab:index}).
+Fulgor is by far the fastest.
+However, lossy in nature, fulgor (v3.0.0; \citealt*{Fan:2024aa}) is not directly comparable to the rest of the tools in the table.
+
+To test the scalability of ropebwt3 in preparation for larger pangenome datasets in future,
+we constructed the BWT of AllTheBacteria~\citep{Hunt2024.03.08.584059} excluding the ``dustbin'' and ``unknown'' categories that include relatively unique genomes.
+This subset, which we call as CommonBacteria, consists of 278.4 million sequences in 7.33 terabases.
+An older version of ropebwt3 took less than a month to construct the double-strand BWT with 15.66 trillion symbols.
+We expect the latest version to reduce the elapsed time to about 17 days.
+The final index in the fermi format is 27.6 GB in size.
+Indexing the entire AllTheBacteria dataset will probably take 100--200 GB as unique sequences are not compressed well.
+
 \begin{table}[!tb]
 \caption{Query performance\label{tab:query}}
 \begin{tabular*}{\columnwidth}{@{\extracolsep\fill}lllrr@{\extracolsep\fill}}
@@ -526,22 +557,24 @@ Data   & Algorithm     &Type$^4$&Speed$^5$ (kb/s)&RAM (GB) \\
 \midrule
 SR$+^1$& ropebwt3      & MEM31  & 1758.5       &  10.6 \\
        &               & MEM51  & 1907.5       &  10.6 \\
-       &               & suffix & 2216.4       &  10.3 \\
+	   &               & SW10   & 84.1         &  15.2 \\
+%	   &               & suffix & 2216.4       &  10.3 \\
 	   & MONI$^6$      & MEM$-$ & 453.2        &  68.4 \\
+	   &               & extend & 348.2        &  68.4 \\
        & Movi          & PML    & 5894.0       &  79.4 \\
-	   &               & suffix & 6792.0       &  79.4 \\
+%	   &               & suffix & 6792.0       &  79.4 \\
 	   & metagraph     & PA$+$  & $<$0.1       &  65.3 \\
 	   & fulgor        & PA     & 2717.5       &   5.1 \\
 LR$+^2$& ropebwt3      & MEM31  & 1695.9       &  10.5 \\
        &               & MEM51  & 1793.9       &  10.5 \\
-       &               & SW     & 82.7         &  15.6 \\
+       &               & SW25   & 82.7         &  15.6 \\
 	   & MONI          & MEM$-$ & 413.6        &  68.4 \\
 	   & Movi          & PML    & 16204.9      &  79.4 \\
 	   & metagraph     & PA$+$  & $<$0.1       &  65.3 \\
 	   & fulgor        & PA     & 2491.6       &   5.1 \\
 LR$-^3$& ropebwt3      & MEM31  & 1365.0       &  10.4 \\
        &               & MEM51  & 3051.6       &  10.4 \\
-	   &               & SW     & 58.2         &  17.9 \\
+	   &               & SW25   & 58.2         &  17.9 \\
 	   & MONI          & MEM$-$ & 186.8        &  68.4 \\
 	   & Movi          & PML    & 8490.9       &  79.4 \\
 	   & metagraph     & PA$+$  & 1119.3       &  65.3 \\
@@ -552,15 +585,88 @@ LR$-^3$& ropebwt3      & MEM31  & 1365.0       &  10.4 \\
 \item[$^1$] first 1 million 125bp human short reads from SRR3099549
 \item[$^2$] first 10,000 human PacBio HiFi reads from SRR26545347
 \item[$^3$] first 10,000 metagenomic PacBio HiFi reads from DRR290133
-\item[$^4$] MEM$x$: maximal exact matches (MEMs) of $x$ bp or longer;
-suffix: longest matching suffix with counts; MEM$-$: MEM without count;
-SW: BWA-SW; PML: pseudo-matching length; PA: pseudo-alignment; PA$+$: pseudo-alignment with contig names
+\item[$^4$] MEM$x$: super-maximal exact matches (SMEMs) of $x$ bp or longer with counts;
+%suffix: longest matching suffix with counts;
+MEM$-$: SMEM without counts;
+extend: Smith-Waterman extension from the longest SMEM;
+PML: pseudo-matching length; PA: pseudo-alignment; PA$+$: pseudo-alignment with contig names;
+SW$y$: BWA-SW with bandwidth $y$
 \item[$^5$] kilobases processed per CPU second. Index loading time excluded
-\item[$^6$] The MONI index includes both strands
+\item[$^6$] The MONI index includes both strands.
+We modified MONI such that extension is performed on one query strand only
 \end{tablenotes}
 \end{table}
 
+\subsection{Query performance}
+
+We queried 100--200 Mb human short reads (SR$+$), human long reads (LR$+$) and non-human long reads (LR$-$) against the human pangenome indices constructed above (Table~\ref{tab:query}).
+It is important to note that no two tools support exactly the same type of query,
+but the comparison can still give a hint about the relative performance.
+
+Among the three BWT-based tools, ropebwt3 is slower than Movi but faster than MONI on finding exact matches.
+Movi finds pseudo-matching length (PML).
+Although the fastest, it finds the longest exact matches for only 195 out of one million short reads
+and it misses the longest exact matches for all long reads.
+The longest PML of each read is on average 27\% shorter than the longest exact match for LR$+$ and 22\% shorter for SR$+$.
+
+MONI and ropebwt3 can also find inexact matches.
+Implementing r-index, MONI can relatively cheaply locate one SMEM.
+It leverages this property to extract the genomic sequence around the longest SMEM and performs Smith-Waterman extension.
+MONI extension is faster than BWA-SW on SR$+$ because it does not need to inspect all haplotypes.
+This feature apparently focuses on short reads only.
+On LR$+$, MONI extension fails to extend to the ends of reads and generate incorrect output for the majority of reads.
+
+As to k-mer indices, fulgor outputs the genomes each read have enough 31-mer matches to.
+In its current form, such output is not useful for pangenome analysis as we know most of reads can be mapped to all genomes.
+Metagraph can additionally output the contig name of each match.
+However, when most k-mers are present in the index, metagraph is impractically slow.
+
+\subsection{Identifying novel sequences}
+
+As a biological application, we used the pangenome index to identify novel sequences in reads that are absent from other human genomes.
+For this, we downloaded the PacBio HiFi reads for tumor sample COLO829 (\url{https://downloads.pacbcloud.com/public/revio/2023Q2/COLO829/COLO829/}),
+mapped them to the pangenome index with 100 human genomes
+and extracted $\ge$1kb regions on reads that are not covered by SMEMs of 51bp or longer.
+We found 95kb sequences in 43 reads.
+These sequences could not be assembled.
+NCBI BLAST suggested multiple weak hits to cow genomes.
+We could not identify the source of these sequences but there were few of them anyway.
+
+When we mapped the COLO829 reads to a single T2T-CHM13 genome~\citep{Nurk:2022up} and applied the same procedure,
+we found 55.9Mb of ``novel'' sequences in 25,365 reads.
+We might think the much larger number could be caused by regions with dense SNPs that prevented long exact matches,
+but counterintuitively, mapping these reads to T2T-CHM13 with minimap2~\citep{Li:2018ab} resulted in more ``novel'' sequences at 78.6Mb.
+This is probably because minimap2 ignores seeds occurring thousands of times in T2T-CHM13 and may miss more alignments.
+Capable of finding SMEMs at the pangenome scale, ropebwt3 is more effective for identifying known sequences.
+It is actually also faster than full minimap2 alignment against a single genome.
+
 \section{Discussions}
+
+Ropebwt3 is a fast tool for BWT construction and sequence search for redundant DNA sequences.
+Generating BWT purely in memory and supporting incremental build, ropebwt3 is convenient and practical for BWT construction at large scale.
+It provides the fastest algorithm so far for finding supermaximal exact matches and can report inexact hits as well.
+Ropebwt3 demonstrates that BWT-based data structures are scalable to the terabases of pangenome data.
+
+Ropebwt3 will take 2--3 weeks to index 1,000 human genomes assembled from long reads.
+When there are more genomes, it will be faster to construct the BWT of individual genome independently
+and then merge them one by one.
+This strategy will use working disk space but achieve better parallelization.
+\citet{DBLP:conf/dcc/Siren16} introduced disk-based algorithms for merging large BWTs, which may improve the parallelization of BWT merge.
+
+We thought about implementing r-index in ropebwt3.
+However, although an r-index is faster than an FM-index of the same size,
+it imposes a fixed sampling rate: two samples per run.
+The BWT of CommonBacteria has 14.6 trillion bases and 17.6 billion runs.
+An r-index is likely to take more than 200GB,
+while an FM-index sampled at one position per 8,192bp takes 17.5GB in ropebwt3.
+We are still looking for a more balanced algorithm for the ``locate'' operation.
+
+The BWA-SW algorithm is slow because it always explores multiple suboptimal alignment paths even if the query sequence has a perfect match.
+A wavefront-based algorithm~\citep{Marco-Sola:2021aa} may be a potential direction.
+Another idea is to apply sequence-to-tree alignment, similar to BWT-SW, to extend long SMEMs but without extracting individual sequences.
+This will give more accurate alignment than MONI which only extends one sequence.
+
+More generally, what types of queries most benefit real biological applications?
 
 \section*{Acknowledgements}
 
@@ -584,7 +690,8 @@ This work is supported by National Institute of Health grant R01HG010040 and U01
 
 \section*{Data availability}
 
-Source code available at \url{https://github.com/lh3/ropebwt3}
+The ropebwt3 source code is available at \url{https://github.com/lh3/ropebwt3}.
+Prebuilt ropebwt3 indices can be obtained from \url{https://zenodo.org/doi/10.5281/zenodo.11533210}.
 
 \bibliographystyle{apalike}
 {\sffamily\small
