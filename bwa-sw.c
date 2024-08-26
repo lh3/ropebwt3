@@ -154,9 +154,9 @@ static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_d
 				r->n++;
 		if (r->n == 0) return;
 		r->a = RB3_CALLOC(rb3_swhit_t, r->n);
-		for (i = 0; i < p->n; ++i) // backtrack
+		for (i = 0, r->n = 0; i < p->n; ++i) // backtrack
 			if (p->a[i].qlen == qlen && p->a[i].H_from == SW_FROM_H)
-				sw_backtrack1(opt, f, g, row, (g->n_node - 1) * n_col + i, &r->a[i]);
+				sw_backtrack1(opt, f, g, row, (g->n_node - 1) * n_col + i, &r->a[r->n++]);
 	} else { // local mode
 		r->n = 1;
 		r->a = RB3_CALLOC(rb3_swhit_t, r->n);
