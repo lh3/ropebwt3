@@ -105,6 +105,43 @@ static void worker_for(void *data, long i, int tid)
 	}
 }
 
+static inline void write_name(kstring_t *out, const m_seq_t *s)
+{
+	if (s->name) rb3_sprintf_lite(out, "%s", s->name);
+	else rb3_sprintf_lite(out, "seq%ld", s->id + 1);
+}
+
+static void write_paf(kstring_t *out, const rb3_fmi_t *f, const rb3_swhit_t *h, const m_seq_t *s, int32_t write_rs)
+{
+	int32_t k;
+	write_name(out, s);
+	rb3_sprintf_lite(out, "\t%d\t%d\t%d", s->len, h->qoff[0], h->qoff[0] + h->qlen);
+	if (h->lo_pos >= 0 && h->lo_sid >= 0) {
+		if (f->sid) { // sequence names and lengths are available
+			int64_t rlen = f->sid->len[h->lo_sid>>1];
+			rb3_sprintf_lite(out, "\t%c\t%s\t%ld", "+-"[h->lo_sid&1], f->sid->name[h->lo_sid>>1], (long)rlen);
+			if ((h->lo_sid&1) == 0) // forward strand
+				rb3_sprintf_lite(out, "\t%ld\t%ld", h->lo_pos, h->lo_pos + h->rlen);
+			else // reverse strand
+				rb3_sprintf_lite(out, "\t%ld\t%ld", rlen - (h->lo_pos + h->rlen), rlen - h->lo_pos);
+		} else { // sequence names and lengths are not available
+			rb3_sprintf_lite(out, "\t+\t%ld\t*\t%ld\t%ld", h->lo_sid, h->lo_pos, h->lo_pos + h->rlen); // always on the forward strand
+		}
+	} else {
+		rb3_sprintf_lite(out, "\t*\t*\t%d\t*\t*", h->rlen);
+	}
+	rb3_sprintf_lite(out, "\t%d\t%d\t0", h->mlen, h->blen);
+	rb3_sprintf_lite(out, "\tAS:i:%d\tqh:i:%d\trh:i:%ld\tcg:Z:", h->score, h->n_qoff, (long)(h->hi - h->lo));
+	for (k = 0; k < h->n_cigar; ++k)
+		rb3_sprintf_lite(out, "%d%c", h->cigar[k]>>4, "MIDNSHP=X"[h->cigar[k]&0xf]);
+	if (write_rs) {
+		rb3_sprintf_lite(out, "\trs:Z:");
+		for (k = 0; k < h->rlen; ++k)
+			rb3_sprintf_lite(out, "%c", "$ACGTN"[h->rseq[k]]);
+	}
+	rb3_sprintf_lite(out, "\n");
+}
+
 static void *worker_pipeline(void *shared, int step, void *in)
 {
 	pipeline_t *p = (pipeline_t*)shared;
@@ -150,42 +187,17 @@ static void *worker_pipeline(void *shared, int step, void *in)
 		for (j = 0; j < t->n_seq; ++j) {
 			m_seq_t *s = &t->seq[j];
 			free(s->seq);
+			out.l = 0;
 			if (p->opt->algo == RB3_SA_SW) { // BWA-SW
 				rb3_swrst_t *r = &s->rst;
-				int32_t k;
-				out.l = 0;
-				if (r->score > 0 && r->n_qoff > 0) { // mapped
-					if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
-					else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
-					rb3_sprintf_lite(&out, "\t%d\t%d\t%d", s->len, r->qoff[0], r->qoff[0] + r->qlen);
-					if (r->lo_pos >= 0 && r->lo_sid >= 0) {
-						if (p->fmi.sid) { // sequence names and lengths are available
-							int64_t rlen = p->fmi.sid->len[r->lo_sid>>1];
-							rb3_sprintf_lite(&out, "\t%c\t%s\t%ld", "+-"[r->lo_sid&1], p->fmi.sid->name[r->lo_sid>>1], (long)rlen);
-							if ((r->lo_sid&1) == 0) // forward strand
-								rb3_sprintf_lite(&out, "\t%ld\t%ld", r->lo_pos, r->lo_pos + r->rlen);
-							else // reverse strand
-								rb3_sprintf_lite(&out, "\t%ld\t%ld", rlen - (r->lo_pos + r->rlen), rlen - r->lo_pos);
-						} else { // sequence names and lengths are not available
-							rb3_sprintf_lite(&out, "\t+\t%ld\t*\t%ld\t%ld", r->lo_sid, r->lo_pos, r->lo_pos + r->rlen); // always on the forward strand
-						}
-					} else {
-						rb3_sprintf_lite(&out, "\t*\t*\t%d\t*\t*", r->rlen);
+				if (r->n > 0) { // mapped
+					for (i = 0; i < r->n; ++i) {
+						out.l = 0;
+						write_paf(&out, &p->fmi, &r->a[i], s, p->opt->flag & RB3_MF_WRITE_RS);
+						fputs(out.s, stdout);
 					}
-					rb3_sprintf_lite(&out, "\t%d\t%d\t0", r->mlen, r->blen);
-					rb3_sprintf_lite(&out, "\tAS:i:%d\tqh:i:%d\trh:i:%ld\tcg:Z:", r->score, r->n_qoff, (long)(r->hi - r->lo));
-					for (k = 0; k < r->n_cigar; ++k)
-						rb3_sprintf_lite(&out, "%d%c", r->cigar[k]>>4, "MIDNSHP=X"[r->cigar[k]&0xf]);
-					if (p->opt->flag & RB3_MF_WRITE_RS) {
-						rb3_sprintf_lite(&out, "\trs:Z:");
-						for (k = 0; k < r->rlen; ++k)
-							rb3_sprintf_lite(&out, "%c", "$ACGTN"[r->rseq[k]]);
-					}
-					rb3_sprintf_lite(&out, "\n");
-					fputs(out.s, stdout);
 				} else if (p->opt->flag & RB3_MF_WRITE_UNMAP) { // unmapped
-					if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
-					else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
+					write_name(&out, s);
 					rb3_sprintf_lite(&out, "\t%d\t*\t*\t*\t*\t*\t*\t*\t0\t0\t0\n", s->len);
 					fputs(out.s, stdout);
 				}
@@ -194,8 +206,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 				for (i = 0; i < s->n_gap; ++i) {
 					int32_t st = s->gap[i]>>32, en = (int32_t)s->gap[i];
 					out.l = 0;
-					if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
-					else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
+					write_name(&out, s);
 					rb3_sprintf_lite(&out, "\t%d\t%d\t%d\n", st, en, s->len);
 					fputs(out.s, stdout);
 				}
@@ -212,8 +223,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 				cov += en0 - st0;
 				if (cov > 0) {
 					out.l = 0;
-					if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
-					else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
+					write_name(&out, s);
 					rb3_sprintf_lite(&out, "\t%d\t%d\n", s->len, cov);
 					fputs(out.s, stdout);
 				}
@@ -222,8 +232,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 					rb3_sai_t *q = &s->mem[i];
 					int32_t st = q->info>>32, en = (int32_t)q->info;
 					out.l = 0;
-					if (s->name) rb3_sprintf_lite(&out, "%s", s->name);
-					else rb3_sprintf_lite(&out, "seq%ld", s->id + 1);
+					write_name(&out, s);
 					rb3_sprintf_lite(&out, "\t%d\t%d\t%ld\n", st, en, (long)q->size);
 					fputs(out.s, stdout);
 				}

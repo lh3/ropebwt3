@@ -51,26 +51,26 @@ typedef struct {
 #define sw_cell_eq(x, y) ((x).lo == (y).lo && (x).hi == (y).hi)
 KHASHL_SET_INIT(KH_LOCAL, sw_candset_t, sw_candset, sw_cell_t, sw_cell_hash, sw_cell_eq)
 
-static void sw_push_state(int32_t last_op, int32_t op, int c, rb3_swrst_t *rst, int32_t len_only)
+static void sw_push_state(int32_t last_op, int32_t op, int c, rb3_swhit_t *hit, int32_t len_only)
 {
 	if (!len_only) {
-		rst->rseq[rst->rlen] = c;
+		hit->rseq[hit->rlen] = c;
 		if (last_op == op)
-			rst->cigar[rst->n_cigar - 1] += 1U<<4;
+			hit->cigar[hit->n_cigar - 1] += 1U<<4;
 		else
-			rst->cigar[rst->n_cigar++] = 1U<<4 | op;
+			hit->cigar[hit->n_cigar++] = 1U<<4 | op;
 	} else {
-		rst->n_cigar += last_op == op? 0 : 1;
+		hit->n_cigar += last_op == op? 0 : 1;
 	}
-	if (op == 7 || op == 8) rst->qlen++, rst->rlen++;
-	else if (op == 1) rst->qlen++;
-	else if (op == 2) rst->rlen++;
+	if (op == 7 || op == 8) hit->qlen++, hit->rlen++;
+	else if (op == 1) hit->qlen++;
+	else if (op == 2) hit->rlen++;
 }
 
-static void sw_backtrack_core(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const sw_row_t *row, uint32_t pos, rb3_swrst_t *rst, int32_t len_only)
+static void sw_backtrack_core(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const sw_row_t *row, uint32_t pos, rb3_swhit_t *hit, int32_t len_only)
 { // this is adapted from ns_backtrack() in miniprot
 	int32_t n_col = opt->n_best, last = 0, last_op = -1;
-	rst->n_cigar = rst->rlen = rst->qlen = 0;
+	hit->n_cigar = hit->rlen = hit->qlen = 0;
 	while (pos > 0) {
 		int32_t r = pos / n_col, c;
 		const sw_cell_t *p = &row[r].a[pos%n_col];
@@ -93,41 +93,44 @@ static void sw_backtrack_core(const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 			assert(p->F > 0 && p->F_from_off != SW_F_UNSET);
 			pos = r * n_col + p->F_from_off;
 		}
-		sw_push_state(last_op, op, c, rst, len_only);
+		sw_push_state(last_op, op, c, hit, len_only);
 		last_op = op;
 		last = (state == 1 || state == 2) && ext? state : 0;
 	}
 }
 
-static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const sw_row_t *row, uint32_t pos, rb3_swrst_t *rst)
+static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const sw_row_t *row, uint32_t pos, rb3_swhit_t *hit)
 {
 	int32_t k;
 	const rb3_dawg_node_t *p;
 	const sw_cell_t *q;
 
 	// get CIGAR
-	if (rst->score == 0) return;
-	sw_backtrack_core(opt, f, g, row, pos, rst, 1);
-	rst->rseq = RB3_CALLOC(uint8_t, rst->rlen);
-	rst->cigar = RB3_CALLOC(uint32_t, rst->n_cigar);
-	sw_backtrack_core(opt, f, g, row, pos, rst, 0);
+	sw_backtrack_core(opt, f, g, row, pos, hit, 1); // compute length without allocation
+	hit->rseq = RB3_CALLOC(uint8_t, hit->rlen);
+	hit->cigar = RB3_CALLOC(uint32_t, hit->n_cigar);
+	sw_backtrack_core(opt, f, g, row, pos, hit, 0);
 
 	// calculate block length and matching length
-	rst->mlen = rst->blen = 0;
-	for (k = 0; k < rst->n_cigar; ++k) {
-		int32_t op = rst->cigar[k]&0xf, len = rst->cigar[k]>>4;
-		rst->blen += len;
-		if (op == 7) rst->mlen += len;
+	hit->mlen = hit->blen = 0;
+	for (k = 0; k < hit->n_cigar; ++k) {
+		int32_t op = hit->cigar[k]&0xf, len = hit->cigar[k]>>4;
+		hit->blen += len;
+		if (op == 7) hit->mlen += len;
 	}
 
-	// get positions
+	// get query positions
 	p = &g->node[pos / opt->n_best];
 	q = &row[pos / opt->n_best].a[pos % opt->n_best];
-	rst->lo = q->lo, rst->hi = q->hi;
-	rst->n_qoff = p->hi - p->lo;
-	rst->qoff = RB3_CALLOC(int32_t, p->hi - p->lo);
+	hit->lo = q->lo, hit->hi = q->hi;
+	hit->n_qoff = p->hi - p->lo;
+	hit->qoff = RB3_CALLOC(int32_t, p->hi - p->lo);
 	for (k = p->lo; k < p->hi; ++k)
-		rst->qoff[k - p->lo] = g->bwt->sa[k];
+		hit->qoff[k - p->lo] = g->bwt->sa[k];
+
+	// get reference position for the first hit in the SA interval
+	hit->lo_pos = hit->lo_sid = -1;
+	if (f->ssa) hit->lo_pos = rb3_ssa(f, f->ssa, hit->lo, &hit->lo_sid);
 }
 
 static sw_cell_t *sw_update_candset(sw_candset_t *h, const sw_cell_t *p)
@@ -208,7 +211,7 @@ static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, 
 static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const rb3_bwtl_t *bwt, rb3_swrst_t *rst)
 {
 	uint32_t best_pos = 0;
-	int32_t i, c, n_col = opt->n_best, m_fstack = opt->n_best * 3;
+	int32_t i, c, n_col = opt->n_best, m_fstack = opt->n_best * 3, best_score;
 	int32_t *ks_a, ks_m;
 	sw_cell_t *cell, *fstack, *p;
 	sw_row_t *row;
@@ -217,6 +220,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	sw_candset_t *h;
 	void *rc = 0;
 
+	rst->n = 0, rst->a = 0;
 	rc = rb3_r2cache_init(km, opt->r2cache_size);
 	cell = Kcalloc(km, sw_cell_t, g->n_node * n_col); // this is the backtracking matrix
 	row = Kcalloc(km, sw_row_t, g->n_node);
@@ -225,7 +229,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	p = &row[0].a[row[0].n++]; // point to the first cell
 	p->lo = 0, p->hi = f->acc[6];
 	p->H_from = SW_FROM_H;
-	rst->score = 0;
+	best_score = 0;
 
 	fstack = Kcalloc(km, sw_cell_t, m_fstack);
 	heap = Kcalloc(km, uint64_t, opt->n_best);
@@ -361,8 +365,8 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		for (j = 0; j < ri->n; ++j)
 			ri->a[j] = kh_key(h, (uint32_t)heap[j]);
 		sw_track_F(km, f, rc, h, &row[i]);
-		if (ri->a[0].H > rst->score)
-			rst->score = ri->a->H, best_pos = i * n_col;
+		if (ri->a[0].H > best_score)
+			best_score = ri->a->H, best_pos = i * n_col;
 
 		// for debugging
 		if (rb3_dbg_flag & RB3_DBG_SW) { // NB: single-threaded only
@@ -379,25 +383,26 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 			fputc('\n', stderr);
 		}
 	}
-	if (rst->score >= opt->min_sc)
-		sw_backtrack(opt, f, g, row, best_pos, rst);
-	else rst->cigar = 0, rst->rseq = 0, rst->qoff = 0;
-
 	kfree(km, ks_a);
 	kfree(km, fstack);
 	sw_candset_destroy(h);
 	kfree(km, heap);
+	rb3_r2cache_destroy(rc);
+
+	if (best_score >= opt->min_sc) {
+		rst->n = 1;
+		rst->a = RB3_CALLOC(rb3_swhit_t, rst->n);
+		rst->a[0].score = best_score;
+		sw_backtrack(opt, f, g, row, best_pos, &rst->a[0]);
+	}
 	kfree(km, row);
 	kfree(km, cell);
-	rb3_r2cache_destroy(rc);
 }
 
 void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const uint8_t *seq, rb3_swrst_t *rst)
 {
 	rb3_bwtl_t *q;
 	rb3_dawg_t *g;
-	rst->score = rst->n_qoff = rst->n_cigar = rst->rlen = rst->qlen = rst->blen = rst->mlen = 0;
-	rst->lo_pos = rst->lo_sid = -1;
 	if (opt->min_mem_len > 0 && opt->min_mem_len > opt->end_len) {
 		if (!rb3_fmd_smem_present(f, len, seq, opt->min_mem_len))
 			return;
@@ -407,11 +412,12 @@ void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const
 	sw_core(km, opt, f, g, q, rst);
 	rb3_dawg_destroy(km, g); // this doesn't deallocate q
 	rb3_bwtl_destroy(q);
-	if (f->ssa)
-		rst->lo_pos = rb3_ssa(f, f->ssa, rst->lo, &rst->lo_sid);
 }
 
 void rb3_swrst_free(rb3_swrst_t *rst)
 {
-	free(rst->rseq); free(rst->cigar); free(rst->qoff);
+	int32_t i;
+	for (i = 0; i < rst->n; ++i) {
+		free(rst->a[i].rseq); free(rst->a[i].cigar); free(rst->a[i].qoff);
+	}
 }
