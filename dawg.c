@@ -228,6 +228,28 @@ rb3_dawg_t *rb3_dawg_gen(void *km, const rb3_bwtl_t *q) // generate DAWG
 	return g;
 }
 
+rb3_dawg_t *rb3_dawg_gen_linear(void *km, int32_t len, const uint8_t *seq)
+{
+	int32_t i;
+	rb3_dawg_t *g;
+	g = Kcalloc(km, rb3_dawg_t, 1);
+	g->n_node = len + 1;
+	g->node = Kcalloc(km, rb3_dawg_node_t, g->n_node);
+	g->n_pre = len;
+	g->pre = Kcalloc(km, int32_t, g->n_pre);
+	g->node[0].n_pre = 0, g->node[0].c = -1, g->node[0].pre = g->pre;
+	g->node[0].lo = len, g->node[0].hi = -1;
+	for (i = 0; i < len; ++i) {
+		rb3_dawg_node_t *p = &g->node[i + 1];
+		p->lo = len - 1 - i, p->hi = -1;
+		p->c = rb3_nt6_table[seq[p->lo]];
+		p->n_pre = 1;
+		p->pre = &g->pre[i];
+		p->pre[0] = i;
+	}
+	return g;
+}
+
 void rb3_dawg_destroy(void *km, rb3_dawg_t *g)
 {
 	kfree(km, g->pre); kfree(km, g->node); kfree(km, g);

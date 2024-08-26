@@ -123,10 +123,16 @@ static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_d
 	p = &g->node[pos / opt->n_best];
 	q = &row[pos / opt->n_best].a[pos % opt->n_best];
 	hit->lo = q->lo, hit->hi = q->hi;
-	hit->n_qoff = p->hi - p->lo;
-	hit->qoff = RB3_CALLOC(int32_t, p->hi - p->lo);
-	for (k = p->lo; k < p->hi; ++k)
-		hit->qoff[k - p->lo] = g->bwt->sa[k];
+	if (p->hi >= 0) { // [p->lo, p->hi) is a SA interval on the query
+		hit->n_qoff = p->hi - p->lo;
+		hit->qoff = RB3_CALLOC(int32_t, p->hi - p->lo);
+		for (k = p->lo; k < p->hi; ++k)
+			hit->qoff[k - p->lo] = g->bwt->sa[k];
+	} else { // p->lo is the actual position on the query
+		hit->n_qoff = 1;
+		hit->qoff = RB3_CALLOC(int32_t, 1);
+		hit->qoff[0] = p->lo;
+	}
 
 	// get reference position for the first hit in the SA interval
 	hit->lo_pos = hit->lo_sid = -1;
@@ -208,7 +214,7 @@ static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, 
 	}
 }
 
-static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const rb3_bwtl_t *bwt, rb3_swrst_t *rst)
+static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, rb3_swrst_t *rst)
 {
 	uint32_t best_pos = 0;
 	int32_t i, c, n_col = opt->n_best, m_fstack = opt->n_best * 3, best_score;
@@ -401,17 +407,21 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 
 void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const uint8_t *seq, rb3_swrst_t *rst)
 {
-	rb3_bwtl_t *q;
+	rb3_bwtl_t *q = 0;
 	rb3_dawg_t *g;
 	if (opt->min_mem_len > 0 && opt->min_mem_len > opt->end_len) {
 		if (!rb3_fmd_smem_present(f, len, seq, opt->min_mem_len))
 			return;
 	}
-	q = rb3_bwtl_gen(km, len, seq);
-	g = rb3_dawg_gen(km, q);
-	sw_core(km, opt, f, g, q, rst);
+	if (opt->flag & RB3_SWF_E2E) {
+		g = rb3_dawg_gen_linear(km, len, seq);
+	} else {
+		q = rb3_bwtl_gen(km, len, seq);
+		g = rb3_dawg_gen(km, q);
+	}
+	sw_core(km, opt, f, g, rst);
 	rb3_dawg_destroy(km, g); // this doesn't deallocate q
-	rb3_bwtl_destroy(q);
+	if (q) rb3_bwtl_destroy(q);
 }
 
 void rb3_swrst_free(rb3_swrst_t *rst)

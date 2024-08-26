@@ -3,7 +3,10 @@
 
 #include "fm-index.h"
 
+#define RB3_SWF_E2E     0x1
+
 typedef struct {
+	uint32_t flag;
 	int32_t n_best;
 	int32_t min_sc, end_len, min_mem_len;
 	int32_t match, mis;

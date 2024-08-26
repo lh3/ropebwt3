@@ -272,7 +272,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MdwN:A:B:O:E:C:m:k:uj:", long_options)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MdwN:A:B:O:E:C:m:k:uj:e", long_options)) >= 0) {
 		if (c == 'L') is_line = 1;
 		else if (c == 'w') opt.algo = RB3_SA_MEM_ORI;
 		else if (c == 'd') opt.algo = RB3_SA_SW, load_flag |= RB3_LOAD_ALL;
@@ -290,6 +290,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		else if (c == 'm') opt.swo.min_sc = atoi(o.arg);
 		else if (c == 'k') opt.swo.end_len = atoi(o.arg);
 		else if (c == 'j') opt.swo.min_mem_len = atoi(o.arg);
+		else if (c == 'e') opt.swo.flag |= RB3_SWF_E2E;
 		else if (c == 'u') opt.flag |= RB3_MF_WRITE_UNMAP;
 		else if (c == 301) no_ssa = 1;
 		else if (c == 302) opt.flag |= RB3_MF_WRITE_RS;
@@ -323,6 +324,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 			fprintf(stderr, "  -d          use BWA-SW for local alignment\n");
 		if (strcmp(argv[0], "sw") == 0 || strcmp(argv[0], "search") == 0) {
 			fprintf(stderr, "  -N INT      keep up to INT hits per DAWG node [%d]\n", opt.swo.n_best);
+			fprintf(stderr, "  -e          end-to-end mode\n");
 			fprintf(stderr, "  -j INT      min MEM length to initiate alignment [%d]\n", opt.swo.min_mem_len);
 			fprintf(stderr, "  -k INT      require INT-mer match at the end of alignment [%d]\n", opt.swo.end_len);
 			fprintf(stderr, "  -m INT      min alignment score [%d]\n", opt.swo.min_sc);

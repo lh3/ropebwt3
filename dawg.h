@@ -33,6 +33,7 @@ void rb3_bwtl_rank2a(const rb3_bwtl_t *bwt, int32_t k, int32_t l, int32_t cntk[4
 void rb3_bwtl_destroy(rb3_bwtl_t *bwt);
 
 rb3_dawg_t *rb3_dawg_gen(void *km, const rb3_bwtl_t *q);
+rb3_dawg_t *rb3_dawg_gen_linear(void *km, int32_t len, const uint8_t *seq);
 void rb3_dawg_destroy(void *km, rb3_dawg_t *g);
 
 #endif
