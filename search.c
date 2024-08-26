@@ -290,7 +290,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		else if (c == 'm') opt.swo.min_sc = atoi(o.arg);
 		else if (c == 'k') opt.swo.end_len = atoi(o.arg);
 		else if (c == 'j') opt.swo.min_mem_len = atoi(o.arg);
-		else if (c == 'e') opt.swo.flag |= RB3_SWF_E2E;
+		else if (c == 'e') opt.swo.flag |= RB3_SWF_E2E, opt.swo.end_len = 1;
 		else if (c == 'u') opt.flag |= RB3_MF_WRITE_UNMAP;
 		else if (c == 301) no_ssa = 1;
 		else if (c == 302) opt.flag |= RB3_MF_WRITE_RS;
@@ -324,7 +324,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 			fprintf(stderr, "  -d          use BWA-SW for local alignment\n");
 		if (strcmp(argv[0], "sw") == 0 || strcmp(argv[0], "search") == 0) {
 			fprintf(stderr, "  -N INT      keep up to INT hits per DAWG node [%d]\n", opt.swo.n_best);
-			fprintf(stderr, "  -e          end-to-end mode\n");
+			fprintf(stderr, "  -e          end-to-end mode (forcing -k to 1)\n");
 			fprintf(stderr, "  -j INT      min MEM length to initiate alignment [%d]\n", opt.swo.min_mem_len);
 			fprintf(stderr, "  -k INT      require INT-mer match at the end of alignment [%d]\n", opt.swo.end_len);
 			fprintf(stderr, "  -m INT      min alignment score [%d]\n", opt.swo.min_sc);
