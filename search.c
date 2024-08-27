@@ -272,7 +272,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MdwN:A:B:O:E:C:m:k:uj:e", long_options)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MdwN:A:B:O:E:C:m:k:uj:ey:", long_options)) >= 0) {
 		if (c == 'L') is_line = 1;
 		else if (c == 'w') opt.algo = RB3_SA_MEM_ORI;
 		else if (c == 'd') opt.algo = RB3_SA_SW, load_flag |= RB3_LOAD_ALL;
@@ -291,6 +291,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		else if (c == 'k') opt.swo.end_len = atoi(o.arg);
 		else if (c == 'j') opt.swo.min_mem_len = atoi(o.arg);
 		else if (c == 'e') opt.swo.flag |= RB3_SWF_E2E, opt.swo.end_len = 1;
+		else if (c == 'y') opt.swo.e2e_drop = atoi(o.arg);
 		else if (c == 'u') opt.flag |= RB3_MF_WRITE_UNMAP;
 		else if (c == 301) no_ssa = 1;
 		else if (c == 302) opt.flag |= RB3_MF_WRITE_RS;
@@ -333,6 +334,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 			fprintf(stderr, "  -O INT      gap open penalty [%d]\n", opt.swo.gap_open);
 			fprintf(stderr, "  -E INT      gap extension penalty; a k-long gap costs O+k*E [%d]\n", opt.swo.gap_ext);
 			fprintf(stderr, "  -C NUM      size of the ranking cache [%d]\n", opt.swo.r2cache_size);
+			fprintf(stderr, "  -y INT      in e2e mode, ignore hits scored INT lower than the best [%d]\n", opt.swo.e2e_drop);
 			fprintf(stderr, "  -u          write unmapped queries to PAF\n");
 			fprintf(stderr, "  --seq       write reference sequence to the rs tag\n");
 			fprintf(stderr, "  --no-ssa    ignore the sampled suffix array\n");

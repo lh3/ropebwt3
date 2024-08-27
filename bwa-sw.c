@@ -21,6 +21,7 @@ void rb3_swopt_init(rb3_swopt_t *opt)
 	opt->match = 1, opt->mis = 3;
 	opt->gap_open = 5, opt->gap_ext = 2;
 	opt->end_len = 11;
+	opt->e2e_drop = -1; // disabled by default
 	opt->min_mem_len = 0;
 	opt->r2cache_size = 0x10000;
 }
@@ -144,19 +145,32 @@ static void sw_backtrack1(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_
 	if (f->ssa) hit->lo_pos = rb3_ssa(f, f->ssa, hit->lo, &hit->lo_sid);
 }
 
-static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const sw_row_t *row, int32_t qlen, uint32_t best_pos, rb3_swrst_t *r)
+static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const sw_row_t *row, int32_t qlen, uint32_t best_pos, rb3_swrst_t *r, rb3_swanno_t *a)
 {
 	int32_t i, n_col = opt->n_best;
 	if (opt->flag & RB3_SWF_E2E) { // end-to-end mode
 		const sw_row_t *p = &row[g->n_node - 1]; // last row
-		for (i = 0, r->n = 0; i < p->n; ++i) // count hits
-			if (p->a[i].qlen == qlen && p->a[i].H_from == SW_FROM_H)
-				r->n++;
-		if (r->n == 0) return;
-		r->a = RB3_CALLOC(rb3_swhit_t, r->n);
-		for (i = 0, r->n = 0; i < p->n; ++i) // backtrack
-			if (p->a[i].qlen == qlen && p->a[i].H_from == SW_FROM_H)
-				sw_backtrack1(opt, f, g, row, (g->n_node - 1) * n_col + i, &r->a[r->n++]);
+		int32_t n = 0, H0;
+		if (p->n == 0) return;
+		H0 = p->a[0].H;
+		for (i = 0, n = 0; i < p->n; ++i) // count hits
+			if (p->a[i].qlen == qlen && p->a[i].H_from == SW_FROM_H && p->a[i].H >= opt->min_sc && (opt->e2e_drop < 0 || H0 - p->a[i].H <= opt->e2e_drop))
+				++n;
+		if (n == 0) return;
+		if (r) r->n = n, r->a = RB3_CALLOC(rb3_swhit_t, n);
+		if (a) a->n_al = n, a->n_hap0 = a->n_hap = 0;
+		for (i = 0, n = 0; i < p->n; ++i) { // backtrack
+			const sw_cell_t *q = &p->a[i];
+			if (q->qlen == qlen && q->H_from == SW_FROM_H && q->H >= opt->min_sc && (opt->e2e_drop < 0 || H0 - q->H <= opt->e2e_drop)) {
+				if (r) { // get full alignment
+					sw_backtrack1(opt, f, g, row, (g->n_node - 1) * n_col + i, &r->a[n++]);
+				} else if (a) { // get summary information
+					a->n_hap += q->hi - q->lo;
+					if (q->qlen == q->rlen && q->H == opt->match * q->qlen) // exact match
+						a->n_hap0 += q->hi - q->lo;
+				}
+			}
+		}
 	} else { // local mode
 		r->n = 1;
 		r->a = RB3_CALLOC(rb3_swhit_t, r->n);
@@ -243,7 +257,7 @@ static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, 
 	}
 }
 
-static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, int32_t qlen, rb3_swrst_t *rst)
+static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, int32_t qlen, rb3_swrst_t *rst, rb3_swanno_t *anno)
 {
 	uint32_t best_pos = 0;
 	int32_t i, c, n_col = opt->n_best, m_fstack = opt->n_best * 3, best_score;
@@ -425,7 +439,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	rb3_r2cache_destroy(rc);
 
 	if (best_score >= opt->min_sc)
-		sw_backtrack(opt, f, g, row, qlen, best_pos, rst);
+		sw_backtrack(opt, f, g, row, qlen, best_pos, rst, anno);
 
 	kfree(km, row);
 	kfree(km, cell);
@@ -449,9 +463,17 @@ void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const
 		q = rb3_bwtl_gen(km, len, seq);
 		g = rb3_dawg_gen(km, q);
 	}
-	sw_core(km, opt, f, g, len, rst);
+	sw_core(km, opt, f, g, len, rst, 0);
 	rb3_dawg_destroy(km, g); // this doesn't deallocate q
 	if (q) rb3_bwtl_destroy(q);
+}
+
+void rb3_sw_anno(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const uint8_t *seq, rb3_swanno_t *anno)
+{
+	rb3_dawg_t *g;
+	g = rb3_dawg_gen_linear(km, len, seq);
+	sw_core(km, opt, f, g, len, 0, anno);
+	rb3_dawg_destroy(km, g);
 }
 
 void rb3_swrst_free(rb3_swrst_t *rst)
