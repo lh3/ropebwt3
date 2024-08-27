@@ -354,6 +354,11 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 	}
 	for (j = o.ind + 1; j < argc; ++j) {
 		p.fp = rb3_seq_open(argv[j], is_line);
+		if (p.fp == 0) {
+			if (rb3_verbose >= 1)
+				fprintf(stderr, "ERROR: failed to load the sequence file '%s'\n", argv[j]);
+			break;
+		}
 		kt_pipeline(2, worker_pipeline, &p, 3);
 		rb3_seq_close(p.fp);
 	}
