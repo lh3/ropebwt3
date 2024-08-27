@@ -612,7 +612,7 @@ The longest PML of each read is on average 27\% shorter than the longest exact m
 MONI and ropebwt3 can also find inexact matches.
 Implementing r-index, MONI can relatively cheaply locate one SMEM.
 It leverages this property to extract the genomic sequence around the longest SMEM and performs Smith-Waterman extension.
-MONI extension is faster than BWA-SW on SR$+$ because it does not need to inspect all haplotypes.
+MONI extension is faster than BWA-SW on SR$+$ because it does not need to inspect suboptimal hits.
 This feature apparently focuses on short reads only.
 On LR$+$, MONI extension fails to extend to the ends of reads and generate incorrect output for the majority of reads.
 
@@ -640,6 +640,20 @@ This is probably because minimap2 ignores seeds occurring thousands of times in 
 Capable of finding SMEMs at the pangenome scale, ropebwt3 is more effective for identifying known sequences.
 It is actually also faster than full minimap2 alignment against a single genome.
 
+\subsection{Counting C4 alleles}
+
+The reference human genome GRCh38 has two paralogous C4 genes, \emph{C4A} and \emph{C4B}, and they may have copy-number changes~\citep{Sekar:2016aa}.
+In both cases, the exon 26 harbors the functional domain.
+We extracted the exon 26 from both genes from GRCh38.
+They differ at six mismatches over 157bp.
+We aligned both 157bp segments, one from each gene, to the human pangenome.
+105 haplotypes have the same \emph{C4A} exon 26 sequence, 1 haplotype has a mismatch at offset 128 and 4 have a mismatch at 54.
+In case of \emph{C4B}, 60 haplotypes have the same reference \emph{C4B} sequence and 23 also have a mismatch at offset 54.
+This means among the 100 human haplotypes, there are 110 \emph{C4A} gene copies and 83 \emph{C4B} copies.
+We can only obtain this information with BWA-SW which reports suboptimal hits.
+If we increase the bandwidth from the default 25 to 200, BWA-SW will be able to align \emph{C4A} exon 26 to \emph{C4B} genes
+and output all five hits for each sequence.
+
 \section{Discussions}
 
 Ropebwt3 is a fast tool for BWT construction and sequence search for redundant DNA sequences.
@@ -655,18 +669,24 @@ This strategy will use working disk space but achieve better parallelization.
 
 We thought about implementing r-index in ropebwt3.
 However, although an r-index is faster than an FM-index of the same size,
-it imposes a fixed sampling rate: two samples per run.
+it imposes a fixed sampling rate: two suffix array values per run.
 The BWT of CommonBacteria has 14.6 trillion bases and 17.6 billion runs.
 An r-index is likely to take more than 200GB,
 while an FM-index sampled at one position per 8,192bp takes 17.5GB in ropebwt3.
 We are still looking for a more balanced algorithm for the ``locate'' operation.
 
-The BWA-SW algorithm is slow because it always explores multiple suboptimal alignment paths even if the query sequence has a perfect match.
-A wavefront-based algorithm~\citep{Marco-Sola:2021aa} may be a potential direction.
-Another idea is to apply sequence-to-tree alignment, similar to BWT-SW, to extend long SMEMs but without extracting individual sequences.
-This will give more accurate alignment than MONI which only extends one sequence.
+%The BWA-SW algorithm is slow because it always explores multiple suboptimal alignment paths even if the query sequence has a perfect match.
+%A wavefront-based algorithm~\citep{Marco-Sola:2021aa} may be a potential direction.
+%Another idea is to apply sequence-to-tree alignment, similar to BWT-SW, to extend long SMEMs but without extracting individual sequences.
+%This will give more accurate alignment than MONI which only extends one sequence.
 
-More generally, what types of queries most benefit real biological applications?
+We have been wondering what would be the killer application of a pangenome index.
+We do not have a good answer.
+When the index consists of similar genomes, there is not much need to classify reads as the reads are either mapped to almost all genomes or mapped to no genomes.
+Ordinary read alignment is not very useful, either, because we cannot call variants or apply standard tools to the alignment.
+In addition, a long read sequenced from a new sample may be the recombinant of two genomes in the index.
+We are not interested in the best alignment of the long read to a single genome.
+We think extracting and counting related local haplotypes with BWA-SW could help biologists study complex regions where variant calling is difficult.
 
 \section*{Acknowledgements}
 
