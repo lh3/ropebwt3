@@ -33,11 +33,11 @@ void rb3_swopt_init(rb3_swopt_t *opt)
 #define SW_FROM_OPEN 0
 #define SW_FROM_EXT  1
 
-#define SW_F_UNSET (0xfffffff) // 28 bits
+#define SW_F_UNSET (0x7ffffff) // 27 bits
 
 typedef struct { // 48 bytes
 	int32_t H, E, F;
-	uint32_t H_from:2, E_from:1, F_from:1, F_from_off:28;
+	uint32_t H_from:2, E_from:1, F_from:1, F_from_off:27, F_off_set:1;
 	uint32_t H_from_pos, E_from_pos;
 	int32_t rlen, qlen;
 	int64_t lo, hi;
@@ -96,7 +96,7 @@ static void sw_backtrack1_core(const rb3_swopt_t *opt, const rb3_fmi_t *f, const
 			assert(p->E > 0 && p->E_from_pos != UINT32_MAX);
 			pos = p->E_from_pos;
 		} else if (state == SW_FROM_F) {
-			assert(p->F > 0 && p->F_from_off != SW_F_UNSET);
+			assert(p->F > 0 && p->F_off_set);
 			pos = r * n_col + p->F_from_off;
 		}
 		sw_push_state(last_op, op, c, hit, len_only);
@@ -245,13 +245,13 @@ static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, 
 			k = sw_candset_get(h, r);
 			if (k != kh_end(h)) {
 				int32_t i = kh_key(h, k).H;
-				if (row->a[i].F_from_off == SW_F_UNSET)
-					row->a[i].F_from_off = j;
+				if (row->a[i].F_off_set == 0)
+					row->a[i].F_from_off = j, row->a[i].F_off_set = 1;
 			}
 		}
 	}
 	for (j = 0; j < row->n - 1; ++j) {
-		if (row->a[j].F_from_off == SW_F_UNSET) { // this may happen if the parent cell is not in row; this happens!
+		if (row->a[j].F_off_set == 0) { // this may happen if the parent cell is not in row; this happens!
 			assert(row->a[j].H_from != SW_FROM_F); // but this shouldn't happen
 			row->a[j].F = 0; // prevent backtrack to F
 		}
