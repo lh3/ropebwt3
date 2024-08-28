@@ -387,7 +387,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 					r.F_from = SW_FROM_EXT,  r.F = z.F;
 				r.F -= opt->gap_ext;
 				r.H = r.F, r.H_from = SW_FROM_F;
-				r.rlen = p->rlen + 1, r.qlen = p->qlen;
+				r.rlen = z.rlen + 1, r.qlen = z.qlen;
 				if (r.H <= min) continue;
 				rb3_fmi_rank2a_cached(f, rc, z.lo, z.hi, clo, chi);
 				for (c = 1; c < 6; ++c) {
