@@ -148,7 +148,7 @@ static void sw_backtrack1(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_
 static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const sw_row_t *row, int32_t qlen, uint32_t best_pos, rb3_swrst_t *r, rb3_swanno_t *a)
 {
 	int32_t i, n_col = opt->n_best;
-	if (opt->flag & RB3_SWF_E2E) { // end-to-end mode
+	if (opt->flag & (RB3_SWF_E2E|RB3_SWF_ANNO)) { // end-to-end mode
 		const sw_row_t *p = &row[g->n_node - 1]; // last row
 		int32_t n = 0, H0;
 		if (p->n == 0) return;
@@ -269,7 +269,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	sw_candset_t *h;
 	void *rc = 0;
 
-	rst->n = 0, rst->a = 0;
+	if (rst) rst->n = 0, rst->a = 0;
 	rc = rb3_r2cache_init(km, opt->r2cache_size);
 	cell = Kcalloc(km, sw_cell_t, g->n_node * n_col); // this is the backtracking matrix
 	row = Kcalloc(km, sw_row_t, g->n_node);
