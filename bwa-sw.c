@@ -154,14 +154,14 @@ static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_d
 		if (p->n == 0) return;
 		H0 = p->a[0].H;
 		for (i = 0, n = 0; i < p->n; ++i) // count hits
-			if (p->a[i].qlen == qlen && p->a[i].H_from == SW_FROM_H && p->a[i].H >= opt->min_sc && (opt->e2e_drop < 0 || H0 - p->a[i].H <= opt->e2e_drop))
+			if (p->a[i].H_from == SW_FROM_H && p->a[i].H >= opt->min_sc && (opt->e2e_drop < 0 || H0 - p->a[i].H <= opt->e2e_drop))
 				++n;
 		if (n == 0) return;
 		if (r) r->n = n, r->a = RB3_CALLOC(rb3_swhit_t, n);
 		if (a) a->n_al = n, a->n_hap0 = a->n_hap = 0;
 		for (i = 0, n = 0; i < p->n; ++i) { // backtrack
 			const sw_cell_t *q = &p->a[i];
-			if (q->qlen == qlen && q->H_from == SW_FROM_H && q->H >= opt->min_sc && (opt->e2e_drop < 0 || H0 - q->H <= opt->e2e_drop)) {
+			if (q->H_from == SW_FROM_H && q->H >= opt->min_sc && (opt->e2e_drop < 0 || H0 - q->H <= opt->e2e_drop)) {
 				if (r) { // get full alignment
 					sw_backtrack1(opt, f, g, row, (g->n_node - 1) * n_col + i, &r->a[n++]);
 				} else if (a) { // get summary information
@@ -189,11 +189,12 @@ static sw_cell_t *sw_update_candset(sw_candset_t *h, const sw_cell_t *p)
 	k = sw_candset_put(h, *p, &absent);
 	if (!absent) {
 		sw_cell_t *q = &kh_key(h, k);
+		q->rlen = q->rlen > p->rlen? q->rlen : p->rlen;
+		q->qlen = q->qlen > p->qlen? q->qlen : p->qlen;
 		if (q->E < p->E) q->E = p->E, q->E_from = p->E_from, q->E_from_pos = p->E_from_pos;
 		if (q->F < p->F) q->F = p->F, q->F_from = p->F_from; // NB: F_from_off is populated differently
 		if (q->H < p->H) {
 			q->H = p->H, q->H_from = p->H_from;
-			q->rlen = p->rlen, q->qlen = p->qlen;
 			if (p->H_from == SW_FROM_H)
 				q->H_from_pos = p->H_from_pos; // TODO: is this correct?
 		}
