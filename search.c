@@ -6,7 +6,7 @@
 #include "kthread.h"
 #include "kalloc.h"
 
-typedef enum { RB3_SA_MEM_TG, RB3_SA_MEM_ORI, RB3_SA_SW, RB3_SA_ANNO } rb3_search_algo_t;
+typedef enum { RB3_SA_MEM_TG, RB3_SA_MEM_ORI, RB3_SA_SW, RB3_SA_HAPDIV } rb3_search_algo_t;
 
 #define RB3_MF_NO_KALLOC   0x1
 #define RB3_MF_WRITE_RS    0x2
@@ -15,7 +15,7 @@ typedef enum { RB3_SA_MEM_TG, RB3_SA_MEM_ORI, RB3_SA_SW, RB3_SA_ANNO } rb3_searc
 
 typedef struct {
 	uint32_t flag;
-	int32_t n_threads, min_gap_len, anno_k, anno_w;
+	int32_t n_threads, min_gap_len, hapdiv_k, hapdiv_w;
 	rb3_search_algo_t algo;
 	int64_t min_occ, min_len;
 	int64_t batch_size;
@@ -28,8 +28,8 @@ void rb3_mopt_init(rb3_mopt_t *opt)
 	opt->n_threads = 4;
 	opt->min_occ = 1;
 	opt->min_len = 19;
-	opt->anno_k = 101;
-	opt->anno_w = 50;
+	opt->hapdiv_k = 101;
+	opt->hapdiv_w = 50;
 	opt->batch_size = 100000000;
 	opt->algo = RB3_SA_MEM_TG;
 	rb3_swopt_init(&opt->swo);
@@ -60,15 +60,15 @@ typedef struct {
 
 typedef struct {
 	int32_t id, offset;
-	rb3_swanno_t anno;
-} m_anno_t;
+	rb3_hapdiv_t hapdiv;
+} m_hapdiv_t;
 
 typedef struct {
 	const pipeline_t *p;
-	int32_t n_seq, n_anno;
+	int32_t n_seq, n_hapdiv;
 	m_seq_t *seq;
 	rb3_swrst_t *rst;
-	m_anno_t *anno;
+	m_hapdiv_t *hapdiv;
 	m_tbuf_t *buf;
 } step_t;
 
@@ -113,12 +113,12 @@ static void worker_for_seq(void *data, long i, int tid)
 	}
 }
 
-static void worker_for_anno(void *data, long i, int tid)
+static void worker_for_hapdiv(void *data, long i, int tid)
 {
 	step_t *t = (step_t*)data;
 	const pipeline_t *p = t->p;
-	m_anno_t *a = &t->anno[i];
-	rb3_sw_anno(t->buf[tid].km, &p->opt->swo, &p->fmi, p->opt->anno_k, &t->seq[a->id].seq[a->offset], &a->anno);
+	m_hapdiv_t *a = &t->hapdiv[i];
+	rb3_hapdiv(t->buf[tid].km, &p->opt->swo, &p->fmi, p->opt->hapdiv_k, &t->seq[a->id].seq[a->offset], &a->hapdiv);
 }
 
 static inline void write_name(kstring_t *out, const m_seq_t *s)
@@ -228,15 +228,15 @@ static void write_anno(step_t *t)
 	kstring_t out = {0,0,0};
 	for (j = 0; j < t->n_seq; ++j)
 		free(t->seq[j].seq);
-	for (j = 1, j0 = 0; j <= t->n_anno; ++j) {
-		if (j == t->n_anno || t->anno[j].id != t->anno[j0].id || t->anno[j].anno.n_al != t->anno[j0].anno.n_al
-			|| t->anno[j].anno.n_hap0 != t->anno[j0].anno.n_hap0 || t->anno[j].anno.n_hap != t->anno[j0].anno.n_hap)
+	for (j = 1, j0 = 0; j <= t->n_hapdiv; ++j) {
+		if (j == t->n_hapdiv || t->hapdiv[j].id != t->hapdiv[j0].id || t->hapdiv[j].hapdiv.n_al != t->hapdiv[j0].hapdiv.n_al
+			|| t->hapdiv[j].hapdiv.n_hap0 != t->hapdiv[j0].hapdiv.n_hap0 || t->hapdiv[j].hapdiv.n_hap != t->hapdiv[j0].hapdiv.n_hap)
 		{
-			m_anno_t *a = &t->anno[j0];
+			m_hapdiv_t *a = &t->hapdiv[j0];
 			m_seq_t *s = &t->seq[a->id];
 			out.l = 0;
 			write_name(&out, s);
-			rb3_sprintf_lite(&out, "\t%d\t%d\t%d\t%d\t%d\n", a->offset, t->anno[j-1].offset + t->p->opt->anno_k, a->anno.n_al, a->anno.n_hap0, a->anno.n_hap);
+			rb3_sprintf_lite(&out, "\t%d\t%d\t%d\t%d\t%d\n", a->offset, t->hapdiv[j-1].offset + t->p->opt->hapdiv_k, a->hapdiv.n_al, a->hapdiv.n_hap0, a->hapdiv.n_hap);
 			fputs(out.s, stdout);
 			j0 = j;
 		}
@@ -244,7 +244,7 @@ static void write_anno(step_t *t)
 	for (j = 0; j < t->n_seq; ++j)
 		free(t->seq[j].name);
 	free(out.s);
-	free(t->anno);
+	free(t->hapdiv);
 }
 
 static void *worker_pipeline(void *shared, int step, void *in)
@@ -276,16 +276,16 @@ static void *worker_pipeline(void *shared, int step, void *in)
 			t->p = p;
 			t->seq = seq;
 			t->n_seq = n_seq;
-			if (p->opt->algo == RB3_SA_ANNO) { // the annotation mode
-				int32_t j, n_anno = 0;
+			if (p->opt->algo == RB3_SA_HAPDIV) { // the annotation mode
+				int32_t j, n_hapdiv = 0;
 				for (i = 0; i < n_seq; ++i)
-					n_anno += seq[i].len < p->opt->anno_k? 0 : (seq[i].len - p->opt->anno_k) / p->opt->anno_w + 1;
-				t->n_anno = n_anno;
-				t->anno = RB3_CALLOC(m_anno_t, n_anno);
-				for (i = 0, n_anno = 0; i < n_seq; ++i)
-					for (j = 0; j + p->opt->anno_k <= seq[i].len; j += p->opt->anno_w)
-						t->anno[n_anno].id = i, t->anno[n_anno++].offset = j;
-				assert(n_anno == t->n_anno);
+					n_hapdiv += seq[i].len < p->opt->hapdiv_k? 0 : (seq[i].len - p->opt->hapdiv_k) / p->opt->hapdiv_w + 1;
+				t->n_hapdiv = n_hapdiv;
+				t->hapdiv = RB3_CALLOC(m_hapdiv_t, n_hapdiv);
+				for (i = 0, n_hapdiv = 0; i < n_seq; ++i)
+					for (j = 0; j + p->opt->hapdiv_k <= seq[i].len; j += p->opt->hapdiv_w)
+						t->hapdiv[n_hapdiv].id = i, t->hapdiv[n_hapdiv++].offset = j;
+				assert(n_hapdiv == t->n_hapdiv);
 			} else {
 				t->rst = RB3_CALLOC(rb3_swrst_t, n_seq);
 			}
@@ -295,8 +295,8 @@ static void *worker_pipeline(void *shared, int step, void *in)
 			return t;
 		}
 	} else if (step == 1) {
-		if (p->opt->algo == RB3_SA_ANNO)
-			kt_for(p->opt->n_threads, worker_for_anno, in, t->n_anno);
+		if (p->opt->algo == RB3_SA_HAPDIV)
+			kt_for(p->opt->n_threads, worker_for_hapdiv, in, t->n_hapdiv);
 		else
 			kt_for(p->opt->n_threads, worker_for_seq, in, t->n_seq);
 		return in;
@@ -304,7 +304,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 		for (i = 0; i < p->opt->n_threads; ++i)
 			km_destroy(t->buf[i].km);
 		free(t->buf);
-		if (p->opt->algo == RB3_SA_ANNO)
+		if (p->opt->algo == RB3_SA_HAPDIV)
 			write_anno(t);
 		else
 			write_per_seq(t);
@@ -341,8 +341,8 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 	p.opt = &opt, p.id = 0;
 	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MdN:A:B:O:E:C:m:k:uj:ey:a:w:", long_options)) >= 0) {
 		if (c == 'L') is_line = 1;
-		else if (c == 'a') opt.algo = RB3_SA_ANNO, opt.anno_k = atoi(o.arg);
-		else if (c == 'w') opt.algo = RB3_SA_ANNO, opt.anno_w = atoi(o.arg);
+		else if (c == 'a') opt.algo = RB3_SA_HAPDIV, opt.hapdiv_k = atoi(o.arg);
+		else if (c == 'w') opt.algo = RB3_SA_HAPDIV, opt.hapdiv_w = atoi(o.arg);
 		else if (c == 'd') opt.algo = RB3_SA_SW, load_flag |= RB3_LOAD_ALL;
 		else if (c == 'l') opt.min_len = atol(o.arg);
 		else if (c == 'c') opt.min_occ = atol(o.arg);
@@ -379,11 +379,11 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 	if (strcmp(argv[0], "sw") == 0) {
 		opt.algo = RB3_SA_SW;
 		if (!no_ssa) load_flag |= RB3_LOAD_ALL;
-	} else if (strcmp(argv[0], "anno") == 0) {
-		opt.algo = RB3_SA_ANNO;
+	} else if (strcmp(argv[0], "hapdiv") == 0) {
+		opt.algo = RB3_SA_HAPDIV;
 	}
-	if (opt.algo == RB3_SA_ANNO)
-		opt.swo.flag |= RB3_SWF_E2E | RB3_SWF_ANNO;
+	if (opt.algo == RB3_SA_HAPDIV)
+		opt.swo.flag |= RB3_SWF_E2E | RB3_SWF_HAPDIV;
 	if (argc - o.ind < 2) {
 		fprintf(stdout, "Usage: ropebwt3 %s [options] <idx.fmr> <seq.fa> [...]\n", argv[0]);
 		fprintf(stderr, "Options:\n");
@@ -397,11 +397,11 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		if (strcmp(argv[0], "search") == 0) {
 			fprintf(stderr, "  -d          use BWA-SW for local alignment\n");
 		}
-		if (strcmp(argv[0], "anno") == 0 || strcmp(argv[0], "search") == 0) {
-			fprintf(stderr, "  -a INT      annotate sliding INT-mers [%d]\n", opt.anno_k);
-			fprintf(stderr, "  -w INT      k-mer step size for annotation [%d]\n", opt.anno_w);
+		if (strcmp(argv[0], "hapdiv") == 0 || strcmp(argv[0], "search") == 0) {
+			fprintf(stderr, "  -a INT      annotate sliding INT-mers [%d]\n", opt.hapdiv_k);
+			fprintf(stderr, "  -w INT      k-mer step size for annotation [%d]\n", opt.hapdiv_w);
 		}
-		if (strcmp(argv[0], "sw") == 0 || strcmp(argv[0], "anno") == 0 || strcmp(argv[0], "search") == 0) {
+		if (strcmp(argv[0], "sw") == 0 || strcmp(argv[0], "hapdiv") == 0 || strcmp(argv[0], "search") == 0) {
 			fprintf(stderr, "  -N INT      keep up to INT hits per DAWG node [%d]\n", opt.swo.n_best);
 			fprintf(stderr, "  -m INT      min alignment score [%d]\n", opt.swo.min_sc);
 			fprintf(stderr, "  -A INT      match score [%d]\n", opt.swo.match);

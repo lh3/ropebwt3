@@ -167,10 +167,10 @@ static void sw_cell_dedup(void *km, sw_row_t *row)
 	rb3_u128map_destroy(h);
 }
 
-static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const sw_row_t *row, int32_t qlen, uint32_t best_pos, rb3_swrst_t *r, rb3_swanno_t *a)
+static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const sw_row_t *row, int32_t qlen, uint32_t best_pos, rb3_swrst_t *r, rb3_hapdiv_t *a)
 {
 	int32_t i, n_col = opt->n_best;
-	if (opt->flag & (RB3_SWF_E2E|RB3_SWF_ANNO)) { // end-to-end mode
+	if (opt->flag & (RB3_SWF_E2E|RB3_SWF_HAPDIV)) { // end-to-end mode
 		const sw_row_t *p = &row[g->n_node - 1]; // last row
 		int32_t n = 0, H0;
 		if (p->n == 0) return;
@@ -269,7 +269,7 @@ static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, 
 #define sw_cell2sai(cell, sai) ((sai)->x[0] = (cell)->lo, (sai)->x[1] = (cell)->lo_rc, (sai)->size = (cell)->hi - (cell)->lo)
 #define sw_sai2cell(sai, cell) ((cell)->lo = (sai)->x[0], (cell)->hi = (sai)->x[0] + (sai)->size, (cell)->lo_rc = (sai)->x[1])
 
-static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, int32_t qlen, rb3_swrst_t *rst, rb3_swanno_t *anno)
+static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, int32_t qlen, rb3_swrst_t *rst, rb3_hapdiv_t *anno)
 {
 	uint32_t best_pos = 0;
 	int32_t i, c, n_col = opt->n_best, m_fstack, m_fpar, best_score;
@@ -492,11 +492,11 @@ void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const
 	if (q) rb3_bwtl_destroy(q);
 }
 
-void rb3_sw_anno(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const uint8_t *seq, rb3_swanno_t *anno)
+void rb3_hapdiv(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const uint8_t *seq, rb3_hapdiv_t *hd)
 {
 	rb3_dawg_t *g;
 	g = rb3_dawg_gen_linear(km, len, seq);
-	sw_core(km, opt, f, g, len, 0, anno);
+	sw_core(km, opt, f, g, len, 0, hd);
 	rb3_dawg_destroy(km, g);
 }
 
