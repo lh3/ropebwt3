@@ -51,10 +51,6 @@ typedef struct {
 #define sw_cell_eq(x, y) ((x).lo == (y).lo && (x).hi == (y).hi)
 KHASHL_SET_INIT(KH_LOCAL, sw_candset_t, sw_candset, sw_cell_t, sw_cell_hash, sw_cell_eq)
 
-#define rb3_u128_hash(a) (kh_hash_uint64((a).x) + kh_hash_uint64((a).y))
-#define rb3_u128_eq(a, b) ((a).x == (b).x && (a).y == (b).y)
-KHASHL_SET_INIT(KH_LOCAL, rb3_u128map_t, rb3_u128map, rb3_u128_t, rb3_u128_hash, rb3_u128_eq)
-
 /*************
  * Backtrack *
  *************/
@@ -149,21 +145,22 @@ static void sw_backtrack1(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_
 }
 
 static void sw_cell_dedup(void *km, sw_row_t *row)
-{ // mark a cell to be filtered if [lo_rc,lo_rc+(hi-lo)) is the same as a cell at a higher score
-	int32_t i;
-	rb3_u128map_t *h;
+{ // mark a cell to be filtered if [lo_rc,lo_rc+(hi-lo)) is contained in a cell at a higher score
+	int32_t i, j, k, *a;
 	if (row->n <= 1) return; // no need
-	h = rb3_u128map_init2(km);
-	rb3_u128map_resize(h, row->n * 2);
-	for (i = 0; i < row->n; ++i) {
-		int absent;
-		sw_cell_t *q = &row->a[i];
-		rb3_u128_t z;
-		z.x = q->lo_rc, z.y = z.x + (q->hi - q->lo);
-		rb3_u128map_put(h, z, &absent);
-		if (!absent) q->flt = 1; // mark filter; don't remove as that would break F_from_off
+	a = Kmalloc(km, int32_t, row->n);
+	a[0] = 0;
+	for (i = k = 1; i < row->n; ++i) {
+		sw_cell_t *p = &row->a[i];
+		for (j = 0; j < k; ++j) {
+			sw_cell_t *q = &row->a[a[j]];
+			if (q->lo_rc <= p->lo_rc && q->lo_rc + (q->hi - q->lo) >= p->lo_rc + (p->hi - p->lo))
+				break;
+		}
+		if (j == k) a[k++] = i;
+		else p->flt = 1;
 	}
-	rb3_u128map_destroy(h);
+	kfree(km, a);
 }
 
 static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const sw_row_t *row, int32_t qlen, uint32_t best_pos, rb3_swrst_t *r, rb3_hapdiv_t *a)
