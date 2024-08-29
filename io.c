@@ -197,6 +197,7 @@ rb3_sid_t *rb3_sid_read(const char *fn)
 			sl->len[sl->n_seq++] = len;
 		}
 	}
+	free(str.s);
 	ks_destroy(ks);
 	gzclose(fp);
 	return sl;

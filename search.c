@@ -222,7 +222,7 @@ static void write_per_seq(step_t *t)
 	free(t->rst);
 }
 
-static void write_anno(step_t *t)
+static void write_hapdiv(step_t *t)
 {
 	int32_t j, j0;
 	kstring_t out = {0,0,0};
@@ -305,7 +305,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 			km_destroy(t->buf[i].km);
 		free(t->buf);
 		if (p->opt->algo == RB3_SA_HAPDIV)
-			write_anno(t);
+			write_hapdiv(t);
 		else
 			write_per_seq(t);
 		free(t->seq);

@@ -299,7 +299,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	for (i = 1; i < g->n_node; ++i) { // traverse all nodes in the DAWG in the topological order
 		const rb3_dawg_node_t *t = &g->node[i];
 		sw_row_t *ri = &row[i];
-		int32_t j, k, heap_sz, max_min_sc = 0, n_fpar;
+		int32_t j, k, heap_sz, max_min_sc = 0, n_fpar = 0;
 		rb3_sai_t ik, ok[RB3_ASIZE];
 		khint_t itr;
 		sw_candset_clear(h);
@@ -501,4 +501,5 @@ void rb3_swrst_free(rb3_swrst_t *rst)
 	for (i = 0; i < rst->n; ++i) {
 		free(rst->a[i].rseq); free(rst->a[i].cigar); free(rst->a[i].qoff);
 	}
+	free(rst->a);
 }
