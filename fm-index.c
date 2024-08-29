@@ -381,12 +381,12 @@ void rb3_fmi_rank2a_cached(const rb3_fmi_t *fmi, void *rc_, int64_t k, int64_t l
  * Exact match *
  ***************/
 
-void rb3_fmd_extend(const rb3_fmi_t *f, const rb3_sai_t *ik, rb3_sai_t ok[RB3_ASIZE], int is_back)
+void rb3_fmd_extend_cached(const rb3_fmi_t *f, void *rc, const rb3_sai_t *ik, rb3_sai_t ok[RB3_ASIZE], int is_back)
 {
 	int64_t tk[RB3_ASIZE], tl[RB3_ASIZE];
 	int c;
 	is_back = !!is_back; // 0 or 1
-	rb3_fmi_rank2a(f, ik->x[!is_back], ik->x[!is_back] + ik->size, tk, tl);
+	rb3_fmi_rank2a_cached(f, rc, ik->x[!is_back], ik->x[!is_back] + ik->size, tk, tl);
 	for (c = 0; c < RB3_ASIZE; ++c) {
 		ok[c].x[!is_back] = f->acc[c] + tk[c];
 		ok[c].size = (tl[c] -= tk[c]);
@@ -397,6 +397,11 @@ void rb3_fmd_extend(const rb3_fmi_t *f, const rb3_sai_t *ik, rb3_sai_t ok[RB3_AS
 	ok[2].x[is_back] = ok[3].x[is_back] + tl[3];
 	ok[1].x[is_back] = ok[2].x[is_back] + tl[2];
 	ok[5].x[is_back] = ok[1].x[is_back] + tl[1];
+}
+
+void rb3_fmd_extend(const rb3_fmi_t *f, const rb3_sai_t *ik, rb3_sai_t ok[RB3_ASIZE], int is_back)
+{
+	rb3_fmd_extend_cached(f, 0, ik, ok, is_back);
 }
 
 static void rb3_sai_reverse(rb3_sai_t *a, int64_t l)

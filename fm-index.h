@@ -54,6 +54,7 @@ mrope_t *rb3_enc_fmd2fmr(rld_t *e, int max_nodes, int block_len, int is_free);
 void *rb3_r2cache_init(void *km, int32_t max);
 void rb3_r2cache_destroy(void *rc_);
 void rb3_fmi_rank2a_cached(const rb3_fmi_t *fmi, void *rc_, int64_t k, int64_t l, int64_t ok[6], int64_t ol[6]);
+void rb3_fmd_extend_cached(const rb3_fmi_t *f, void *rc, const rb3_sai_t *ik, rb3_sai_t ok[RB3_ASIZE], int is_back);
 
 void rb3_mg_rank(const rb3_fmi_t *fa, const rb3_fmi_t *fb, int64_t *rb, int n_threads);
 void rb3_mg_rank_plain(const rb3_fmi_t *fa, int64_t len, const uint8_t *seq, int64_t *rb, int64_t acc[RB3_ASIZE+1], int n_threads);

@@ -40,7 +40,7 @@ typedef struct { // 48 bytes
 	uint32_t H_from:2, E_from:1, F_from:1, F_from_off:27, F_off_set:1;
 	uint32_t H_from_pos, E_from_pos;
 	int32_t rlen, qlen;
-	int64_t lo, hi;
+	int64_t lo, hi, lo_rc;
 } sw_cell_t;
 
 typedef struct {
@@ -242,6 +242,9 @@ static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, 
 	}
 }
 
+#define sw_cell2sai(cell, sai) ((sai)->x[0] = (cell)->lo, (sai)->x[1] = (cell)->lo_rc, (sai)->size = (cell)->hi - (cell)->lo)
+#define sw_sai2cell(sai, cell) ((cell)->lo = (sai)->x[0], (cell)->hi = (sai)->x[0] + (sai)->size, (cell)->lo_rc = (sai)->x[1])
+
 static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, int32_t qlen, rb3_swrst_t *rst, rb3_swanno_t *anno)
 {
 	uint32_t best_pos = 0;
@@ -249,7 +252,6 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	int32_t *ks_a, ks_m;
 	sw_cell_t *cell, *fstack, *p;
 	sw_row_t *row;
-	int64_t clo[6], chi[6];
 	uint64_t *heap;
 	sw_candset_t *h;
 	rb3_u128_t *fpar;
@@ -262,7 +264,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	for (i = 0; i < g->n_node; ++i)
 		row[i].a = &cell[i * n_col];
 	p = &row[0].a[row[0].n++]; // point to the first cell
-	p->lo = 0, p->hi = f->acc[6];
+	p->lo = 0, p->hi = f->acc[6], p->lo_rc = 0;
 	p->H_from = SW_FROM_H;
 	best_score = 0;
 
@@ -278,6 +280,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		const rb3_dawg_node_t *t = &g->node[i];
 		sw_row_t *ri = &row[i];
 		int32_t j, k, heap_sz, max_min_sc = 0, n_fpar;
+		rb3_sai_t ik, ok[RB3_ASIZE];
 		khint_t itr;
 		sw_candset_clear(h);
 
@@ -312,14 +315,14 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 				r.F_from_off = SW_F_UNSET;
 				// calculate H
 				r.H_from = SW_FROM_H, r.H_from_pos = pid * n_col + k, r.E_from_pos = UINT32_MAX;
-				rb3_fmi_rank2a_cached(f, rc, p->lo, p->hi, clo, chi);
+				sw_cell2sai(p, &ik);
+				rb3_fmd_extend_cached(f, rc, &ik, ok, 1);
 				for (c = 1; c < 6; ++c) {
 					int32_t sc = c == t->c? opt->match : -opt->mis;
+					if (ok[c].size == 0) continue;
 					if (p->H + sc <= 0 || p->H + sc < max_min_sc) continue;
 					if (c != t->c && p->qlen < opt->end_len) continue;
-					r.lo = f->acc[c] + clo[c];
-					r.hi = f->acc[c] + chi[c];
-					if (r.lo == r.hi) continue;
+					sw_sai2cell(&ok[c], &r);
 					r.H = p->H + sc;
 					r.rlen = p->rlen + 1, r.qlen = p->qlen + 1;
 					sw_update_candset(h, &r);
@@ -377,20 +380,22 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 				r.H = r.F, r.H_from = SW_FROM_F;
 				r.rlen = z.rlen + 1, r.qlen = z.qlen;
 				if (r.H <= min) continue;
-				rb3_fmi_rank2a_cached(f, rc, z.lo, z.hi, clo, chi);
+				sw_cell2sai(&z, &ik);
+				rb3_fmd_extend_cached(f, rc, &ik, ok, 1);
 				for (c = 1; c < 6; ++c) {
 					sw_cell_t *q;
-					r.lo = f->acc[c] + clo[c];
-					r.hi = f->acc[c] + chi[c];
-					if (r.lo == r.hi) continue;
+					if (ok[c].size == 0) continue;
+					sw_sai2cell(&ok[c], &r);
 					q = sw_update_candset(h, &r);
-					sw_heap_insert1(heap, opt->n_best, &heap_sz, r.H, UINT32_MAX);
-					Kgrow(km, rb3_u128_t, fpar, n_fpar, m_fpar);
-					fpar[n_fpar].x = z.lo, fpar[n_fpar].y = z.hi;
-					q->F_from_off = n_fpar++;
-					if (r.H - opt->gap_ext > min) {
-						Kgrow(km, sw_cell_t, fstack, n_fstack, m_fstack);
-						fstack[n_fstack++] = *q;
+					if (q->F == r.F) { // if q->F > r.F, this deletion is not really added
+						sw_heap_insert1(heap, opt->n_best, &heap_sz, r.H, UINT32_MAX);
+						Kgrow(km, rb3_u128_t, fpar, n_fpar, m_fpar);
+						fpar[n_fpar].x = z.lo, fpar[n_fpar].y = z.hi;
+						q->F_from_off = n_fpar++;
+						if (r.H - opt->gap_ext > min) {
+							Kgrow(km, sw_cell_t, fstack, n_fstack, m_fstack);
+							fstack[n_fstack++] = *q;
+						}
 					}
 				}
 			}
