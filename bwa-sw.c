@@ -217,43 +217,27 @@ static inline int32_t sw_heap_insert1(uint64_t *heap, int32_t max, int32_t *sz, 
 	return 0;
 }
 
-static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, sw_row_t *row)
+static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, rb3_u128_t *fpar, sw_row_t *row)
 { // compute F_from_off at row
-	int32_t j, n_F = 0;
-	for (j = 0; j < row->n; ++j)
-		if (row->a[j].F > 0)
-			++n_F;
-	if (n_F == 0) return; // no F is calculated
+	int32_t j;
 	sw_candset_clear(h);
-	for (j = 0; j < row->n; ++j) { // collect cells where F_from_off needs to be calculated
+	for (j = 0; j < row->n; ++j) {
 		int absent;
-		if (row->a[j].F == 0) continue;
 		sw_cell_t r = row->a[j];
 		r.H = j; // reuse "H" for index
 		sw_candset_put(h, r, &absent);
 	}
-	for (j = 0; j < row->n - 1; ++j) {
-		sw_cell_t r = row->a[j];
-		int64_t clo[6], chi[6];
-		int c;
+	for (j = 0; j < row->n; ++j) {
+		sw_cell_t r, *p = &row->a[j];
 		khint_t k;
-		rb3_fmi_rank2a_cached(f, rc, r.lo, r.hi, clo, chi);
-		for (c = 1; c < 6; ++c) {
-			r.lo = f->acc[c] + clo[c];
-			r.hi = f->acc[c] + chi[c];
-			if (r.lo == r.hi) continue;
-			k = sw_candset_get(h, r);
-			if (k != kh_end(h)) {
-				int32_t i = kh_key(h, k).H;
-				if (row->a[i].F_off_set == 0)
-					row->a[i].F_from_off = j, row->a[i].F_off_set = 1;
-			}
-		}
-	}
-	for (j = 0; j < row->n - 1; ++j) {
-		if (row->a[j].F_off_set == 0) { // this may happen if the parent cell is not in row; this happens!
-			assert(row->a[j].H_from != SW_FROM_F); // but this shouldn't happen
-			row->a[j].F = 0; // prevent backtrack to F
+		if (p->F == 0 || p->F_from_off == SW_F_UNSET) continue;
+		r.lo = fpar[p->F_from_off].x, r.hi = fpar[p->F_from_off].y;
+		k = sw_candset_get(h, r);
+		if (k != kh_end(h)) {
+			p->F_from_off = kh_key(h, k).H, p->F_off_set = 1;
+		} else { // this may happen if the parent cell is not in row; this happens!
+			assert(p->H_from != SW_FROM_F); // but this shouldn't happen
+			p->F_from_off = SW_F_UNSET; // prevent backtrack to F
 		}
 	}
 }
@@ -261,13 +245,14 @@ static void sw_track_F(void *km, const rb3_fmi_t *f, void *rc, sw_candset_t *h, 
 static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, int32_t qlen, rb3_swrst_t *rst, rb3_swanno_t *anno)
 {
 	uint32_t best_pos = 0;
-	int32_t i, c, n_col = opt->n_best, m_fstack = opt->n_best * 3, best_score;
+	int32_t i, c, n_col = opt->n_best, m_fstack, m_fpar, best_score;
 	int32_t *ks_a, ks_m;
 	sw_cell_t *cell, *fstack, *p;
 	sw_row_t *row;
 	int64_t clo[6], chi[6];
 	uint64_t *heap;
 	sw_candset_t *h;
+	rb3_u128_t *fpar;
 	void *rc = 0;
 
 	if (rst) rst->n = 0, rst->a = 0;
@@ -281,7 +266,9 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	p->H_from = SW_FROM_H;
 	best_score = 0;
 
+	m_fstack = m_fpar = opt->n_best * 3;
 	fstack = Kcalloc(km, sw_cell_t, m_fstack);
+	fpar = Kcalloc(km, rb3_u128_t, m_fpar);
 	heap = Kcalloc(km, uint64_t, opt->n_best);
 	h = sw_candset_init2(km);
 	sw_candset_resize(h, opt->n_best * 4);
@@ -290,7 +277,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	for (i = 1; i < g->n_node; ++i) { // traverse all nodes in the DAWG in the topological order
 		const rb3_dawg_node_t *t = &g->node[i];
 		sw_row_t *ri = &row[i];
-		int32_t j, k, heap_sz, max_min_sc = 0;
+		int32_t j, k, heap_sz, max_min_sc = 0, n_fpar;
 		khint_t itr;
 		sw_candset_clear(h);
 
@@ -373,6 +360,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 
 		if (p->qlen >= opt->end_len) { // update F
 			int32_t n_fstack = 0;
+			n_fpar = 0;
 			for (j = ri->n - 1; j >= 0; --j)
 				if (ri->a[j].H > opt->gap_open + opt->gap_ext)
 					fstack[n_fstack++] = ri->a[j];
@@ -397,6 +385,9 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 					if (r.lo == r.hi) continue;
 					q = sw_update_candset(h, &r);
 					sw_heap_insert1(heap, opt->n_best, &heap_sz, r.H, UINT32_MAX);
+					Kgrow(km, rb3_u128_t, fpar, n_fpar, m_fpar);
+					fpar[n_fpar].x = z.lo, fpar[n_fpar].y = z.hi;
+					q->F_from_off = n_fpar++;
 					if (r.H - opt->gap_ext > min) {
 						Kgrow(km, sw_cell_t, fstack, n_fstack, m_fstack);
 						fstack[n_fstack++] = *q;
@@ -414,7 +405,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		ri->n = heap_sz;
 		for (j = 0; j < ri->n; ++j)
 			ri->a[j] = kh_key(h, (uint32_t)heap[j]);
-		sw_track_F(km, f, rc, h, &row[i]);
+		if (n_fpar > 0) sw_track_F(km, f, rc, h, fpar, &row[i]);
 		if (ri->a[0].H > best_score)
 			best_score = ri->a->H, best_pos = i * n_col;
 
@@ -434,6 +425,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		}
 	}
 	kfree(km, ks_a);
+	kfree(km, fpar);
 	kfree(km, fstack);
 	sw_candset_destroy(h);
 	kfree(km, heap);

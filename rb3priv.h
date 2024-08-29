@@ -21,6 +21,8 @@ typedef struct __kstring_t {
 } kstring_t;
 #endif
 
+typedef struct { uint64_t x, y; } rb3_u128_t;
+
 #define RB3_MALLOC(type, cnt)       ((type*)malloc((cnt) * sizeof(type)))
 #define RB3_CALLOC(type, cnt)       ((type*)calloc((cnt), sizeof(type)))
 #define RB3_REALLOC(type, ptr, cnt) ((type*)realloc((ptr), (cnt) * sizeof(type)))
