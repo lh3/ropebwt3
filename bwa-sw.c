@@ -33,11 +33,11 @@ void rb3_swopt_init(rb3_swopt_t *opt)
 #define SW_FROM_OPEN 0
 #define SW_FROM_EXT  1
 
-#define SW_F_UNSET (0x7ffffff) // 27 bits
+#define SW_F_UNSET (0x3ffffff) // 26 bits
 
 typedef struct { // 48 bytes
 	int32_t H, E, F;
-	uint32_t H_from:2, E_from:1, F_from:1, F_from_off:27, F_off_set:1;
+	uint32_t flt:1, H_from:2, E_from:1, F_from:1, F_from_off:26, F_off_set:1;
 	uint32_t H_from_pos, E_from_pos;
 	int32_t rlen, qlen;
 	int64_t lo, hi, lo_rc;
@@ -51,6 +51,10 @@ typedef struct {
 #define sw_cell_hash(x) (kh_hash_uint64((x).lo) + kh_hash_uint64((x).hi))
 #define sw_cell_eq(x, y) ((x).lo == (y).lo && (x).hi == (y).hi)
 KHASHL_SET_INIT(KH_LOCAL, sw_candset_t, sw_candset, sw_cell_t, sw_cell_hash, sw_cell_eq)
+
+#define rb3_u128_hash(a) (kh_hash_uint64((a).x) + kh_hash_uint64((a).y))
+#define rb3_u128_eq(a, b) ((a).x == (b).x && (a).y == (b).y)
+KHASHL_MAP_INIT(, rb3_u128map_t, rb3_u128map, rb3_u128_t, int64_t, rb3_u128_hash, rb3_u128_eq)
 
 /*************
  * Backtrack *
@@ -145,6 +149,24 @@ static void sw_backtrack1(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_
 	if (f->ssa) hit->lo_pos = rb3_ssa(f, f->ssa, hit->lo, &hit->lo_sid);
 }
 
+static void sw_cell_dedup(void *km, sw_row_t *row)
+{ // mark a cell to be filtered if [lo_rc,lo_rc+(hi-lo)) is the same as a cell at a higher score
+	int32_t i;
+	rb3_u128map_t *h;
+	if (row->n <= 1) return; // no need
+	h = rb3_u128map_init2(km);
+	rb3_u128map_resize(h, row->n * 2);
+	for (i = 0; i < row->n; ++i) {
+		int absent;
+		sw_cell_t *q = &row->a[i];
+		rb3_u128_t z;
+		z.x = q->lo_rc, z.y = z.x + (q->hi - q->lo);
+		rb3_u128map_put(h, z, &absent);
+		if (!absent) q->flt = 1; // mark filter; don't remove as that would break F_from_off
+	}
+	rb3_u128map_destroy(h);
+}
+
 static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const sw_row_t *row, int32_t qlen, uint32_t best_pos, rb3_swrst_t *r, rb3_swanno_t *a)
 {
 	int32_t i, n_col = opt->n_best;
@@ -153,15 +175,17 @@ static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_d
 		int32_t n = 0, H0;
 		if (p->n == 0) return;
 		H0 = p->a[0].H;
-		for (i = 0, n = 0; i < p->n; ++i) // count hits
-			if (p->a[i].H_from == SW_FROM_H && p->a[i].H >= opt->min_sc && (opt->e2e_drop < 0 || H0 - p->a[i].H <= opt->e2e_drop))
+		for (i = 0, n = 0; i < p->n; ++i) { // count hits
+			const sw_cell_t *q = &p->a[i];
+			if (!q->flt && q->H_from == SW_FROM_H && q->H >= opt->min_sc && (opt->e2e_drop < 0 || H0 - q->H <= opt->e2e_drop))
 				++n;
+		}
 		if (n == 0) return;
 		if (r) r->n = n, r->a = RB3_CALLOC(rb3_swhit_t, n);
 		if (a) a->n_al = n, a->n_hap0 = a->n_hap = 0;
 		for (i = 0, n = 0; i < p->n; ++i) { // backtrack
 			const sw_cell_t *q = &p->a[i];
-			if (q->H_from == SW_FROM_H && q->H >= opt->min_sc && (opt->e2e_drop < 0 || H0 - q->H <= opt->e2e_drop)) {
+			if (!q->flt && q->H_from == SW_FROM_H && q->H >= opt->min_sc && (opt->e2e_drop < 0 || H0 - q->H <= opt->e2e_drop)) {
 				if (r) { // get full alignment
 					sw_backtrack1(opt, f, g, row, (g->n_node - 1) * n_col + i, &r->a[n++]);
 				} else if (a) { // get summary information
@@ -410,9 +434,11 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		ri->n = heap_sz;
 		for (j = 0; j < ri->n; ++j)
 			ri->a[j] = kh_key(h, (uint32_t)heap[j]);
-		if (n_fpar > 0) sw_track_F(km, f, rc, h, fpar, &row[i]);
+		if (n_fpar > 0) sw_track_F(km, f, rc, h, fpar, ri);
 		if (ri->a[0].H > best_score)
 			best_score = ri->a->H, best_pos = i * n_col;
+		if (i == g->n_node - 1)
+			sw_cell_dedup(km, ri);
 
 		// for debugging
 		if (rb3_dbg_flag & RB3_DBG_SW) { // NB: single-threaded only
