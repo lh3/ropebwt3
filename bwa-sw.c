@@ -26,7 +26,6 @@ void rb3_swopt_init(rb3_swopt_t *opt)
 	opt->r2cache_size = 0x10000;
 }
 
-// NB: don't change these values!
 #define SW_FROM_H    0
 #define SW_FROM_E    1
 #define SW_FROM_F    2
@@ -35,12 +34,12 @@ void rb3_swopt_init(rb3_swopt_t *opt)
 
 #define SW_F_UNSET (0x3ffffff) // 26 bits
 
-typedef struct { // 48 bytes
+typedef struct {
 	int32_t H, E, F;
 	uint32_t flt:1, H_from:2, E_from:1, F_from:1, F_from_off:26, F_off_set:1;
 	uint32_t H_from_pos, E_from_pos;
 	int32_t rlen, qlen;
-	int64_t lo, hi, lo_rc;
+	int64_t lo, hi, lo_rc; // (lo, lo_rc, hi-lo) is the SA bi-interval
 } sw_cell_t;
 
 typedef struct {
@@ -54,7 +53,7 @@ KHASHL_SET_INIT(KH_LOCAL, sw_candset_t, sw_candset, sw_cell_t, sw_cell_hash, sw_
 
 #define rb3_u128_hash(a) (kh_hash_uint64((a).x) + kh_hash_uint64((a).y))
 #define rb3_u128_eq(a, b) ((a).x == (b).x && (a).y == (b).y)
-KHASHL_MAP_INIT(, rb3_u128map_t, rb3_u128map, rb3_u128_t, int64_t, rb3_u128_hash, rb3_u128_eq)
+KHASHL_SET_INIT(KH_LOCAL, rb3_u128map_t, rb3_u128map, rb3_u128_t, rb3_u128_hash, rb3_u128_eq)
 
 /*************
  * Backtrack *
@@ -171,9 +170,9 @@ static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_d
 {
 	int32_t i, n_col = opt->n_best;
 	if (opt->flag & (RB3_SWF_E2E|RB3_SWF_HAPDIV)) { // end-to-end mode
-		const sw_row_t *p = &row[g->n_node - 1]; // last row
+		const sw_row_t *p = &row[g->n_node - 1]; // last row, i.e. the end of the query sequence
 		int32_t n = 0, H0;
-		if (p->n == 0) return;
+		if (p->n == 0) return; // do nothing if the alignment doesn't reach the end
 		H0 = p->a[0].H;
 		for (i = 0, n = 0; i < p->n; ++i) { // count hits
 			const sw_cell_t *q = &p->a[i];
@@ -195,7 +194,7 @@ static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_d
 				}
 			}
 		}
-	} else { // local mode
+	} else { // local mode; TODO: support split alignment
 		r->n = 1;
 		r->a = RB3_CALLOC(rb3_swhit_t, r->n);
 		sw_backtrack1(opt, f, g, row, best_pos, &r->a[0]);
@@ -213,7 +212,7 @@ static sw_cell_t *sw_update_candset(sw_candset_t *h, const sw_cell_t *p)
 	k = sw_candset_put(h, *p, &absent);
 	if (!absent) {
 		sw_cell_t *q = &kh_key(h, k);
-		q->rlen = q->rlen > p->rlen? q->rlen : p->rlen;
+		q->rlen = q->rlen > p->rlen? q->rlen : p->rlen; // furthest extension
 		q->qlen = q->qlen > p->qlen? q->qlen : p->qlen;
 		if (q->E < p->E) q->E = p->E, q->E_from = p->E_from, q->E_from_pos = p->E_from_pos;
 		if (q->F < p->F) q->F = p->F, q->F_from = p->F_from; // NB: F_from_off is populated differently
@@ -288,17 +287,17 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	for (i = 0; i < g->n_node; ++i)
 		row[i].a = &cell[i * n_col];
 	p = &row[0].a[row[0].n++]; // point to the first cell
-	p->lo = 0, p->hi = f->acc[6], p->lo_rc = 0;
+	p->lo = 0, p->hi = f->acc[6], p->lo_rc = 0; // the SA bi-interval of an empty string, the root
 	p->H_from = SW_FROM_H;
 	best_score = 0;
 
-	m_fstack = m_fpar = opt->n_best * 3;
+	m_fstack = m_fpar = opt->n_best * 3; // fstack and fpar are temporary arrays for computing the keeping track of the F state
 	fstack = Kcalloc(km, sw_cell_t, m_fstack);
 	fpar = Kcalloc(km, rb3_u128_t, m_fpar);
 	heap = Kcalloc(km, uint64_t, opt->n_best);
 	h = sw_candset_init2(km);
 	sw_candset_resize(h, opt->n_best * 4);
-	ks_m = opt->n_best * 3;
+	ks_m = opt->n_best * 3; // ks_a is used for computing k-small
 	ks_a = Kmalloc(km, int32_t, ks_m);
 	for (i = 1; i < g->n_node; ++i) { // traverse all nodes in the DAWG in the topological order
 		const rb3_dawg_node_t *t = &g->node[i];
@@ -334,7 +333,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 			for (k = 0; k < row[pid].n; ++k) {
 				sw_cell_t r;
 				p = &row[pid].a[k];
-				if (p->H + opt->match < max_min_sc) continue; // this node can't reach opt->n_best
+				if (p->H + opt->match < max_min_sc) continue; // this cell can't reach opt->n_best
 				memset(&r, 0, sizeof(sw_cell_t));
 				r.F_from_off = SW_F_UNSET;
 				// calculate H
@@ -385,7 +384,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 			heap[heap_sz - j - 1] = tmp;
 		}
 
-		if (p->qlen >= opt->end_len) { // update F
+		if (p->qlen >= opt->end_len) { // update F; TODO: this algorithm is not good and even is not really correct
 			int32_t n_fstack = 0;
 			n_fpar = 0;
 			for (j = ri->n - 1; j >= 0; --j)
@@ -426,7 +425,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		}
 
 		heap_sz = 0;
-		kh_foreach(h, itr) {
+		kh_foreach(h, itr) { // rebuild the heap
 			sw_heap_insert1(heap, opt->n_best, &heap_sz, kh_key(h, itr).H, itr);
 		}
 		ks_heapsort_rb3_64(heap_sz, heap);
@@ -434,11 +433,10 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 		ri->n = heap_sz;
 		for (j = 0; j < ri->n; ++j)
 			ri->a[j] = kh_key(h, (uint32_t)heap[j]);
-		if (n_fpar > 0) sw_track_F(km, f, rc, h, fpar, ri);
+		if (n_fpar > 0) sw_track_F(km, f, rc, h, fpar, ri); // compute F_from_off for backtrack
 		if (ri->a[0].H > best_score)
 			best_score = ri->a->H, best_pos = i * n_col;
-		if (i == g->n_node - 1)
-			sw_cell_dedup(km, ri);
+		if (i == g->n_node - 1) sw_cell_dedup(km, ri); // dedup the last cell
 
 		// for debugging
 		if (rb3_dbg_flag & RB3_DBG_SW) { // NB: single-threaded only

@@ -258,7 +258,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 		int64_t len, tot = 0;
 		int32_t n_seq = 0, m_seq = 0;
 		m_seq_t *seq = 0;
-		while ((ss = rb3_seq_read1(p->fp, &len, &name)) != 0) {
+		while ((ss = rb3_seq_read1(p->fp, &len, &name)) != 0) { // read sequences
 			m_seq_t *s;
 			RB3_GROW0(m_seq_t, seq, n_seq, m_seq);
 			s = &seq[n_seq++];
@@ -271,12 +271,12 @@ static void *worker_pipeline(void *shared, int step, void *in)
 			if (tot >= p->opt->batch_size)
 				break;
 		}
-		if (n_seq > 0) {
+		if (n_seq > 0) { // construct a step_t object
 			t = RB3_CALLOC(step_t, 1);
 			t->p = p;
 			t->seq = seq;
 			t->n_seq = n_seq;
-			if (p->opt->algo == RB3_SA_HAPDIV) { // the annotation mode
+			if (p->opt->algo == RB3_SA_HAPDIV) { // the hapdiv mode
 				int32_t j, n_hapdiv = 0;
 				for (i = 0; i < n_seq; ++i)
 					n_hapdiv += seq[i].len < p->opt->hapdiv_k? 0 : (seq[i].len - p->opt->hapdiv_k) / p->opt->hapdiv_w + 1;
@@ -286,7 +286,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 					for (j = 0; j + p->opt->hapdiv_k <= seq[i].len; j += p->opt->hapdiv_w)
 						t->hapdiv[n_hapdiv].id = i, t->hapdiv[n_hapdiv++].offset = j;
 				assert(n_hapdiv == t->n_hapdiv);
-			} else {
+			} else { // per-sequence mode (sw, mem, gap and coverage)
 				t->rst = RB3_CALLOC(rb3_swrst_t, n_seq);
 			}
 			t->buf = RB3_CALLOC(m_tbuf_t, p->opt->n_threads);
@@ -380,7 +380,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		opt.algo = RB3_SA_SW;
 		if (!no_ssa) load_flag |= RB3_LOAD_ALL;
 	} else if (strcmp(argv[0], "hapdiv") == 0) {
-		opt.algo = RB3_SA_HAPDIV;
+		opt.algo = RB3_SA_HAPDIV, opt.swo.end_len = 1;
 	}
 	if (opt.algo == RB3_SA_HAPDIV)
 		opt.swo.flag |= RB3_SWF_E2E | RB3_SWF_HAPDIV;
@@ -427,12 +427,10 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 	}
 	ret = rb3_fmi_load_all(&p.fmi, argv[o.ind], load_flag);
 	if (ret < 0) return 1;
-	if (opt.algo != RB3_SA_SW) {
-		if (!rb3_fmi_is_symmetric(&p.fmi)) {
-			if (rb3_verbose >= 1)
-				fprintf(stderr, "ERROR: BWT doesn't contain both strands, which is required for MEM\n");
-			return 1;
-		}
+	if (!rb3_fmi_is_symmetric(&p.fmi)) {
+		if (rb3_verbose >= 1)
+			fprintf(stderr, "ERROR: BWT doesn't contain both strands\n");
+		return 1;
 	}
 	for (j = o.ind + 1; j < argc; ++j) {
 		p.fp = rb3_seq_open(argv[j], is_line);
