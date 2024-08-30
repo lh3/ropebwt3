@@ -43,7 +43,7 @@ These limitations have hampered the application of full-text indices to large da
 We developed ropebwt3 for efficient BWT construction and query.
 Ropebwt3 could index 100 assembled human genomes in 21 hours and index 7.3 terabases of commonly studied bacterial assemblies in 26 days.
 This was achieved using 82 gigabytes of memory at the peak without working disk space.
-Ropebwt3 can also find maximal exact matches and inexact alignment with affine-gap penalties at slower speed.
+Ropebwt3 can also find maximal exact matches and enumerate suboptimal inexact alignments with affine-gap penalties.
 It demonstrates the feasibility of full-text indexing at terabyte scale.
 \vspace{0.5em}\\
 \textbf{Availability and implementation:}
@@ -438,7 +438,7 @@ and $s(u',u;v',v)$ is the match/mismatch score between the symbol labeled on edg
 and the symbol on $(v',v)$ in $G_T$.
 
 On real data, $G_T$ may be too large to store explicitly.
-Ropebwt3 instead explicitly stores $G_P$ only and travese it in the topological order (Algorithm~\ref{algo:bwa-sw}).
+Ropebwt3 instead explicitly stores $G_P$ only and traveses it in the topological order (Algorithm~\ref{algo:bwa-sw}).
 At a node $u\in V(G_P)$, we use a hash table to keep $\{v\in V(G_T):H_{uv}>0\}$.
 This algorithm is exact in that it guarantees to find the best alignment.
 In practice, however, there are often a large number of $v\in V(G_T)$ that can be aligned to $u$ with $H_{uv}>0$.
@@ -472,6 +472,29 @@ This is akin to dynamic banding for linear sequences~\citep{Suzuki:2018aa}.
 		\EndProcedure
 	\end{algorithmic}
 \end{algorithm}
+
+\subsection{Estimating local haplotype diversity}
+
+BWA-SW with the banding heuristic may miss the best matching haplotype given an index consisting of similar haplotypes.
+When the suffix on the best full-length alignment has a lot more mismatches than the suffix on suboptimal alignments,
+the best alignment may have moved out of the band early in the iteration and thus get missed.
+Nevertheless, a long read sequenced from a new sample may be the recombinant of two genomes in the index.
+We are often not interested in the best alignment of the long read to a single haplotype.
+We are instead more interested in the collection of haplotypes a query sequence can be aligned to even if they do not lead to the best alignment.
+This now becomes possible as BWA-SW explores possible alignments to multiple haplotypes.
+
+More exactly, we perform semi-global sequence-to-DAWG alignment (i.e. requiring the query sequence to be aligned from end to end)
+by applying BWA-SW to the graph of the linear query sequence $P$.
+BWA-SW proceeds from the end of $P$ to the beginning of $P$ base by base,
+and finally gives multiple alignments of $P$ in full length.
+Importantly, $P$ may be aligned to almost the same location with slightly different gap placements and alignment scores.
+We can identify this case by locating the base position of each alignment.
+This procedure is slow as the ``locate'' operation is costly.
+We instead leverage the bi-directionality to identify redundancy heuristically.
+Suppose $P$ can be aligned to SA bi-intervals $(k_1,k'_1,s_1)$ and $(k_2,k'_2,s_2)$ and the alignment score to the first interval is higher.
+We filter out the second interval if $[k_2,k_2+s_2)\subset[k_1,k_1+s_1)$ or $[k'_2,k'_2+s_2)\subset[k'_1,k'_1+s_1)$.
+In practice, we may apply this algorithm to the flanking sequence of a variant
+or to sliding k-mers of a long query sequence to enumerate possible local haplotypes and estimate their frequencies in the index.
 
 \section{Results}
 
@@ -510,7 +533,7 @@ CommonBacteria & ropebwt3$^3$  & 26.5 d       & 830.3 d &  67.3 GB \\
 \begin{tablenotes}\setlength\itemsep{0.0em}
 \item Up to 64 threads specified if multi-threading is supported.
 \item[$^{1}$] excluding time for format conversion; ``h'' for hours; ``d'' for days
-\item[$^{2}$] pfp-threshold was run on a slower machine with more RAM
+\item[$^{2}$] pfp-thresholds was run on a slower machine with more RAM
 \item[$^{3}$] not using temporary disk space; supporting incremental build
 \item[$^{4}$] k-mer coordinates in the ``row\_diff\_brwt\_coord'' encoding
 \item[$^{5}$] without ``-{}-meta -{}-diff'' as the basic index is smaller; lossy index
@@ -608,6 +631,7 @@ Movi finds pseudo-matching length (PML).
 Although the fastest, it finds the longest exact matches for only 195 out of one million short reads
 and it misses the longest exact matches for all long reads.
 The longest PML of each read is on average 27\% shorter than the longest exact match for LR$+$ and 22\% shorter for SR$+$.
+Nonetheless, we believe it should be possible to implement SMEM finding using the Movi data structure at little cost of performance.
 
 MONI and ropebwt3 can also find inexact matches.
 Implementing r-index, MONI can relatively cheaply locate one SMEM.
@@ -640,7 +664,15 @@ This is probably because minimap2 ignores seeds occurring thousands of times in 
 Capable of finding SMEMs at the pangenome scale, ropebwt3 is more effective for identifying known sequences.
 It is actually also faster than full minimap2 alignment against a single genome.
 
-\subsection{Counting C4 alleles}
+\subsection{Haplotype diversity around C4 genes}
+
+\begin{figure}[tb]
+\includegraphics[width=.49\textwidth]{fig3}
+\caption{Haplotype diversity around the \emph{C4A} gene.
+101-mers with 50bp overlaps are extracted from the \emph{C4A} genomic sequence on GRCh38
+and aligned to the human pangenome.
+The Y axis shows the count of a 101-mer matches under different edit-distance thresholds.}\label{fig:c4}
+\end{figure}
 
 The reference human genome GRCh38 has two paralogous C4 genes, \emph{C4A} and \emph{C4B}, and they may have copy-number changes~\citep{Sekar:2016aa}.
 In both cases, the exon 26 harbors the functional domain.
@@ -650,9 +682,13 @@ We aligned both 157bp segments, one from each gene, to the human pangenome.
 105 haplotypes have the same \emph{C4A} exon 26 sequence, 1 haplotype has a mismatch at offset 128 and 4 have a mismatch at 54.
 In case of \emph{C4B}, 60 haplotypes have the same reference \emph{C4B} sequence and 23 also have a mismatch at offset 54.
 This means among the 100 human haplotypes, there are 110 \emph{C4A} gene copies and 83 \emph{C4B} copies.
-We can only obtain this information with BWA-SW which reports suboptimal hits.
 If we increase the bandwidth from the default 25 to 200, BWA-SW will be able to align \emph{C4A} exon 26 to \emph{C4B} genes
 and output all five hits for each sequence.
+
+Fig.~\ref{fig:c4} shows the local haplotype diversity across the entire \emph{C4A} gene spanning $\sim$20.6kb on GRCh38.
+We can see most regions have 193 copies, except a $\sim$6.4kb HERV insertion that separates long and short forms~\citep{Sekar:2016aa}.
+The dip around exon 26 is caused by the \emph{C4A}--\emph{C4B} difference.
+We can only obtain this information with BWA-SW which reports suboptimal hits.
 
 \section{Discussions}
 
@@ -665,7 +701,7 @@ Ropebwt3 will take 2--3 weeks to index 1,000 human genomes assembled from long r
 When there are more genomes, it will be faster to construct the BWT of individual genome independently
 and then merge them one by one.
 This strategy will use working disk space but achieve better parallelization.
-\citet{DBLP:conf/dcc/Siren16} introduced disk-based algorithms for merging large BWTs, which may improve the parallelization of BWT merge.
+\citet{DBLP:conf/dcc/Siren16} introduced disk-based algorithms for merging large BWTs, which may further improve the parallelization of BWT merge.
 
 We thought about implementing r-index in ropebwt3.
 However, although an r-index is faster than an FM-index of the same size,
@@ -675,18 +711,12 @@ An r-index is likely to take more than 200GB,
 while an FM-index sampled at one position per 8,192bp takes 17.5GB in ropebwt3.
 We are still looking for a more balanced algorithm for the ``locate'' operation.
 
-%The BWA-SW algorithm is slow because it always explores multiple suboptimal alignment paths even if the query sequence has a perfect match.
-%A wavefront-based algorithm~\citep{Marco-Sola:2021aa} may be a potential direction.
-%Another idea is to apply sequence-to-tree alignment, similar to BWT-SW, to extend long SMEMs but without extracting individual sequences.
-%This will give more accurate alignment than MONI which only extends one sequence.
-
-We have been wondering what would be the killer application of a pangenome index.
-We do not have a good answer.
-When the index consists of similar genomes, there is not much need to classify reads as the reads are either mapped to almost all genomes or mapped to no genomes.
-Ordinary read alignment is not very useful, either, because we cannot call variants or apply standard tools to the alignment.
-In addition, a long read sequenced from a new sample may be the recombinant of two genomes in the index.
-We are not interested in the best alignment of the long read to a single genome.
-We think extracting and counting related local haplotypes with BWA-SW could help biologists study complex regions where variant calling is difficult.
+We often use pangenome graphs to analyze multiple similar genomes~\citep{Liao:2023aa}.
+These graphs are built from the multiple sequence alignment through complex procedures involving many parameters~\citep{Li:2020aa,Hickey:2023aa,Garrison2023.04.05.535718}.
+It is challenging to understand if the graph topology is biologically meaningful especially given that we do not know the correct alignment between two genomes, let alone multiple ones.
+Complement to graph-based data structures, BWT-based algorithms are often exact with no heuristics or parameters but they tend to support limited query types.
+For example, we cannot project the alignment to a designated reference genome.
+What additional query types we can achieve will be of great interest to the comprehensive pangenome analysis in future.
 
 \section*{Acknowledgements}
 
