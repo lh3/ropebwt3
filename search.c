@@ -60,7 +60,7 @@ typedef struct {
 
 typedef struct {
 	int32_t id, offset;
-	rb3_hapdiv_t hapdiv;
+	rb3_hapdiv_t r;
 } m_hapdiv_t;
 
 typedef struct {
@@ -118,7 +118,7 @@ static void worker_for_hapdiv(void *data, long i, int tid)
 	step_t *t = (step_t*)data;
 	const pipeline_t *p = t->p;
 	m_hapdiv_t *a = &t->hapdiv[i];
-	rb3_hapdiv(t->buf[tid].km, &p->opt->swo, &p->fmi, p->opt->hapdiv_k, &t->seq[a->id].seq[a->offset], &a->hapdiv);
+	rb3_hapdiv(t->buf[tid].km, &p->opt->swo, &p->fmi, p->opt->hapdiv_k, &t->seq[a->id].seq[a->offset], &a->r);
 }
 
 static inline void write_name(kstring_t *out, const m_seq_t *s)
@@ -224,21 +224,24 @@ static void write_per_seq(step_t *t)
 
 static void write_hapdiv(step_t *t)
 {
-	int32_t j, j0;
+	int32_t j, ed;
+	const m_hapdiv_t *p;
 	kstring_t out = {0,0,0};
 	for (j = 0; j < t->n_seq; ++j)
 		free(t->seq[j].seq);
-	for (j = 1, j0 = 0; j <= t->n_hapdiv; ++j) {
-		if (j == t->n_hapdiv || t->hapdiv[j].id != t->hapdiv[j0].id || t->hapdiv[j].hapdiv.n_al != t->hapdiv[j0].hapdiv.n_al
-			|| t->hapdiv[j].hapdiv.n_hap0 != t->hapdiv[j0].hapdiv.n_hap0 || t->hapdiv[j].hapdiv.n_hap != t->hapdiv[j0].hapdiv.n_hap)
-		{
-			m_hapdiv_t *a = &t->hapdiv[j0];
-			m_seq_t *s = &t->seq[a->id];
+	if (t->n_hapdiv == 0) return;
+	p = &t->hapdiv[0];
+	for (j = 1; j <= t->n_hapdiv; ++j) {
+		const m_hapdiv_t *q = t->hapdiv + j;
+		if (j == t->n_hapdiv || p->id != q->id || memcmp(&p->r, &q->r, sizeof(p->r)) != 0) {
+			m_seq_t *s = &t->seq[p->id];
 			out.l = 0;
 			write_name(&out, s);
-			rb3_sprintf_lite(&out, "\t%d\t%d\t%d\t%d\t%d\n", a->offset, t->hapdiv[j-1].offset + t->p->opt->hapdiv_k, a->hapdiv.n_al, a->hapdiv.n_hap0, a->hapdiv.n_hap);
-			fputs(out.s, stdout);
-			j0 = j;
+			rb3_sprintf_lite(&out, "\t%d\t%d\t%d\t%d", p->offset, t->hapdiv[j-1].offset + t->p->opt->hapdiv_k, p->r.n_al, p->r.max_ed);
+			for (ed = 0; ed <= RB2_SW_MAX_ED; ++ed)
+				rb3_sprintf_lite(&out, "\t%d", p->r.n_hap[ed]);
+			puts(out.s);
+			p = q;
 		}
 	}
 	for (j = 0; j < t->n_seq; ++j)

@@ -57,13 +57,13 @@ KHASHL_SET_INIT(KH_LOCAL, sw_candset_t, sw_candset, sw_cell_t, sw_cell_hash, sw_
 
 static void sw_push_state(int32_t last_op, int32_t op, int c, rb3_swhit_t *hit, int32_t len_only)
 {
-	if (!len_only) {
+	if (!len_only) { // generating the CIGAR
 		hit->rseq[hit->rlen] = c;
 		if (last_op == op)
 			hit->cigar[hit->n_cigar - 1] += 1U<<4;
 		else
 			hit->cigar[hit->n_cigar++] = 1U<<4 | op;
-	} else {
+	} else { // only update the CIGAR length
 		hit->n_cigar += last_op == op? 0 : 1;
 	}
 	if (op == 7 || op == 8) hit->qlen++, hit->rlen++;
@@ -71,9 +71,9 @@ static void sw_push_state(int32_t last_op, int32_t op, int c, rb3_swhit_t *hit, 
 	else if (op == 2) hit->rlen++;
 }
 
-static void sw_backtrack1_core(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const sw_row_t *row, uint32_t pos, rb3_swhit_t *hit, int32_t len_only)
+static int32_t sw_backtrack1_core(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const sw_row_t *row, uint32_t pos, rb3_swhit_t *hit, int32_t len_only)
 { // this is adapted from ns_backtrack() in miniprot
-	int32_t n_col = opt->n_best, last = 0, last_op = -1;
+	int32_t n_col = opt->n_best, last = 0, last_op = -1, ed = 0;
 	hit->score = row[pos / n_col].a[pos % n_col].H;
 	hit->n_cigar = hit->rlen = hit->qlen = 0;
 	while (pos > 0) {
@@ -90,18 +90,19 @@ static void sw_backtrack1_core(const rb3_swopt_t *opt, const rb3_fmi_t *f, const
 		--c; // this is the reference base
 		if (state == SW_FROM_H) {
 			op = c == g->node[r].c? 7 : 8; // 7 for "=" and 8 for "X"
-			pos = p->H_from_pos;
+			pos = p->H_from_pos, ed += (op == 8);
 		} else if (state == SW_FROM_E) {
 			assert(p->E > 0 && p->E_from_pos != UINT32_MAX);
-			pos = p->E_from_pos;
+			pos = p->E_from_pos, ++ed;
 		} else if (state == SW_FROM_F) {
 			assert(p->F > 0 && p->F_off_set);
-			pos = r * n_col + p->F_from_off;
+			pos = r * n_col + p->F_from_off, ++ed;
 		}
 		sw_push_state(last_op, op, c, hit, len_only);
 		last_op = op;
 		last = (state == 1 || state == 2) && ext? state : 0;
 	}
+	return ed;
 }
 
 static void sw_backtrack1(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const sw_row_t *row, uint32_t pos, rb3_swhit_t *hit)
@@ -169,7 +170,9 @@ static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_d
 	if (opt->flag & (RB3_SWF_E2E|RB3_SWF_HAPDIV)) { // end-to-end mode
 		const sw_row_t *p = &row[g->n_node - 1]; // last row, i.e. the end of the query sequence
 		int32_t n = 0, H0;
+		rb3_swhit_t tmp;
 		if (p->n == 0) return; // do nothing if the alignment doesn't reach the end
+		memset(&tmp, 0, sizeof(rb3_swhit_t));
 		H0 = p->a[0].H;
 		for (i = 0, n = 0; i < p->n; ++i) { // count hits
 			const sw_cell_t *q = &p->a[i];
@@ -178,19 +181,28 @@ static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_d
 		}
 		if (n == 0) return;
 		if (r) r->n = n, r->a = RB3_CALLOC(rb3_swhit_t, n);
-		if (a) a->n_al = n, a->n_hap0 = a->n_hap = 0;
+		if (a) {
+			memset(a, 0, sizeof(*a));
+			a->n_al = n;
+		}
 		for (i = 0, n = 0; i < p->n; ++i) { // backtrack
 			const sw_cell_t *q = &p->a[i];
+			uint32_t pos = (g->n_node - 1) * n_col + i;
 			if (!q->flt && q->H_from == SW_FROM_H && q->H >= opt->min_sc && (opt->e2e_drop < 0 || H0 - q->H <= opt->e2e_drop)) {
 				if (r) { // get full alignment
-					sw_backtrack1(opt, f, g, row, (g->n_node - 1) * n_col + i, &r->a[n++]);
+					sw_backtrack1(opt, f, g, row, pos, &r->a[n++]);
 				} else if (a) { // get summary information
-					a->n_hap += q->hi - q->lo;
-					if (q->qlen == q->rlen && q->H == opt->match * q->qlen) // exact match
-						a->n_hap0 += q->hi - q->lo;
+					int32_t ed;
+					ed = sw_backtrack1_core(opt, f, g, row, pos, &tmp, 1);
+					a->max_ed = a->max_ed > ed? a->max_ed : ed;
+					ed = ed < RB2_SW_MAX_ED? ed : RB2_SW_MAX_ED;
+					a->n_hap[ed] += q->hi - q->lo;
 				}
 			}
 		}
+		if (a) // calculate accumulative counts
+			for (i = 1; i <= RB2_SW_MAX_ED; ++i)
+				a->n_hap[i] += a->n_hap[i-1];
 	} else { // local mode; TODO: support split alignment
 		r->n = 1;
 		r->a = RB3_CALLOC(rb3_swhit_t, r->n);
