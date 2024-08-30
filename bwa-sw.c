@@ -200,9 +200,6 @@ static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_d
 				}
 			}
 		}
-		if (a) // calculate accumulative counts
-			for (i = 1; i <= RB2_SW_MAX_ED; ++i)
-				a->n_hap[i] += a->n_hap[i-1];
 	} else { // local mode; TODO: support split alignment
 		r->n = 1;
 		r->a = RB3_CALLOC(rb3_swhit_t, r->n);
