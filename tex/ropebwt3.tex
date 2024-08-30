@@ -153,7 +153,7 @@ Notation & Description \\
 $\Sigma$   & Alphabet of symbols. $\{{\tt A},{\tt C},{\tt G},{\tt T},{\tt N}\}$ for DNA \\
 $\Sigma'$  & Augmented alphabet: $\Sigma'\triangleq\Sigma\cup\{\$\}$ \\
 $a,b,c$    & Symbols in $\Sigma'$ \\
-$T$        & Concatenated reference string including senteniels \\
+$T$        & Concatenated reference string including sentinels \\
 $S(i)$     & Suffix array: offset of the $i$-th smallest suffix \\
 $B$        & BWT string: $B[i]\triangleq T[S(i)-1]$ \\
 $m$        & Number of sentinels: $m\triangleq|\{i:B[i]=\$\}|$ \\
@@ -176,7 +176,7 @@ It may be omitted if concatenation is apparent from the context.
 
 Suppose $\mathcal{T}=(P_0,P_1,\ldots,P_{m-1})$ is an ordered list of $m$ strings over $\Sigma$.
 $T\triangleq P_0\$_0P_1\$_1\cdots P_{m-1}\$_{m-1}$ is the concatenation of the strings in $\mathcal{T}$
-with sentiels ordered by $\$_0<\$_1<\cdots<\$_{m-1}$.
+with sentinels ordered by $\$_0<\$_1<\cdots<\$_{m-1}$.
 There are other ways to define string concatenation on ordered string lists or unordered string sets~\citep{Cenzato:2024ab,Li:2014ab}.
 They will be not discussed in this article.
 
@@ -184,22 +184,22 @@ For convenience, let $n\triangleq|T|$ and $T[-1]=T[n-1]$.
 The \emph{suffix array} of $T$ is an integer array $S$ such that $S(i)$,
 $0\le i<n$, is the start position of the $i$-th smallest suffix among all suffixes of $T$ (Fig.~\ref{fig:1}a).
 The \emph{Burrows-Wheeler Transform} (\emph{BWT}) of $T$ is a string $B$ computed by $B[i]=T[S(i)-1]$.
-In BWT string $B$, all sentiels are represented by the same symbol ``$\$$'' and are not distinguished from each other.
+In BWT string $B$, all sentinels are represented by the same symbol ``$\$$'' and are not distinguished from each other.
 $\Sigma'\triangleq\Sigma\cup\{\$\}$ denotes the alphabet augmented with the sentinel symbol.
 
 For $a\in\Sigma'$, let $C_B(a)\triangleq|\{i:B[i]<a\}|$ be the number of symbols smaller than $a$
 and ${\rm rank}_B(a,k)\triangleq|\{i<k:B[i]=a\}|$ be the number of $a$ before position $k$ in $B$.
 We may omit subscription $B$ when we are describing one string only.
 The last-to-first mapping (\emph{LF mapping}) $\pi$ is defined by $\pi(i)\triangleq S^{-1}(S(i)-1)$,
-where $S^{-1}$ is the inservse function of suffix array $S$.
+where $S^{-1}$ is the inverse function of suffix array $S$.
 It can be calculated as $\pi(i)=C(B[i])+{\rm rank}(B[i],i)$.
-As $B[\pi(i)]$ immediately preceeds $B[i]$ on $T$, we can use $\pi$ to decode the $i$-th sequence in $B$.
+As $B[\pi(i)]$ immediately proceeds $B[i]$ on $T$, we can use $\pi$ to decode the $i$-th sequence in $B$.
 
 \begin{figure}[bt]
 \centering
 \includegraphics[width=.49\textwidth]{fig1}
 \caption{Examples of BWT and related data structures.
-{\bf (a)} The BWT $B$, suffix arrary $S$ and LF-mapping $\pi$ of string $T$.
+{\bf (a)} The BWT $B$, suffix array $S$ and LF-mapping $\pi$ of string $T$.
 Subscriptions are equal to the ranks of symbols in $B$, which are the same as the ranks among the suffixes (indicated by arrows).
 {\bf (b)} The prefix trie simulated with BWT $B$.
 In each node, the pair of integers gives the suffix array interval of the string represented by the path from the node to the root.
@@ -295,7 +295,7 @@ The last row is an index into BWT for fast access.
 }\label{fig:2}
 \end{figure}
 
-\subsection{Suffix array internval and backward search}
+\subsection{Suffix array interval and backward search}
 
 For a string $P\in\Sigma^*$ (i.e. not including sentinels), let ${\rm occ}(P)$ be the number of occurrences of $P$ in $T$.
 Define ${\rm lo}(P)$ to be the number of suffixes that lexicographically smaller than $P$
@@ -360,7 +360,7 @@ It can be calculated by subdividing $\overline{P}$'s SA interval.
 It is easy to see that if $(k,k',s)$ is the SA bi-interval of $P$, $(k',k,s)$ will be the SA bi-interval of $\overline{P}$, and vice versa.
 Therefore, we can use the backward extension of $\overline{P}$ to achieve the forward extension of $P$.
 Algorithm~\ref{algo:backfor} gives the details.
-It slightly simplifies the original formutation~\citep{Li:2012fk}.
+It slightly simplifies the original formulation~\citep{Li:2012fk}.
 
 \subsection{Finding supermaximal exact matches}
 
@@ -438,7 +438,7 @@ and $s(u',u;v',v)$ is the match/mismatch score between the symbol labeled on edg
 and the symbol on $(v',v)$ in $G_T$.
 
 On real data, $G_T$ may be too large to store explicitly.
-Ropebwt3 instead explicitly stores $G_P$ only and traveses it in the topological order (Algorithm~\ref{algo:bwa-sw}).
+Ropebwt3 instead explicitly stores $G_P$ only and traverses it in the topological order (Algorithm~\ref{algo:bwa-sw}).
 At a node $u\in V(G_P)$, we use a hash table to keep $\{v\in V(G_T):H_{uv}>0\}$.
 This algorithm is exact in that it guarantees to find the best alignment.
 In practice, however, there are often a large number of $v\in V(G_T)$ that can be aligned to $u$ with $H_{uv}>0$.
@@ -718,7 +718,7 @@ Complement to graph-based data structures, BWT-based algorithms are often exact 
 For example, we cannot project the alignment to a designated reference genome.
 What additional query types we can achieve will be of great interest to the comprehensive pangenome analysis in future.
 
-\section*{Acknowledgements}
+\section*{Acknowledgments}
 
 We are grateful to Travis Gagie for pointing us to his long MEM finding algorithm,
 to Ilya Grebnov for adding the support of 16-bit alphabet which helps to accelerate ropebwt3,
