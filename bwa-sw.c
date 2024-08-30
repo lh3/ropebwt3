@@ -157,6 +157,8 @@ static void sw_cell_dedup(void *km, sw_row_t *row)
 			sw_cell_t *q = &row->a[a[j]];
 			if (q->lo_rc <= p->lo_rc && q->lo_rc + (q->hi - q->lo) >= p->lo_rc + (p->hi - p->lo))
 				break;
+			if (q->lo <= p->lo && q->hi >= p->hi)
+				break;
 		}
 		if (j == k) a[k++] = i;
 		else p->flt = 1;
