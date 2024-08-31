@@ -44,7 +44,7 @@ We developed ropebwt3 for efficient BWT construction and query.
 Ropebwt3 could index 100 assembled human genomes in 21 hours and index 7.3 terabases of commonly studied bacterial assemblies in 26 days.
 This was achieved using 82 gigabytes of memory at the peak without working disk space.
 Ropebwt3 can also find maximal exact matches and enumerate suboptimal inexact alignments with affine-gap penalties.
-It demonstrates the feasibility of full-text indexing at terabyte scale.
+It demonstrates the feasibility of full-text indexing at terabase scale.
 \vspace{0.5em}\\
 \textbf{Availability and implementation:}
 \url{https://github.com/lh3/ropebwt3}
@@ -65,19 +65,19 @@ Indexing is necessary to enable fast sequence search.
 K-mer data structures are a popular choice for sequence indexing~\citep{Marchet:2021aa}.
 They can be classified into three categories.
 The first category does not associate k-mers with their positions in the database sequences.
-These data structures support membership query, sketching or pseudoalignment,
-but cannot be used to reconstruct input sequences or to report base alignment.
-Sequence search at the petabase scale use all such methods~\citep{Edgar:2022aa,Karasikov2020.10.01.322164,Shiryev:2024aa}.
+These data structures support membership query or pseudoalignment~\citep{Bray:2016aa},
+but cannot reconstruct input sequences or report base alignment.
+Sequence search at petabase scale use all such methods~\citep{Edgar:2022aa,Karasikov2020.10.01.322164,Shiryev:2024aa}.
 The second category associates a subset of k-mers with their positions.
 Upon finding k-mer matches, algorithms in this category go back to the database sequences and perform base alignment.
 Most aligners work this way.
-However, because the database sequences are usually not well compressed,
+However, because the database sequences are not compressed well,
 these algorithms may require large space to store them.
 The last category keeps all k-mers and their positions.
 Algorithms in this category can reconstruct all the database sequences without explicitly storing them.
 Nonetheless, although positions of k-mers can be compressed efficiently~\citep{Karasikov:2020aa},
 they still take large space.
-The largest lossless k-mer index is still at terabyte scale~\citep{Karasikov2020.10.01.322164}.
+The largest lossless k-mer index consists of a few terabases~\citep{Karasikov2020.10.01.322164}.
 
 Compressed full-text indices, such as FM-index~\citep{DBLP:conf/focs/FerraginaM00} and r-index~\citep{DBLP:conf/soda/GagieNP18,DBLP:journals/tcs/BannaiGI20,DBLP:journals/jacm/GagieNP20},
 provide an alternative way for fast sequence search.
@@ -89,23 +89,23 @@ When we supplement BWT with a data structure to efficiently compute the rank of 
 we can in theory count the occurrences of a string $P$ in $O(|P|)$ time where $|P|$ is the length of $P$.
 FM-index further adds a sampled suffix array to locate $P$,
 while r-index uses an alternative method that is more efficient for redundant strings.
-Both of them support lossless compression and sequence search at the same time.
+Both of them support compression and sequence search at the same time.
 
 BWT-based indices have been used for read alignment~\citep{Langmead:2009aa,Li:2009uq,Li:2009aa},
 \emph{de novo} sequence assembly~\citep{Simpson:2012aa} and data compression~\citep{Cox:2012ly}.
 They have also emerged as competent data structures for pangenome data.
 Existing pangenome-focused tools~\citep{Rossi:2022aa,Ahmed:2021aa,Zakeri:2024aa}
 use prefix-free parsing for BWT construction~\citep{Boucher:2019aa}.
-They require more memory than the input sequences which is impractical at the terabase scale.
+They require more memory than input sequences and are impractical for huge datasets.
 Although ropebwt2 developed by us can construct BWT in memory proportional to its compressed size and is fast for short strings~\citep{Li:2014ab},
 it is inefficient for chromosome-long sequences.
-grlBWT~\citep{DBLP:journals/iandc/DiazDominguezN23} is likely the best algorithm for constructing the BWT of a large collection of similar genomes.
+grlBWT~\citep{DBLP:journals/iandc/DiazDominguezN23} is likely the best algorithm for constructing the BWT of similar genomes.
 It reduces the peak memory at the cost of large working disk space and frequent disk input/output.
 In its current form, the algorithm does not support update to BWT.
-We would need to reconstruct the BWT from scratch when new genomes come.
+We would need to reconstruct the BWT from scratch when new genomes arrive.
 BWT construction for highly redundant sequences remains an active research area.
 
-With BWT-based data structures, it is trivial to test the presence of a string $P$ in the index,
+With BWT-based data structures, it is trivial to test the presence of string $P$ in the index,
 but finding substring matches within $P$ needs more thought.
 Learning from bidirectional BWT~\citep{DBLP:conf/bibm/LamLTWWY09},
 we found a BWT constructed from both strands of DNA sequences supports the extension of exact matches in both directions~\citep{Li:2012fk}.
@@ -124,17 +124,18 @@ This is the BWA-SW algorithm~\citep{Li:2010fk}.
 Nonetheless, we later realized the formulation of BWA-SW had theoretical flaws
 and its implementation was closer to DAWG-to-DAWG alignment than to DAWG-to-tree alignment.
 
-In this article, we will describe ropebwt3 and explain our solution to BWT construction
-and to sequence search at the terabyte scale.
+In this article, we will explain our solution to BWT construction
+and to sequence search at the terabase scale.
 Our contribution includes:
 a) a reinterpreted BWA-SW algorithm that fixes issues in our earlier work~\citep{Li:2010fk};
-b) the description of core data structures in ropebwt2~\citep{Li:2014ab} and fermi~\citep{Li:2012fk} that were published before but without technical details;
+%b) the description of core data structures in ropebwt2~\citep{Li:2014ab} and fermi~\citep{Li:2012fk} that were published before but without technical details;
+b) its application in finding similar haplotypes;
 c) an incremental in-memory BWT construction implementation that scales to large pangenome datasets.
 
 \section{Methods}
 
-In a nutshell, ropebwt3 uses the suffix array construction algorithm in libsais to compute the partial multi-string BWT of a subset of sequences
-and then merges the partial BWT to the existing BWT run-length encoded as a B+-tree~\citep{Li:2014ab}.
+In a nutshell, ropebwt3 computes the partial multi-string BWT of a subset of sequences with libsais
+and merges the partial BWT into the existing BWT run-length encoded as a B+-tree~\citep{Li:2014ab}.
 It repeats this procedure until all input sequences are processed.
 The BWT by default includes input sequences on both strands.
 This enables forward-backward search~\citep{Li:2012fk} required by accelerated long MEM finding~\citep{DBLP:conf/dlt/Gagie24}.
@@ -168,7 +169,7 @@ $\pi(i)$   & LF-mapping: $\pi(i)\triangleq S^{-1}(S(i)-1)$ \\
 
 \subsection{Basic concepts}
 
-Let $\Sigma$ be an alphabet of \emph{symbols}.
+Let $\Sigma$ be an alphabet of \emph{symbols} (Table~\ref{tab:sym}).
 Given a string $P$ over $\Sigma$, $|P|$ is its length and $P[i]\in\Sigma$, $0\le i<|P|$, is the $i$-th symbol in $P$,
 and $P[i,j)$ is a substring of length $j-i$ starting at $i$.
 Operator ``$\circ$'' concatenates two strings or between strings and symbols.
@@ -177,18 +178,17 @@ It may be omitted if concatenation is apparent from the context.
 Suppose $\mathcal{T}=(P_0,P_1,\ldots,P_{m-1})$ is an ordered list of $m$ strings over $\Sigma$.
 $T\triangleq P_0\$_0P_1\$_1\cdots P_{m-1}\$_{m-1}$ is the concatenation of the strings in $\mathcal{T}$
 with sentinels ordered by $\$_0<\$_1<\cdots<\$_{m-1}$.
-There are other ways to define string concatenation on ordered string lists or unordered string sets~\citep{Cenzato:2024ab,Li:2014ab}.
-They will be not discussed in this article.
+For other ways to define string concatenation on ordered string lists or unordered string sets, see \citet{Cenzato:2024ab}.
 
 For convenience, let $n\triangleq|T|$ and $T[-1]=T[n-1]$.
 The \emph{suffix array} of $T$ is an integer array $S$ such that $S(i)$,
 $0\le i<n$, is the start position of the $i$-th smallest suffix among all suffixes of $T$ (Fig.~\ref{fig:1}a).
 The \emph{Burrows-Wheeler Transform} (\emph{BWT}) of $T$ is a string $B$ computed by $B[i]=T[S(i)-1]$.
-In BWT string $B$, all sentinels are represented by the same symbol ``$\$$'' and are not distinguished from each other.
-$\Sigma'\triangleq\Sigma\cup\{\$\}$ denotes the alphabet augmented with the sentinel symbol.
+All sentinels in $B$ are represented by the same symbol ``$\$$'' and are not distinguished from each other.
+$\Sigma'\triangleq\Sigma\cup\{\$\}$ denotes the alphabet including the sentinel.
 
 For $a\in\Sigma'$, let $C_B(a)\triangleq|\{i:B[i]<a\}|$ be the number of symbols smaller than $a$
-and ${\rm rank}_B(a,k)\triangleq|\{i<k:B[i]=a\}|$ be the number of $a$ before position $k$ in $B$.
+and ${\rm rank}_B(a,k)\triangleq|\{i<k:B[i]=a\}|$ be the number of $a$ before offset $k$ in $B$.
 We may omit subscription $B$ when we are describing one string only.
 The last-to-first mapping (\emph{LF mapping}) $\pi$ is defined by $\pi(i)\triangleq S^{-1}(S(i)-1)$,
 where $S^{-1}$ is the inverse function of suffix array $S$.
@@ -258,11 +258,11 @@ For $m$ that can be represented by a 32-bit integer and $n$ represented by a 64-
 libsais will need at least $12n$ bytes to construct the suffix array.
 It is impractical for $n$ more than tens of billions.
 To construct BWT for large $n$, ropebwt3 uses libsais to build the BWT for a batch (up to 7 Gb by default)
-and merge it to the BWT of already processed batches (Algorithm~\ref{algo:merge}).
+and merges it to the BWT of already processed batches (Algorithm~\ref{algo:merge}).
 The basic idea behind the algorithm is well known~\citep{DBLP:conf/latin/FerraginaGM10}
 but implementations vary~\citep{DBLP:conf/dcc/Siren16,DBLP:conf/dcc/Oliva0SMKGB21}.
 In ropebwt3, we encode BWT with a B+-tree (Fig.~\ref{fig:2}a).
-This yields $O(\log r)$ rank query (line 12) insertion (line 16), where $r$ is the number of runs in the merged BWT.
+This yields $O(\log r)$ rank query (line 12) and insertion (line 16), where $r$ is the number of runs in the merged BWT.
 The bottleneck of the algorithm lies in rank calculation (line 7), which can be parallelized if $m_2>1$.
 
 This online BWT construction algorithm does not use temporary disk space.
@@ -271,7 +271,7 @@ The BWT takes $O(r\log r)$ in space.
 The memory required for partial BWT construction with libsais depends on the batch size and the longest string.
 B+-tree is dynamic.
 Ropebwt3 optionally converts B+-tree to the fermi binary format (Fig.~\ref{fig:2}b; \citealt*{Li:2012fk})
-which is static but is usually faster to query and can be memory-mapped.
+which is static but is faster to query and can be memory-mapped.
 
 Ropebwt2~\citep{Li:2014ab} uses the same B+-tree to encode BWT and has the same time complexity.
 However, it inserts sequences, not partial BWTs, into existing BWT.
@@ -329,9 +329,8 @@ For string $P$, $\overline{P}$ is its reverse complement string.
 The double-strand concatenation of a DNA string list $\mathcal{T}=(P_0,P_1,\ldots,P_{m-1})$ is
 $\tilde{T}=P_0\$_0\overline{P}_0\$_1P_1\$_2\overline{P}_1\$_3\cdots P_{m-1}\$_{2m-2}\overline{P}_{m-1}\$_{2m-1}$.
 The \emph{double-strand BWT} (\emph{DS-BWT}) of $\mathcal{T}$ is the BWT of $\tilde{T}$.
-
 We note that if $P$ is a substring of $\tilde{T}$,
-$\overline{P}$ must be a substring as well and ${\rm occ}(P)={\rm occ}(\overline{P})$.
+$\overline{P}$ must be a substring and ${\rm occ}(P)={\rm occ}(\overline{P})$.
 The \emph{suffix array bidirectional interval} (\emph{SA bi-interval}) of $P$ is a 3-tuple defined as $({\rm lo}(P),{\rm lo}(\overline{P}),{\rm occ}(P))$.
 
 \begin{algorithm}[tb]
@@ -354,9 +353,10 @@ The \emph{suffix array bidirectional interval} (\emph{SA bi-interval}) of $P$ is
 \end{algorithm}
 
 An SA bi-interval can be extended in both backward and forward directions.
-To calculate SA bi-interval of $aP$, we can use the standard backward search to compute ${\rm lo}(aP)$ and ${\rm occ}(aP)$ from ${\rm lo}(P)$ and ${\rm occ}(P)$.
+To calculate the SA bi-interval of $aP$, we can use the standard backward search to compute ${\rm lo}(aP)$ and ${\rm occ}(aP)$ from ${\rm lo}(P)$ and ${\rm occ}(P)$.
 As to ${\rm lo}(\overline{aP})$, we note that the SA interval of $\overline{aP}=\overline{P}\circ\overline{a}$ is within the SA interval of $\overline{P}$.
 It can be calculated by subdividing $\overline{P}$'s SA interval.
+
 It is easy to see that if $(k,k',s)$ is the SA bi-interval of $P$, $(k',k,s)$ will be the SA bi-interval of $\overline{P}$, and vice versa.
 Therefore, we can use the backward extension of $\overline{P}$ to achieve the forward extension of $P$.
 Algorithm~\ref{algo:backfor} gives the details.
@@ -408,7 +408,7 @@ especially when there are many short SMEMs to skip.
 
 \subsection{Finding inexact matches}
 
-The prefix trie of $T$ is a tree that encodes all prefixes of $T$ (Fig.~\ref{fig:1}b).
+The prefix trie of $T$ is a tree that encodes all the prefixes of $T$ (Fig.~\ref{fig:1}b).
 Each edge in the tree is labeled with a symbol in $\Sigma$.
 A path from a node to the root spells a substring of $T$.
 We can label a node with the SA interval of the string from the node to the root.
@@ -425,8 +425,8 @@ Given two strings $T$ and $P$, we can align $G_T$ and $G_P$ under an affine-gap 
 using the following equation:
 $$
 \left\{\begin{array}{lll}
-E_{uv}&=&\max_{u'\in{\rm pre}(u)}\{H_{u'v}-q,E_{u'v}\}-e\\
-F_{uv}&=&\max_{v'\in{\rm pre}(v)}\{H_{uv'}-q,F_{uv'}\}-e\\
+E_{uv}&=&\max_{u'\in{\rm pre}(u)}\{\max\{H_{u'v}-q,E_{u'v}\}\}-e\\
+F_{uv}&=&\max_{v'\in{\rm pre}(v)}\{\max\{H_{uv'}-q,F_{uv'}\}\}-e\\
 G_{uv}&=&\max_{u'\in{\rm pre}(u),v'\in{\rm pre}(v)}\{H_{u'v'}+s(u',u;v',v)\}\\
 H_{uv}&=&\max\{G_{uv},E_{uv},F_{uv}\}\\
 \end{array}\right.
@@ -561,10 +561,10 @@ The Movi developer kindly provided the Movi index for the evaluation of query pe
 
 We also indexed the same dataset with k-mer based tools.
 In the lossless mode, metagraph (v0.3.6; \citealt*{Karasikov2020.10.01.322164}) indexed the 100 human genomes in 17 hours (Table~\ref{tab:index}).
-Fulgor is by far the fastest.
-However, lossy in nature, fulgor (v3.0.0; \citealt*{Fan:2024aa}) is not directly comparable to the rest of the tools in the table.
+Fulgor (v3.0.0; \citealt*{Fan:2024aa}) is by far the fastest.
+However, lossy in nature, it is not directly comparable to the rest of the tools in the table.
 
-To test the scalability of ropebwt3 in preparation for larger pangenome datasets in future,
+To test the scalability of ropebwt3 in preparation for larger incoming pangenome datasets,
 we constructed the BWT of AllTheBacteria~\citep{Hunt2024.03.08.584059} excluding the ``dustbin'' and ``unknown'' categories that include relatively unique genomes.
 This subset, which we call as CommonBacteria, consists of 278.4 million sequences in 7.33 terabases.
 An older version of ropebwt3 took less than a month to construct the double-strand BWT with 15.66 trillion symbols.
