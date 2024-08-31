@@ -301,24 +301,24 @@ For a string $P\in\Sigma^*$ (i.e. not including sentinels), let ${\rm occ}(P)$ b
 Define ${\rm lo}(P)$ to be the number of suffixes that lexicographically smaller than $P$
 and ${\rm hi}(P)\triangleq {\rm lo}(P)+{\rm occ}(P)$.
 $[{\rm lo}(P),{\rm hi}(P))$ is called the \emph{suffix array interval} of $P$, or \emph{SA interval} in brief.
-An SA interval is \emph{important} if there exists $P$ such that it is $P$'s SA interval.
-
+An SA interval is \emph{important} if there exists $P$ such that it is the SA interval of $P$.
+The SA interval of the empty string is $[0,n)$ where $n=|T|$.
 If we know the SA interval of $P$, we can calculate the SA interval of $aP$ with:
 \begin{eqnarray*}
 {\rm lo}(aP)&=&C(a)+{\rm rank}(a,{\rm lo}(P))\\
 {\rm hi}(aP)&=&C(a)+{\rm rank}(a,{\rm hi}(P))
 \end{eqnarray*}
-To count the occurrence of a string $P$,
-we can start with the SA interval $[0,n)$ of an empty string and repeatedly apply the equation above from the last symbol in $P$ to the first.
+To calculate ${\rm occ}(P)$,
+we can start with $[0,n)$ and repeatedly apply the equation above from the last symbol in $P$ to the first.
 This procedure is called \emph{backward search}.
 
 \subsection{Double-strand BWT}\label{sec:ds-bwt}
 
 The definitions above are applicable to generic strings.
 With one BWT, we can only achieve backward search;
-forward search requires the BWT of reverse strings~\citep{DBLP:conf/bibm/LamLTWWY09}.
+forward search additionally requires the BWT of the reverse strings~\citep{DBLP:conf/bibm/LamLTWWY09}.
 Nonetheless, due to the strand symmetry of DNA strings,
-it is possible to achieve both forward and backward search with one BWT provided that the BWT contains both strands of DNA strings.
+it is possible to achieve both forward and backward search with one BWT provided that the BWT contains both strands of DNA strings~\citep{Li:2012fk}.
 
 Formally, a DNA alphabet is $\Sigma=\{{\tt A},{\tt C},{\tt G},{\tt T},{\tt N}\}$.
 $\overline{a}$ denotes the Watson-Crick complement of symbol $a\in\Sigma$.
@@ -354,10 +354,11 @@ The \emph{suffix array bidirectional interval} (\emph{SA bi-interval}) of $P$ is
 
 An SA bi-interval can be extended in both backward and forward directions.
 To calculate the SA bi-interval of $aP$, we can use the standard backward search to compute ${\rm lo}(aP)$ and ${\rm occ}(aP)$ from ${\rm lo}(P)$ and ${\rm occ}(P)$.
-As to ${\rm lo}(\overline{aP})$, we note that the SA interval of $\overline{aP}=\overline{P}\circ\overline{a}$ is within the SA interval of $\overline{P}$.
-It can be calculated by subdividing $\overline{P}$'s SA interval.
+As to ${\rm lo}(\overline{aP})$, we note that $[{\rm lo}(\overline{aP}),{\rm hi}(\overline{aP}))\subset[{\rm lo}(\overline{P}),{\rm hi}(\overline{P}))$
+because $\overline{aP}=\overline{P}\circ\overline{a}$ is prefixed with $\overline{P}$.
+We can thus calculate ${\rm lo}(\overline{aP})={\rm lo}(\overline{P})+\sum_{b<\overline{a}}{\rm occ}(\overline{P}b)={\rm lo}(\overline{P})+\sum_{b<\overline{a}}{\rm occ}(\overline{b}P)$.
 
-It is easy to see that if $(k,k',s)$ is the SA bi-interval of $P$, $(k',k,s)$ will be the SA bi-interval of $\overline{P}$, and vice versa.
+It is easy to see that if $(k,k',s)$ is the SA bi-interval of $P$, $(k',k,s)$ is the SA bi-interval of $\overline{P}$, and vice versa.
 Therefore, we can use the backward extension of $\overline{P}$ to achieve the forward extension of $P$.
 Algorithm~\ref{algo:backfor} gives the details.
 It slightly simplifies the original formulation~\citep{Li:2012fk}.
@@ -369,14 +370,14 @@ A \emph{maximal exact match} (MEM) is an exact match that cannot be extended in 
 A MEM may be contained in another MEM on the pattern string $P$.
 For example, suppose $T={\tt GACCTCCG}$ and $P={\tt ACCT}$.
 MEM $(2,6,1)$ is contained in MEM $(4,1,0)$ on the pattern string.
-A \emph{supermaximal exact match} (SMEM) is a MEM that is not contained in other MEMs on the pattern/query sequence.
+A \emph{supermaximal exact match} (SMEM) is a MEM that is not contained in other MEMs on the pattern string.
 In the example above, only $(4,1,0)$ is a SMEM.
 There are usually much fewer SMEMs than MEMs.
-\citet{DBLP:conf/dlt/Gagie24} recently proposed a new algorithm to long SMEMs (Algorithm~\ref{algo:smem})
+\citet{DBLP:conf/dlt/Gagie24} recently proposed a new algorithm to find long SMEMs (Algorithm~\ref{algo:smem})
 that is faster than our earlier algorithm~\citep{Li:2012fk}
 especially when there are many short SMEMs to skip.
 
-\begin{algorithm}
+\begin{algorithm}[b]
 	\caption{Finding SMEMs no shorter than $\ell$~\citep{DBLP:conf/dlt/Gagie24}}\label{algo:smem}
 	\begin{algorithmic}[1]
 		\Procedure{FindSMEM1}{$\ell,B,P,i$}
@@ -416,12 +417,12 @@ When we know the label of a node, we can find the label of its child using backw
 We can thus simulate the top-down traversal of the prefix trie~\citep{Lam:2008aa}.
 
 As is shown in Fig.~\ref{fig:1}b, different nodes in the prefix trie may have the same label.
-If we merge nodes with the same label, we will get a prefix DAWG~\citep{DBLP:journals/eatcs/BlumerBEHM83,Li:2010fk}.
+If we merge nodes with the same label (Fig.~\ref{fig:1}c), we will get a prefix DAWG~\citep{DBLP:journals/eatcs/BlumerBEHM83}.
 For $|T|>1$, the DAWG has at most $2|T|-1$ nodes~\citep{DBLP:conf/icalp/BlumerBEHM84}.
 Each node uniquely corresponds to an important SA interval of $T$.
 
 Let $G_T$ denote the prefix DAWG of $T$ and $V(G_T)$ be the set of vertices in $G_T$.
-Given two strings $T$ and $P$, we can align $G_T$ and $G_P$ under an affine-gap penalty
+Given two strings $T$ and $P$, we can align $G_T$ and $G_P$ under affine-gap penalty
 using the following equation:
 $$
 \left\{\begin{array}{lll}
@@ -436,17 +437,18 @@ ${\rm pre}(u)$ and ${\rm pre}(v)$ are the sets of predecessors in $G_P$ and $G_T
 $q$ is the gap open penalty, $e$ is the gap extension penalty,
 and $s(u',u;v',v)$ is the match/mismatch score between the symbol labeled on edge $(u',u)$ in $G_P$
 and the symbol on $(v',v)$ in $G_T$.
+This equation is similar to but not the same as our earlier result~\citep{Li:2010fk}.
 
 On real data, $G_T$ may be too large to store explicitly.
 Ropebwt3 instead explicitly stores $G_P$ only and traverses it in the topological order (Algorithm~\ref{algo:bwa-sw}).
 At a node $u\in V(G_P)$, we use a hash table to keep $\{v\in V(G_T):H_{uv}>0\}$.
 This algorithm is exact in that it guarantees to find the best alignment.
-In practice, however, there are often a large number of $v\in V(G_T)$ that can be aligned to $u$ with $H_{uv}>0$.
-It is slow to keep track of all cells $(u,v)$ with positive scores.
-Similar to our earlier work~\citep{Li:2010fk}, we store top $W$ cells (25 by default) at each $u$.
+In practice, however, a large number of $v\in V(G_T)$ may be aligned to $u$ with $H_{uv}>0$.
+It is slow and memory demanding to keep track of all cells $(u,v)$ with positive scores when $P$ is long.
+Similar to our earlier work, we only store top $W$ cells (25 by default) at each $u$.
 This is akin to dynamic banding for linear sequences~\citep{Suzuki:2018aa}.
 
-\begin{algorithm}
+\begin{algorithm}[tb]
 	\caption{The revised BWA-SW algorithm}\label{algo:bwa-sw}
 	\begin{algorithmic}[1]
 		\Procedure{BwaSW}{$G_P,G_T$}
@@ -475,13 +477,13 @@ This is akin to dynamic banding for linear sequences~\citep{Suzuki:2018aa}.
 
 \subsection{Estimating local haplotype diversity}
 
-BWA-SW with the banding heuristic may miss the best matching haplotype given an index consisting of similar haplotypes.
+BWA-SW with the banding heuristic may miss the best matching haplotype especially given an index consisting of similar haplotypes.
 When the suffix on the best full-length alignment has a lot more mismatches than the suffix on suboptimal alignments,
 the best alignment may have moved out of the band early in the iteration and thus get missed.
 Nevertheless, a long read sequenced from a new sample may be the recombinant of two genomes in the index.
-We are often not interested in the best alignment of the long read to a single haplotype.
+We often do not seek the best alignment of the long read to a single haplotype.
 We are instead more interested in the collection of haplotypes a query sequence can be aligned to even if they do not lead to the best alignment.
-This now becomes possible as BWA-SW explores possible alignments to multiple haplotypes.
+This now becomes possible as BWA-SW explores suboptimal alignments to multiple haplotypes.
 
 More exactly, we perform semi-global sequence-to-DAWG alignment (i.e. requiring the query sequence to be aligned from end to end)
 by applying BWA-SW to the graph of the linear query sequence $P$.
@@ -493,8 +495,10 @@ This procedure is slow as the ``locate'' operation is costly.
 We instead leverage the bi-directionality to identify redundancy heuristically.
 Suppose $P$ can be aligned to SA bi-intervals $(k_1,k'_1,s_1)$ and $(k_2,k'_2,s_2)$ and the alignment score to the first interval is higher.
 We filter out the second interval if $[k_2,k_2+s_2)\subset[k_1,k_1+s_1)$ or $[k'_2,k'_2+s_2)\subset[k'_1,k'_1+s_1)$.
+
 In practice, we may apply this algorithm to the flanking sequence of a variant
 or to sliding k-mers of a long query sequence to enumerate possible local haplotypes and estimate their frequencies in the index.
+It is a new query type that is biologically meaningful.
 
 \section{Results}
 
@@ -516,7 +520,7 @@ or to sliding k-mers of a long query sequence to enumerate possible local haplot
 %\end{tablenotes}
 %\end{table}
 
-\begin{table}[!tb]
+\begin{table}[b]
 \caption{Indexing performance\label{tab:index}}
 \begin{tabular*}{\columnwidth}{@{\extracolsep\fill}llrrr@{\extracolsep\fill}}
 \toprule
@@ -547,9 +551,9 @@ As we included both strands (Section~\ref{sec:ds-bwt}), each BWT construction al
 The average run length is 141.6.
 grlBWT (commit 5b6d26a; \citealt*{DBLP:journals/iandc/DiazDominguezN23}) is the fastest algorithm (Table~\ref{tab:index})
 at the cost of more than a terabyte of working disk space including decompressed sequences.
-Ropebwt3 spent 21 hours from input sequences in gzip'd FASTA to the final index.
+Ropebwt3 took 21 hours from input sequences in gzip'd FASTA to the final index.
 It does not use working disk space and can append new sequences to an existing BWT.
-However, hardcoded for the DNA alphabet, ropebwt3 does not work with the ASCII alphabet.
+However, hardcoded for the DNA alphabet, ropebwt3 does not work with more general alphabets.
 pfp-thresholds~\citep{Rossi:2022aa} used more memory than the input sequences.
 It may be impractical with increased sample size.
 
@@ -566,7 +570,7 @@ However, lossy in nature, it is not directly comparable to the rest of the tools
 
 To test the scalability of ropebwt3 in preparation for larger incoming pangenome datasets,
 we constructed the BWT of AllTheBacteria~\citep{Hunt2024.03.08.584059} excluding the ``dustbin'' and ``unknown'' categories that include relatively unique genomes.
-This subset, which we call as CommonBacteria, consists of 278.4 million sequences in 7.33 terabases.
+This subset, which we call as CommonBacteria, consists of 278.4 million sequences in 7.33 Tb.
 An older version of ropebwt3 took less than a month to construct the double-strand BWT with 15.66 trillion symbols.
 We expect the latest version to reduce the elapsed time to about 17 days.
 The final index in the fermi format is 27.6 GB in size.
@@ -631,7 +635,7 @@ Movi finds pseudo-matching length (PML).
 Although the fastest, it finds the longest exact matches for only 195 out of one million short reads
 and it misses the longest exact matches for all long reads.
 The longest PML of each read is on average 27\% shorter than the longest exact match for LR$+$ and 22\% shorter for SR$+$.
-Nonetheless, we believe it should be possible to implement SMEM finding using the Movi data structure at little cost of performance.
+Nonetheless, we believe it should be possible to implement SMEM finding based on the Movi data structure with a minor performance overhead.
 
 MONI and ropebwt3 can also find inexact matches.
 Implementing r-index, MONI can relatively cheaply locate one SMEM.
@@ -640,7 +644,7 @@ MONI extension is faster than BWA-SW on SR$+$ because it does not need to inspec
 This feature apparently focuses on short reads only.
 On LR$+$, MONI extension fails to extend to the ends of reads and generate incorrect output for the majority of reads.
 
-As to k-mer indices, fulgor outputs the genomes each read have enough 31-mer matches to.
+As to k-mer indices, fulgor outputs the labels of genomes that each read have enough 31-mer matches to.
 In its current form, such output is not useful for pangenome analysis as we know most of reads can be mapped to all genomes.
 Metagraph can additionally output the contig name of each match.
 However, when most k-mers are present in the index, metagraph is impractically slow.
@@ -658,11 +662,11 @@ We could not identify the source of these sequences but there were few of them a
 
 When we mapped the COLO829 reads to a single T2T-CHM13 genome~\citep{Nurk:2022up} and applied the same procedure,
 we found 55.9Mb of ``novel'' sequences in 25,365 reads.
-We might think the much larger number could be caused by regions with dense SNPs that prevented long exact matches,
-but counterintuitively, mapping these reads to T2T-CHM13 with minimap2~\citep{Li:2018ab} resulted in more ``novel'' sequences at 78.6Mb.
-This is probably because minimap2 ignores seeds occurring thousands of times in T2T-CHM13 and may miss more alignments.
+The much larger number is probably caused by regions with dense SNPs that prevented long exact matches.
+Counterintuitively, mapping these reads to T2T-CHM13 with minimap2~\citep{Li:2018ab} resulted in more ``novel'' sequences at 78.6Mb,
+probably because minimap2 ignores seeds occurring thousands of times in T2T-CHM13 and may miss more alignments.
 Capable of finding SMEMs at the pangenome scale, ropebwt3 is more effective for identifying known sequences.
-It is actually also faster than full minimap2 alignment against a single genome.
+It is also faster than full minimap2 alignment against a single genome.
 
 \subsection{Haplotype diversity around C4 genes}
 
@@ -695,7 +699,7 @@ We can only obtain this information with BWA-SW which reports suboptimal hits.
 Ropebwt3 is a fast tool for BWT construction and sequence search for redundant DNA sequences.
 Generating BWT purely in memory and supporting incremental build, ropebwt3 is convenient and practical for BWT construction at large scale.
 It provides the fastest algorithm so far for finding supermaximal exact matches and can report inexact hits as well.
-Ropebwt3 demonstrates that BWT-based data structures are scalable to the terabases of pangenome data.
+Ropebwt3 demonstrates that BWT-based data structures are scalable to terabases of pangenome data.
 
 Ropebwt3 will take 2--3 weeks to index 1,000 human genomes assembled from long reads.
 When there are more genomes, it will be faster to construct the BWT of individual genome independently
