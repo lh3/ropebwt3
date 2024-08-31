@@ -86,8 +86,8 @@ which is a lossless transformation of strings.
 The BWT of a highly redundant string tends to group symbols in the original string into long runs
 and can thus be well compressed.
 When we supplement BWT with a data structure to efficiently compute the rank of a symbol in BWT,
-we can in theory count the occurrences of a string $P$ in $O(|P|)$ time where $|P|$ is the length of $P$.
-FM-index further adds a sampled suffix array to locate $P$,
+we can in theory count the occurrences of a string in time linear to its length.
+FM-index further adds a sampled suffix array to locate substrings,
 while r-index uses an alternative method that is more efficient for redundant strings.
 Both of them support compression and sequence search at the same time.
 
@@ -99,6 +99,7 @@ use prefix-free parsing for BWT construction~\citep{Boucher:2019aa}.
 They require more memory than input sequences and are impractical for huge datasets.
 Although ropebwt2 developed by us can construct BWT in memory proportional to its compressed size and is fast for short strings~\citep{Li:2014ab},
 it is inefficient for chromosome-long sequences.
+OnlineRlbwt~\citep{DBLP:journals/tcs/BannaiGI20} has a similar limitation.
 grlBWT~\citep{DBLP:journals/iandc/DiazDominguezN23} is likely the best algorithm for constructing the BWT of similar genomes.
 It reduces the peak memory at the cost of large working disk space and frequent disk input/output.
 In its current form, the algorithm does not support update to BWT.
@@ -446,7 +447,7 @@ This algorithm is exact in that it guarantees to find the best alignment.
 In practice, however, a large number of $v\in V(G_T)$ may be aligned to $u$ with $H_{uv}>0$.
 It is slow and memory demanding to keep track of all cells $(u,v)$ with positive scores when $P$ is long.
 Similar to our earlier work, we only store top $W$ cells (25 by default) at each $u$.
-This is akin to dynamic banding for linear sequences~\citep{Suzuki:2018aa}.
+This heuristic is akin to dynamic banding for linear sequences~\citep{Suzuki:2018aa}.
 
 \begin{algorithm}[tb]
 	\caption{The revised BWA-SW algorithm}\label{algo:bwa-sw}
@@ -528,19 +529,18 @@ Dataset        & Algorithm     & Elapsed$^1$ & CPU$^1$  &     RAM \\
 \midrule
 human100       & grlBWT        &  8.3 h       &  29.6 h &  84.8 GB \\
 		       & pfp-thres$^2$ & 51.7 h       &  51.5 h & 788.1 GB \\
-               & ropebwt3$^3$  & 20.5 h       & 469.4 h &  83.0 GB \\
-			   & metagraph$^4$ & 16.9 h       & 314.8 h & 251.0 GB \\
-			   & fulgor$^5$ (lossy)& 1.2 h    &  32.7 h & 165.2 GB \\
-CommonBacteria & ropebwt3$^3$  & 26.5 d       & 830.3 d &  67.3 GB \\
+               & ropebwt3      & 20.5 h       & 469.4 h &  83.0 GB \\
+			   & metagraph$^3$ & 16.9 h       & 314.8 h & 251.0 GB \\
+			   & fulgor$^4$ (lossy)& 1.2 h    &  32.7 h & 165.2 GB \\
+CommonBacteria & ropebwt3      & 26.5 d       & 830.3 d &  67.3 GB \\
 \botrule
 \end{tabular*}
 \begin{tablenotes}\setlength\itemsep{0.0em}
 \item Up to 64 threads specified if multi-threading is supported.
 \item[$^{1}$] excluding time for format conversion; ``h'' for hours; ``d'' for days
 \item[$^{2}$] pfp-thresholds was run on a slower machine with more RAM
-\item[$^{3}$] not using temporary disk space; supporting incremental build
-\item[$^{4}$] k-mer coordinates in the ``row\_diff\_brwt\_coord'' encoding
-\item[$^{5}$] without ``-{}-meta -{}-diff'' as the basic index is smaller; lossy index
+\item[$^{3}$] k-mer coordinates in the ``row\_diff\_brwt\_coord'' encoding
+\item[$^{4}$] without ``-{}-meta -{}-diff'' as the basic index is smaller; lossy index
 \end{tablenotes}
 \end{table}
 
@@ -620,7 +620,7 @@ PML: pseudo-matching length; PA: pseudo-alignment; PA$+$: pseudo-alignment with 
 SW$y$: BWA-SW with bandwidth $y$
 \item[$^5$] kilobases processed per CPU second. Index loading time excluded
 \item[$^6$] The MONI index includes both strands.
-We modified MONI such that extension is performed on one query strand only
+We modified MONI such that extension is performed on the forward query strand only
 \end{tablenotes}
 \end{table}
 
