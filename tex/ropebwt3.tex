@@ -553,7 +553,7 @@ However, hardcoded for the DNA alphabet, ropebwt3 does not work with the ASCII a
 pfp-thresholds~\citep{Rossi:2022aa} used more memory than the input sequences.
 It may be impractical with increased sample size.
 
-Both MONI (v0.2.1; \citealt*{Rossi:2022aa}) and Movi (commit a828283; \citealt*{Zakeri:2024aa}) use pfp-thresholds for building BWT.
+Both MONI (v0.2.1; \citealt*{Rossi:2022aa}) and Movi (v1.1.0; \citealt*{Zakeri:2024aa}) use pfp-thresholds for building BWT.
 They generate additional data structures on top of BWT.
 Time spent on these additional steps were not counted.
 The tested version of Movi used more than one terabyte of memory to construct the final index.
@@ -584,7 +584,7 @@ SR$+^1$& ropebwt3      & MEM31  & 1758.5       &  10.6 \\
 %	   &               & suffix & 2216.4       &  10.3 \\
 	   & MONI$^6$      & MEM$-$ & 453.2        &  68.4 \\
 	   &               & extend & 348.2        &  68.4 \\
-       & Movi          & PML    & 5894.0       &  79.4 \\
+       & Movi          & PML    & 5894.0       &  47.6 \\
 %	   &               & suffix & 6792.0       &  79.4 \\
 	   & metagraph     & PA$+$  & $<$0.1       &  65.3 \\
 	   & fulgor        & PA     & 2717.5       &   5.1 \\
@@ -592,14 +592,14 @@ LR$+^2$& ropebwt3      & MEM31  & 1695.9       &  10.5 \\
        &               & MEM51  & 1793.9       &  10.5 \\
        &               & SW25   & 82.7         &  15.6 \\
 	   & MONI          & MEM$-$ & 413.6        &  68.4 \\
-	   & Movi          & PML    & 16204.9      &  79.4 \\
+	   & Movi          & PML    & 16204.9      &  47.6 \\
 	   & metagraph     & PA$+$  & $<$0.1       &  65.3 \\
 	   & fulgor        & PA     & 2491.6       &   5.1 \\
 LR$-^3$& ropebwt3      & MEM31  & 1365.0       &  10.4 \\
        &               & MEM51  & 3051.6       &  10.4 \\
 	   &               & SW25   & 58.2         &  17.9 \\
 	   & MONI          & MEM$-$ & 186.8        &  68.4 \\
-	   & Movi          & PML    & 8490.9       &  79.4 \\
+	   & Movi          & PML    & 8490.9       &  47.6 \\
 	   & metagraph     & PA$+$  & 1119.3       &  65.3 \\
 	   & fulgor        & PA     & 4240.8       &   5.1 \\
 \botrule
@@ -679,7 +679,7 @@ In both cases, the exon 26 harbors the functional domain.
 We extracted the exon 26 from both genes from GRCh38.
 They differ at six mismatches over 157bp.
 We aligned both 157bp segments, one from each gene, to the human pangenome.
-105 haplotypes have the same \emph{C4A} exon 26 sequence, 1 haplotype has a mismatch at offset 128 and 4 have a mismatch at 54.
+105 haplotypes have the same \emph{C4A} exon 26 sequence, one haplotype has a mismatch at offset 128 and four haplotypes have a mismatch at 54.
 In case of \emph{C4B}, 60 haplotypes have the same reference \emph{C4B} sequence and 23 also have a mismatch at offset 54.
 This means among the 100 human haplotypes, there are 110 \emph{C4A} gene copies and 83 \emph{C4B} copies.
 If we increase the bandwidth from the default 25 to 200, BWA-SW will be able to align \emph{C4A} exon 26 to \emph{C4B} genes
