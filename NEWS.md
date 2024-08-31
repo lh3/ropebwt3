@@ -1,3 +1,23 @@
+Release 3.5-r203 (31 August 2024)
+---------------------------------
+
+Notable changes:
+
+ * New feature: added the end-to-end mode (`-e`) to `sw`. It outputs local
+   haplotypes similar to the entire query string.
+
+ * New feature: `hapdiv` command to estimate local haplotype diversity. It
+   applies the end-to-end mode to slide 101-mers and reports the number of
+   haplotypes within certain edit distance threshold.
+
+ * Improvement: ~30% faster BWT construction for large datasets.
+
+ * Breaking: in `sw`, changed the default scoring to the BLASTN scoring
+
+(3.5: 31 August 2024, r203)
+
+
+
 Release 3.4-r167 (20 August 2024)
 ---------------------------------
 
