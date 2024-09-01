@@ -20,7 +20,7 @@ echo ACCTACAACACCGGTaGGCTACAACGTGG | ./ropebwt3 sw -Lm20 mtb152.fmd -
 # Retrieve R15311, the 46th genome in the collection. 90=(46-1)*2
 ./ropebwt3 get mtb152.fmd 90 > R15311.fa
 
-# Download human index
+# Download the index of 100 human long-read assemblies (10GB in size)
 wget -O human100.fmr.gz https://zenodo.org/records/13147120/files/human100.fmr.gz?download=1
 wget -O human100.fmd.ssa https://zenodo.org/records/13147120/files/human100.fmd.ssa?download=1
 wget -O human100.fmd.len.gz https://zenodo.org/records/13147120/files/human100.fmd.len.gz?download=1
