@@ -19,6 +19,16 @@ echo ACCTACAACACCGGTGGCTACAACGTGG  | ./ropebwt3 mem -L mtb152.fmd -
 echo ACCTACAACACCGGTaGGCTACAACGTGG | ./ropebwt3 sw -Lm20 mtb152.fmd -
 # Retrieve R15311, the 46th genome in the collection. 90=(46-1)*2
 ./ropebwt3 get mtb152.fmd 90 > R15311.fa
+
+# Download human index
+wget -O human100.fmr.gz https://zenodo.org/records/13147120/files/human100.fmr.gz?download=1
+wget -O human100.fmd.ssa https://zenodo.org/records/13147120/files/human100.fmd.ssa?download=1
+wget -O human100.fmd.len.gz https://zenodo.org/records/13147120/files/human100.fmd.len.gz?download=1
+gzip -d human100.fmr.gz
+./ropebwt3 build -i human100.fmr -do human100.fmd   # convert the static format for speed
+
+# Find C4 alleles (the query is on the exon 26 of C4A)
+echo CCAGGACCCCTGTCCAGTGTTAGACAGGAGCATGCAG | ./ropebwt3 sw -N200 -m10 -MLe human100.fmd -
 ```
 
 ## Table of Contents
@@ -28,9 +38,9 @@ echo ACCTACAACACCGGTaGGCTACAACGTGG | ./ropebwt3 sw -Lm20 mtb152.fmd -
 - [Usage](#use)
   - [Counting maximal exact matches](#mem)
   - [Local alignment](#bwasw)
+  - [Haplotype diversity with end-to-end alignment](#e2e)
   - [Constructing a BWT](#build)
   - [Binary BWT formats](#format)
-- [Performance](#perf)
 - [Limitations](#limit)
 
 ## <a name="intro"></a>Introduction
@@ -73,7 +83,10 @@ ropebwt3 mem -t4 -l31 bwt.fmd query.fa > matches.bed
 ```
 In the output, the first three columns give the query sequence name, start and
 end of a match and the fourth column gives the number of hits. Option `-l`
-specifies the minimum MEM length. A larger value helps performance.
+specifies the minimum SMEM length. A larger value helps performance.
+
+You can use `--gap` to obtain regions not covered by long SMEMs or `--cov` to
+get the total length of regions covered by long SMEMs.
 
 ### <a name="bwasw"></a>Local alignment
 
@@ -94,67 +107,44 @@ written to the `rh` tag.
 **Local alignment is tens of times slower than finding SMEMs.** It is not designed
 for aligning high-throughput sequence reads.
 
+### <a name="e2e"></a>Haplotype diversity with end-to-end alignment
+
+With option `-e`, the `sw` command aligns the query sequence from end to end.
+In this mode, ropebwt3 may output multiple suboptimal end-to-end hits.
+This provides a way to retrieve similar haplotypes from the index.
+
+The `hapdiv` command applies this algorithm to 101-mers in a query sequence and
+outputs 1) query name, 2) query start, 3) query end, 4) number of distinct
+alleles the 101-mer matches, 5) number of haplotypes with perfectly matching
+the 101-mer, 6) number of haplotypes with edit distance 1 from the 101-mer,
+7) with distance 2, 8) with distance 3 and 9) with distance 4 or higher.
+
 ### <a name="build"></a>Constructing a BWT
 
 Ropebwt3 implements three algorithms for BWT construction. For the best
 performance, you need to choose an algorithm based on the input date types.
 
-1. If you are not sure, use the general command line
-   ```sh
-   ropebwt3 build -t24 -bo bwt.fmr file1.fa file2.fa filen.fa
-   ```
-   You can also append another file to an existing index
-   ```sh
-   ropebwt3 build -t24 -bo bwt-new.fmr -i bwt-old.fmr filex.fa
-   ```
-
-2. For a set of large genomes (e.g. a human pangenome), you may generate the
-   BWT of each individual genome on a cluster and merge them togather. This
-   parallelizes sub-BWT construction and speeds up the overall process.
-   ```sh
-   ropebwt3 build -t8 -bo genome1.fmr genome1.fa.gz
-   ropebwt3 build -t8 -bo genome2.fmr genome2.fa.gz
-   ropebwt3 build -t8 -bo genomen.fmr genomen.fa.gz
-   ropebwt3 merge -t24 -bo bwt.fmr genome1.fmr genome2.fmr genomen.fmr
-   ```
-
-3. For a set of small genomes, it is better to concatenate them together:
-   ```sh
-   cat file1.fa file2.fa filen.fa | ropebwt3 build -t24 -m2g -bo bwt.fmr -
-   ```
-
-4. For short reads, use the ropebwt2 algorithm and enable the RCLO sorting:
-   ```sh
-   ropebwt3 build -r -bo bwt.fmr reads.fq.gz
-   ```
-
-5. Use [grlBWT][grlbwt], which is [faster](#perf) than ropebwt3 for large pangenomes:
-   ```sh
-   ropebwt3 fa2line genome1.fa genome2.fa genomen.fa > all.txt
-   grlbwt-cli all.txt -t 32 -T . -o bwt.grl
-   grl2plain bwt.rl_bwt bwt.txt
-   ropebwt3 plain2fmd -o bwt.fmd bwt.txt
-   ```
+```sh
+# if not sure, use the general command line:
+ropebwt3 build -t24 -bo bwt.fmr file1.fa file2.fa filen.fa
+# you can also append another file to an existing index:
+ropebwt3 build -t24 -i bwt-old.fmr -bo bwt-new.fmr filex.fa
+# if each file is small, concatenate them together:
+cat file1.fa file2.fa filen.fa | ropebwt3 build -t24 -m2g -bo bwt.fmr -
+# for short reads, use the old ropebwt2 algorithm and optionally apply RCLO:
+ropebwt3 build -r -bo bwt.fmr reads.fq.gz
+# use grlBWT
+ropebwt3 fa2line genome1.fa genome2.fa genomen.fa > all.txt
+grlbwt-cli all.txt -t 32 -T . -o bwt.grl
+grl2plain bwt.rl_bwt bwt.txt
+ropebwt3 plain2fmd -o bwt.fmd bwt.txt
+```
 
 These command lines construct a BWT for both strands of the input sequences.
 You can skip the reverse strand by adding option `-R`.
-
-When you use the `build` command for one genome, the peak memory by default is
-$`B+11\cdot\min\{2S,7{\rm g}\}`$ where $S$ is the input file size and $B$ is
-the final BWT size in run-length encoding. If you have more than 65536
-sequences in a batch, factor 11 will be increased to 17 due to the use of a
-different algorithm. You can reduce the peak memory by reducing the batch size
-via option `-m`.
-
-The peak memory for the `merge` command is
-$`B+\max\{B_1,\ldots,B_n\}+8\max\{L_1,\ldots,L_n\}`$, where $B$ is the final
-BWT size in run-length encoding, $`B_i`$ is the size of the $i$-th input BWT
-to be merged and $`L_i`$ is the number of symbols in the $i$-th BWT.
-
 If you provide multiple files on a `build` command line, ropebwt3 internally
 will run `build` on each input file and then incrementally merge each
-individual BWT to the final BWT. The peak memory will be the higher one between
-the `build` step and the `merge` step.
+individual BWT to the final BWT.
 
 ### <a name="format"></a>Binary BWT file formats
 
@@ -167,8 +157,8 @@ be used interchangeably in ropebwt3, but it is recommended to use FMR for BWT
 construction and FMD for finding exact matches. You can explicitly convert
 between the two formats with:
 ```sh
-ropebwt3 build -i in.fmd -bo out.fmr
-ropebwt3 build -i in.fmr -do out.fmd
+ropebwt3 build -i in.fmd -bo out.fmr  # from static to dynamic format
+ropebwt3 build -i in.fmr -do out.fmd  # from dynamic to static format
 ```
 <!--
 ## <a name="dev"></a>For Developers
@@ -219,84 +209,7 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 ```
-
-## <a name="algo"></a>Algorithms
-
-### <a name="algo-build"></a>BWT construction
-
-Ropebwt3 effectively appends a distinct sentinel to each string in the string
-set such that we never need to compare suffixes beyond sentinels. This is an
-essential assumption behind ropebwt3. Ropebwt3 would become much slower if you
-concatenate all strings without sentinels.
-
-Like ropebwt2, ropebwt3 uses a B+-tree to store a run-length encoded BWT.
-It can either insert sequences or merge BWTs into the B+-tree. The sequence
-insertion algorithm is identical to ropebwt2. Please see [its paper][rb2-paper]
-for details.
-
-BWT merging can be done in several equivalent ways and has been
-described in multiple papers. More exactly in ropebwt3, suppose we want to
-append the $`i_0`$ sequence in BWT $`B'`$ into $`B`$. We start with $`k\gets
-C({\rm A})`$ and $`i\gets i_0`$, calculate the position of $`B'[i]`$ in the
-final merged BWT with
-```math
-{\rm rank}(B'[i],k)+{\rm rank}'(B'[i],i)
-```
-and update $k$ and $i$ by
-```math
-k\gets C(B'[i])+{\rm rank}(B'[i],k),\, i\gets C'(B'[i])+{\rm rank}'(B'[i],i)
-```
-until $`B'[i]`$ is a seninel. When we have the final position of each symbol
-$`B'[i]`$, we insert them into $B$ to generate the merged BWT.
-
-### <a name="algo-match"></a>Searching
-
-A classical BWT only supports backward search but if a BWT contains both
-strands of DNA sequences, it will support both forward and backward searches.
-And with search in both directions, it is possible to find SMEMs. Please see
-the [fermi paper][fm-paper] for details.
 -->
-## <a name="perf"></a>Performance
-
-The following table shows the time to construct the BWT for three datasets:
-
-1. human100 (300Gb): 100 human genomes assembled with long reads from the pangene paper
-2. ecoli315k (1.6Tb): 315k *E. coli* genomes from [AllTheBacteria v0.2][atb02]
-3. CommonBacteria (7.3Tb): genomes from AllTheBacteria excluding those in the "dustbin" and "unknown" categories
-
-BWTs are constructed from both strands, so the size of each BWT doubles the
-number of input bases.
-
-|Dataset        |Algorithm |Elapsed|CPU time|Peak RAM|
-|:--------------|:---------|------:|-------:|-------:|
-|human100       |rb3 build | 33.7 h| 803.6 h|  82.3 G|
-|               |rb3 merge | 24.2 h| 757.2 h|  70.7 G|
-|               |grlBWT    |  8.3 h|  29.6 h|  84.8 G|
-|               |pfp-thres | 51.7 h|  51.5 h| 788.1 G|
-|ecoli315k      |rb3 build |128.7 h|3826.8 h|  20.5 G|
-|CommonBacteria |rb3 build | 26.5 d| 830.3 d|  67.3 G|
-
-For human100, the following methods were evaluated:
-
-* `rb3 build`: construct BWT from input FASTA files with `ropebwt3 build -t48`
-  (using up to 48 threads). This is the only method here that does not use
-  working disk space.
-
-* `rb3 merge`: merge 100 BWTs constructed from 100 FASTA files, respectively.
-  Constructing the BWT for one human genome takes around 10 minutes, which is not
-  counted in the table.
-
-* `grlBWT`: construct BWT using [grlBWT][grlbwt]. We need to concatenate all
-  input FASTA files and convert them to the one-sequence-per-line format with
-  `ropebwt3 fa2line`. Conversion time is not counted.
-
-* `pfp-thresholds`: launched via the [Movi][movi] indexing script. It was run
-  on a slower machine with more RAM. The time for `prepare_ref` is not counted,
-  either.
-
-**grlBWT is clearly the winner for BWT construction** and it also works for non-DNA
-alphabet. Ropebwt3 has acceptable performance and its support of incremental
-build may be helpful for large datasets.
 
 ## <a name="limit"></a>Limitations
 
