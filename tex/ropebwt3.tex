@@ -23,7 +23,7 @@
 \author[1,2,3,$\ast$]{Heng Li\ORCID{0000-0003-4874-2874}}
 \address[1]{Department of Data Science, Dana-Farber Cancer Institute, 450 Brookline Ave, Boston, MA 02215, USA}
 \address[2]{Department of Biomedical Informatics, Harvard Medical School, 10 Shattuck St, Boston, MA 02215, USA}
-\address[3]{Broad Insitute of Harvard and MIT, 415 Main St, Cambridge, MA 02142, USA}
+\address[3]{Broad Insitute of MIT and Harvard, 415 Main St, Cambridge, MA 02142, USA}
 \corresp[$\ast$]{Corresponding author. \href{mailto:hli@ds.dfci.harvard.edu}{hli@ds.dfci.harvard.edu}}
 
 %\received{Date}{0}{Year}
@@ -37,14 +37,15 @@ Burrows-Wheeler Transform (BWT) is a common component in full-text indices.
 Initially developed for data compression, it is particularly powerful for encoding redundant sequences such as pangenome data.
 However, BWT construction is resource intensive and hard to be parallelized,
 and many methods for querying large full-text indices only report exact matches or their simple extensions.
-These limitations have hampered the application of full-text indices to large datasets.
+These limitations have hampered the biological applications of full-text indices.
 \vspace{0.5em}\\
 \textbf{Results:}
 We developed ropebwt3 for efficient BWT construction and query.
 Ropebwt3 could index 100 assembled human genomes in 21 hours and index 7.3 terabases of commonly studied bacterial assemblies in 26 days.
 This was achieved using 82 gigabytes of memory at the peak without working disk space.
-Ropebwt3 can also find maximal exact matches and enumerate suboptimal inexact alignments with affine-gap penalties.
-It demonstrates the feasibility of full-text indexing at terabase scale.
+Ropebwt3 can find maximal exact matches and inexact alignments under affine-gap penalties,
+and can retrieve all distinct local haplotypes matching a query sequence.
+It demonstrates the feasibility of full-text indexing at the terabase scale.
 \vspace{0.5em}\\
 \textbf{Availability and implementation:}
 \url{https://github.com/lh3/ropebwt3}
@@ -80,7 +81,7 @@ they still take large space.
 The largest lossless k-mer index consists of a few terabases~\citep{Karasikov2020.10.01.322164}.
 
 Compressed full-text indices, such as FM-index~\citep{DBLP:conf/focs/FerraginaM00} and r-index~\citep{DBLP:conf/soda/GagieNP18,DBLP:journals/tcs/BannaiGI20,DBLP:journals/jacm/GagieNP20},
-provide an alternative way for fast sequence search.
+provide an alternative way for fast sequence search~\citep{DBLP:journals/csur/Navarro21}.
 The core component of these data structures is often Burrows-Wheeler Transform (BWT; \citealt*{Burrows:1994aa})
 which is a lossless transformation of strings.
 The BWT of a highly redundant string tends to group symbols in the original string into long runs
@@ -338,13 +339,12 @@ The \emph{suffix array bidirectional interval} (\emph{SA bi-interval}) of $P$ is
 	\caption{Backward and forward extensions with DS-BWT}\label{algo:backfor}
 	\begin{algorithmic}[1]
 		\Procedure{BackwardExt}{$B,(k,k',s),a$}
-			\State $t\gets 0$
 			\ForAll{$b<\overline{a}$}\Comment{$b$ can be $\$$}
-				\State $t\gets t+\big[{\rm rank}(\overline{b},k+s)-{\rm rank}(\overline{b},k)\big]$
+				\State $k'\gets k'+\big[{\rm rank}(\overline{b},k+s)-{\rm rank}(\overline{b},k)\big]$
 			\EndFor
 			\State $s\gets {\rm rank}(a,k+s)-{\rm rank}(a,k)$
 			\State $k\gets C(a)+{\rm rank}(a,k)$
-			\State \Return{$(k,k'+t,s)$}
+			\State \Return{$(k,k',s)$}
 		\EndProcedure
 		\Procedure{ForwardExt}{$B,(k,k',s),a$}
 			\State $(k',k,s)\gets${\sc BackwardExt}$(B,(k',k,s),\overline{a})$
@@ -362,7 +362,7 @@ We can thus calculate ${\rm lo}(\overline{aP})={\rm lo}(\overline{P})+\sum_{b<\o
 It is easy to see that if $(k,k',s)$ is the SA bi-interval of $P$, $(k',k,s)$ is the SA bi-interval of $\overline{P}$, and vice versa.
 Therefore, we can use the backward extension of $\overline{P}$ to achieve the forward extension of $P$.
 Algorithm~\ref{algo:backfor} gives the details.
-It slightly simplifies the original formulation~\citep{Li:2012fk}.
+It simplifies the original formulation~\citep{Li:2012fk}.
 
 \subsection{Finding supermaximal exact matches}
 
@@ -377,32 +377,33 @@ There are usually much fewer SMEMs than MEMs.
 \citet{DBLP:conf/dlt/Gagie24} recently proposed a new algorithm to find long SMEMs (Algorithm~\ref{algo:smem})
 that is faster than our earlier algorithm~\citep{Li:2012fk}
 especially when there are many short SMEMs to skip.
+Both algorithms can also find SMEMs occurring at least $s_{\min}$ times~\citep{DBLP:conf/cpm/TatarnikovFKG23}.
 
 \begin{algorithm}[b]
 	\caption{Finding SMEMs no shorter than $\ell$~\citep{DBLP:conf/dlt/Gagie24}}\label{algo:smem}
 	\begin{algorithmic}[1]
-		\Procedure{FindSMEM1}{$\ell,B,P,i$}
+		\Procedure{FindSMEM1}{$\ell,s_{\min},B,P,i$}
 			\State {\bf if} $i+\ell>|P|$ {\bf then} \Return{$|P|$}\Comment{Reaching the end of $|P|$}
 			\State $(k,k',s)\gets(0,0,|B|)$\Comment{SA bi-interval of empty string}
 			\For{$j\gets i+\ell-1$ {\bf to} $i$}\Comment{backward}
 				\State $(k,k',s)\gets${\sc BackwardExt}$(B,(k,k',s),P[j])$
-				\State {\bf if} $s=0$ {\bf then} \Return{$j+1$}
+				\State {\bf if} $s<s_{\min}$ {\bf then} \Return{$j+1$}
 			\EndFor
 			\For{$j\gets i+\ell$ {\bf to} $|P|-1$}\Comment{forward}
 				\State $(k,k',s)\gets${\sc ForwardExt}$(B,(k,k',s),P[j])$
-				\State {\bf if} $s=0$ {\bf then} {\bf break}
+				\State {\bf if} $s<s_{\min}$ {\bf then} {\bf break}
 			\EndFor
 			\State $e\gets j$ and output $[i,e)$\Comment{SMEM found}
 			\State $(k,k',s)\gets(0,0,|B|)$
 			\For{$j\gets e$ {\bf to} $i+1$}\Comment{backward again}
 				\State $(k,k',s)\gets${\sc BackwardExt}$(B,(k,k',s),P[j])$
-				\State {\bf if} $s=0$ {\bf then} \Return{$j+1$}
+				\State {\bf if} $s<s_{\min}$ {\bf then} \Return{$j+1$}
 			\EndFor
 		\EndProcedure
-		\Procedure{FindSMEM}{$\ell,B,P$}
+		\Procedure{FindSMEM}{$\ell,s_{\min},B,P$}
 			\State $i\gets0$
 			\Repeat
-			\State $i\gets${\sc FindSMEM1}$(\ell,B,P,i)$
+			\State $i\gets${\sc FindSMEM1}$(\ell,s_{\min},B,P,i)$
 			\Until{$i\ge|P|$}
 		\EndProcedure
 	\end{algorithmic}
@@ -423,8 +424,7 @@ For $|T|>1$, the DAWG has at most $2|T|-1$ nodes~\citep{DBLP:conf/icalp/BlumerBE
 Each node uniquely corresponds to an important SA interval of $T$.
 
 Let $G_T$ denote the prefix DAWG of $T$ and $V(G_T)$ be the set of vertices in $G_T$.
-Given two strings $T$ and $P$, we can align $G_T$ and $G_P$ under affine-gap penalty
-using the following equation:
+Given a reference string $T$ and a pattern string $P$, we can align $G_T$ and $G_P$ under affine-gap penalty with
 $$
 \left\{\begin{array}{lll}
 E_{uv}&=&\max_{u'\in{\rm pre}(u)}\{\max\{H_{u'v}-q,E_{u'v}\}\}-e\\
@@ -488,10 +488,10 @@ This now becomes possible as BWA-SW explores suboptimal alignments to multiple h
 
 More exactly, we perform semi-global sequence-to-DAWG alignment (i.e. requiring the query sequence to be aligned from end to end)
 by applying BWA-SW to the graph of the linear query sequence $P$.
-BWA-SW proceeds from the end of $P$ to the beginning of $P$ base by base,
-and finally gives multiple alignments of $P$ in full length.
-Importantly, $P$ may be aligned to almost the same location with slightly different gap placements and alignment scores.
-We can identify this case by locating the base position of each alignment.
+We can find the set of matching haplotypes $\mathcal{M}\triangleq\{v\in V(G_T):H_{u_0v}>0\}$ where $u_0$ represents the start of $P$.
+$\mathcal{M}$ may include suboptimal haplotypes caused by small variants as well as the optimal one.
+Importantly, $P$ may be aligned to similar positions on $T$ with slightly different gap placements and alignment scores.
+In theory, we can identify this case by locating the position of each alignment.
 This procedure is slow as the ``locate'' operation is costly.
 We instead leverage the bi-directionality to identify redundancy heuristically.
 Suppose $P$ can be aligned to SA bi-intervals $(k_1,k'_1,s_1)$ and $(k_2,k'_2,s_2)$ and the alignment score to the first interval is higher.
@@ -692,7 +692,7 @@ and output all five hits for each sequence.
 Fig.~\ref{fig:c4} shows the local haplotype diversity across the entire \emph{C4A} gene spanning $\sim$20.6kb on GRCh38.
 We can see most regions have 193 copies, except a $\sim$6.4kb HERV insertion that separates long and short forms~\citep{Sekar:2016aa}.
 The dip around exon 26 is caused by the \emph{C4A}--\emph{C4B} difference.
-We can only obtain this information with BWA-SW which reports suboptimal hits.
+We could only see these alternative haplotypes with BWA-SW which reports suboptimal hits.
 
 \section{Discussions}
 
