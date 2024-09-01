@@ -28,7 +28,7 @@ gzip -d human100.fmr.gz
 ./ropebwt3 build -i human100.fmr -do human100.fmd   # convert the static format for speed
 
 # Find C4 alleles (the query is on the exon 26 of C4A)
-echo CCAGGACCCCTGTCCAGTGTTAGACAGGAGCATGCAG | ./ropebwt3 sw -N200 -m10 -MLe human100.fmd -
+echo CCAGGACCCCTGTCCAGTGTTAGACAGGAGCATGCAG | ./ropebwt3 sw -eN200 -Lm10 human100.fmd -
 ```
 
 ## Table of Contents
@@ -125,15 +125,15 @@ Ropebwt3 implements three algorithms for BWT construction. For the best
 performance, you need to choose an algorithm based on the input date types.
 
 ```sh
-# if not sure, use the general command line:
+# If not sure, use the general command line
 ropebwt3 build -t24 -bo bwt.fmr file1.fa file2.fa filen.fa
-# you can also append another file to an existing index:
+# You can also append another file to an existing index
 ropebwt3 build -t24 -i bwt-old.fmr -bo bwt-new.fmr filex.fa
-# if each file is small, concatenate them together:
+# If each file is small, concatenate them together
 cat file1.fa file2.fa filen.fa | ropebwt3 build -t24 -m2g -bo bwt.fmr -
-# for short reads, use the old ropebwt2 algorithm and optionally apply RCLO:
+# For short reads, use the old ropebwt2 algorithm and optionally apply RCLO (option -r)
 ropebwt3 build -r -bo bwt.fmr reads.fq.gz
-# use grlBWT
+# use grlBWT, which may be faster but uses working disk space
 ropebwt3 fa2line genome1.fa genome2.fa genomen.fa > all.txt
 grlbwt-cli all.txt -t 32 -T . -o bwt.grl
 grl2plain bwt.rl_bwt bwt.txt
@@ -153,7 +153,7 @@ FMR format and the fermi FMD format. The FMR format is dynamic in that you can
 add new sequences or merge BWTs to an existing FMR file. The same BWT does not
 necessarily lead to the same FMR. The FMD format is simpler in structure,
 faster to load, smaller in memory and can be memory-mapped. The two formats can
-be used interchangeably in ropebwt3, but it is recommended to use FMR for BWT
+often be used interchangeably in ropebwt3, but it is recommended to use FMR for BWT
 construction and FMD for finding exact matches. You can explicitly convert
 between the two formats with:
 ```sh
