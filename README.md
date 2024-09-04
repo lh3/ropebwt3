@@ -41,6 +41,7 @@ echo CCAGGACCCCTGTCCAGTGTTAGACAGGAGCATGCAG | ./ropebwt3 sw -eN200 -Lm10 human100
   - [Haplotype diversity with end-to-end alignment](#e2e)
   - [Constructing a BWT](#build)
   - [Binary BWT formats](#format)
+- [Citation](#cite)
 - [Limitations](#limit)
 
 ## <a name="intro"></a>Introduction
@@ -210,6 +211,12 @@ int main(int argc, char *argv[]) {
 }
 ```
 -->
+
+## <a name="cite"></a>Citation
+
+Ropebwt3 is described in
+
+> Li (2024) BWT construction and search at the terabase scale, [arXiv:2409.00613](https://arxiv.org/abs/2409.00613)
 
 ## <a name="limit"></a>Limitations
 
