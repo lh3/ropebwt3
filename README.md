@@ -39,7 +39,7 @@ echo CCAGGACCCCTGTCCAGTGTTAGACAGGAGCATGCAG | ./ropebwt3 sw -eN200 -Lm10 human100
   - [Counting maximal exact matches](#mem)
   - [Local alignment](#bwasw)
   - [Haplotype diversity with end-to-end alignment](#e2e)
-  - [Constructing a BWT](#build)
+  - [Indexing](#build)
   - [Binary BWT formats](#format)
 - [Citation](#cite)
 - [Limitations](#limit)
@@ -120,10 +120,11 @@ alleles the 101-mer matches, 5) number of haplotypes with perfectly matching
 the 101-mer, 6) number of haplotypes with edit distance 1 from the 101-mer,
 7) with distance 2, 8) with distance 3 and 9) with distance 4 or higher.
 
-### <a name="build"></a>Constructing a BWT
+### <a name="build"></a>Indexing
 
-Ropebwt3 implements three algorithms for BWT construction. For the best
-performance, you need to choose an algorithm based on the input date types.
+Ropebwt3 implements two algorithms for BWT construction. Although both
+algorithms work for general sequences, you need to choose an algorithm based on
+the input date types for the best performance.
 
 ```sh
 # If not sure, use the general command line
@@ -147,6 +148,21 @@ If you provide multiple files on a `build` command line, ropebwt3 internally
 will run `build` on each input file and then incrementally merge each
 individual BWT to the final BWT.
 
+After BWT construction, you will probably want to generate sampled suffix array
+with:
+```sh
+ropebwt3 ssa -o index.fmd.ssa -s8 -t32 index.fmd
+```
+This stores one suffix array value per $`2^8`$ positions. The size of the
+output file is roughly $`64\cdot(n/2^s+m)`$, where $n$ is the number of symbols
+in the BWT and `m` is the number of sequences. Furthermore, if you want to get
+the contig names with `sw`, you need to prepare another file:
+```sh
+cat input*.fa.gz | seqtk comp | cut -f1,2 | gzip > index.fmd.len.gz
+```
+If the BWT is built from multiple files, make sure the order in `cat` is
+the same as the order used for BWT construction.
+
 ### <a name="format"></a>Binary BWT file formats
 
 Ropebwt3 uses two binary formats to store run-length encoded BWTs: the ropebwt2
@@ -155,7 +171,7 @@ add new sequences or merge BWTs to an existing FMR file. The same BWT does not
 necessarily lead to the same FMR. The FMD format is simpler in structure,
 faster to load, smaller in memory and can be memory-mapped. The two formats can
 often be used interchangeably in ropebwt3, but it is recommended to use FMR for BWT
-construction and FMD for finding exact matches. You can explicitly convert
+construction and FMD for sequence search. You can explicitly convert
 between the two formats with:
 ```sh
 ropebwt3 build -i in.fmd -bo out.fmr  # from static to dynamic format
