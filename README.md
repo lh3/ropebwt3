@@ -155,7 +155,7 @@ ropebwt3 ssa -o index.fmd.ssa -s8 -t32 index.fmd
 ```
 This stores one suffix array value per $`2^8`$ positions. The size of the
 output file is roughly $`64\cdot(n/2^s+m)`$, where $n$ is the number of symbols
-in the BWT and `m` is the number of sequences. Furthermore, if you want to get
+in the BWT and $m$ is the number of sequences. Furthermore, if you want to get
 the contig names with `sw`, you need to prepare another file:
 ```sh
 cat input*.fa.gz | seqtk comp | cut -f1,2 | gzip > index.fmd.len.gz
