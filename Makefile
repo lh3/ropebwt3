@@ -59,4 +59,3 @@ search.o: fm-index.h rb3priv.h rld0.h mrope.h rope.h io.h align.h ketopt.h
 search.o: kthread.h kalloc.h
 ssa.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h io.h kalloc.h kthread.h
 ssa.o: ketopt.h
-test.o: rld0.h
