@@ -569,13 +569,24 @@ int64_t rb3_fmi_retrieve(const rb3_fmi_t *f, int64_t k, kstring_t *s)
 int64_t rb3_fmi_get_r(const rb3_fmi_t *f)
 {
 	int64_t l, r = 0;
-	int c;
-	assert(f->e != 0); // not implemented for rope yet
+	int c, last_c = -1;
 	if (f->e) {
 		rlditr_t itr;
 		rld_itr_init(f->e, &itr, 0);
 		while ((l = rld_dec(f->e, &itr, &c, 0)) > 0)
 			++r;
+	} else if (f->r) {
+		mritr_t ri;
+		const uint8_t *block;
+		mr_itr_first(f->r, &ri, 0);
+		while ((block = mr_itr_next_block(&ri)) != 0) {
+			const uint8_t *q = block + 2, *end = block + 2 + *rle_nptr(block);
+			while (q < end) {
+				rle_dec1(q, c, l);
+				if (c != last_c)
+					++r, last_c = c;
+			}
+		}
 	}
 	return r;
 }
