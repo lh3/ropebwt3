@@ -33,7 +33,7 @@ typedef struct {
 	rb3_swhit_t *a;
 } rb3_swrst_t;
 
-#define RB2_SW_MAX_ED 4
+#define RB2_SW_MAX_ED 6
 
 typedef struct {
 	int32_t n_al, max_ed, n_hap[RB2_SW_MAX_ED + 1];
