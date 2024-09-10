@@ -95,6 +95,12 @@ static int32_t sw_backtrack1_core(const rb3_swopt_t *opt, const rb3_fmi_t *f, co
 			assert(p->E > 0 && p->E_from_pos != UINT32_MAX);
 			pos = p->E_from_pos, ++ed;
 		} else if (state == SW_FROM_F) {
+			if (p->F == 0 || p->F_off_set == 0) {
+				int32_t i;
+				fprintf(stderr, "BUG: pos=(%d,%d); F=%d; F_off_set=%d; seq=", r, (int32_t)(pos % n_col), p->F, p->F_off_set);
+				for (i = g->n_node - 1; i > 0; --i) fputc("$ACGTN"[g->node[i].c], stderr);
+				fputc('\n', stderr);
+			}
 			assert(p->F > 0 && p->F_off_set);
 			pos = r * n_col + p->F_from_off, ++ed;
 		}
@@ -213,23 +219,24 @@ static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_d
  * Filling the "matrix" *
  ************************/
 
-static sw_cell_t *sw_update_candset(sw_candset_t *h, const sw_cell_t *p)
+static sw_cell_t *sw_update_candset(sw_candset_t *h, const sw_cell_t *p, int32_t *changed)
 {
 	khint_t k;
 	int absent;
+	*changed = 0; // this indicates which H/E/F have been changed
 	k = sw_candset_put(h, *p, &absent);
 	if (!absent) {
 		sw_cell_t *q = &kh_key(h, k);
 		q->rlen = q->rlen > p->rlen? q->rlen : p->rlen; // furthest extension
 		q->qlen = q->qlen > p->qlen? q->qlen : p->qlen;
-		if (q->E < p->E) q->E = p->E, q->E_from = p->E_from, q->E_from_pos = p->E_from_pos;
-		if (q->F < p->F) q->F = p->F, q->F_from = p->F_from; // NB: F_from_off is populated differently
+		if (q->E < p->E) q->E = p->E, q->E_from = p->E_from, q->E_from_pos = p->E_from_pos, *changed |= 1<<1;
+		if (q->F < p->F) q->F = p->F, q->F_from = p->F_from, *changed |= 1<<2; // NB: F_from_off is populated differently
 		if (q->H < p->H) {
-			q->H = p->H, q->H_from = p->H_from;
+			q->H = p->H, q->H_from = p->H_from, *changed |= 1<<0;
 			if (p->H_from == SW_FROM_H)
 				q->H_from_pos = p->H_from_pos; // TODO: is this correct?
 		}
-	}
+	} else *changed = 7; // H/E/F are all changed
 	return &kh_key(h, k);
 }
 
@@ -310,7 +317,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	for (i = 1; i < g->n_node; ++i) { // traverse all nodes in the DAWG in the topological order
 		const rb3_dawg_node_t *t = &g->node[i];
 		sw_row_t *ri = &row[i];
-		int32_t j, k, heap_sz, max_min_sc = 0, n_fpar = 0;
+		int32_t j, k, heap_sz, max_min_sc = 0, n_fpar = 0, changed = 0;
 		rb3_sai_t ik, ok[RB3_ASIZE];
 		khint_t itr;
 		sw_candset_clear(h);
@@ -356,7 +363,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 					sw_sai2cell(&ok[c], &r);
 					r.H = p->H + sc;
 					r.rlen = p->rlen + 1, r.qlen = p->qlen + 1;
-					sw_update_candset(h, &r);
+					sw_update_candset(h, &r, &changed);
 				}
 				// calculate E
 				if (p->H - opt->gap_open > p->E)
@@ -370,7 +377,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 					r.H_from = SW_FROM_E;
 					r.E_from_pos = pid * n_col + k, r.H_from_pos = UINT32_MAX;
 					r.rlen = p->rlen, r.qlen = p->qlen + 1;
-					sw_update_candset(h, &r);
+					sw_update_candset(h, &r, &changed);
 				}
 			}
 		}
@@ -417,12 +424,12 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 					sw_cell_t *q;
 					if (ok[c].size == 0) continue;
 					sw_sai2cell(&ok[c], &r);
-					q = sw_update_candset(h, &r);
-					if (q->F == r.F) { // if q->F > r.F, this deletion is not really added
+					q = sw_update_candset(h, &r, &changed);
+					if (changed & 1<<2) { // q->F has been updated
 						sw_heap_insert1(heap, opt->n_best, &heap_sz, r.H, UINT32_MAX);
 						Kgrow(km, rb3_u128_t, fpar, n_fpar, m_fpar);
 						fpar[n_fpar].x = z.lo, fpar[n_fpar].y = z.hi;
-						q->F_from_off = n_fpar++;
+						q->F_from = r.F_from, q->F_from_off = n_fpar++;
 						if (r.H - opt->gap_ext > min) {
 							Kgrow(km, sw_cell_t, fstack, n_fstack, m_fstack);
 							fstack[n_fstack++] = *q;
