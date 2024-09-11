@@ -1,3 +1,19 @@
+Release 3.6-r217 (10 September 2024)
+------------------------------------
+
+Notable changes:
+
+ * Bugfix: fixed a rare assertion failure.
+
+ * Improvement: the `stat` command now works with the FMR format (#1).
+
+ * Breaking: the `hapdiv` command now gives the counts of alleles up to edit
+   distance five.
+
+(3.6: 10 September 2024, r217)
+
+
+
 Release 3.5-r203 (31 August 2024)
 ---------------------------------
 
