@@ -232,15 +232,19 @@ static inline void str_copy(kstring_t *s, const char *st, const char *en)
 	s->l += en - st;
 }
 
-void rb3_sprintf_lite(kstring_t *s, const char *fmt, ...)
+int64_t rb3_sprintf_lite(kstring_t *s, const char *fmt, ...)
 {
 	char buf[32]; // for integer to string conversion
 	const char *p, *q;
+	int64_t len = 0;
 	va_list ap;
 	va_start(ap, fmt);
 	for (q = p = fmt; *p; ++p) {
 		if (*p == '%') {
-			if (p > q) str_copy(s, q, p);
+			if (p > q) {
+				len += p - q;
+				if (s) str_copy(s, q, p);
+			}
 			++p;
 			if (*p == 'd') {
 				int c, i, l = 0;
@@ -249,8 +253,11 @@ void rb3_sprintf_lite(kstring_t *s, const char *fmt, ...)
 				x = c >= 0? c : -c;
 				do { buf[l++] = x%10 + '0'; x /= 10; } while (x > 0);
 				if (c < 0) buf[l++] = '-';
-				str_enlarge(s, l);
-				for (i = l - 1; i >= 0; --i) s->s[s->l++] = buf[i];
+				len += l;
+				if (s) {
+					str_enlarge(s, l);
+					for (i = l - 1; i >= 0; --i) s->s[s->l++] = buf[i];
+				}
 			} else if (*p == 'l' && *(p+1) == 'd') {
 				int c, i, l = 0;
 				unsigned long x;
@@ -258,22 +265,34 @@ void rb3_sprintf_lite(kstring_t *s, const char *fmt, ...)
 				x = c >= 0? c : -c;
 				do { buf[l++] = x%10 + '0'; x /= 10; } while (x > 0);
 				if (c < 0) buf[l++] = '-';
-				str_enlarge(s, l);
-				for (i = l - 1; i >= 0; --i) s->s[s->l++] = buf[i];
+				len += l;
+				if (s) {
+					str_enlarge(s, l);
+					for (i = l - 1; i >= 0; --i) s->s[s->l++] = buf[i];
+				}
 				++p;
 			} else if (*p == 'u') {
 				int i, l = 0;
 				uint32_t x;
 				x = va_arg(ap, uint32_t);
 				do { buf[l++] = x%10 + '0'; x /= 10; } while (x > 0);
-				str_enlarge(s, l);
-				for (i = l - 1; i >= 0; --i) s->s[s->l++] = buf[i];
+				len += l;
+				if (s) {
+					str_enlarge(s, l);
+					for (i = l - 1; i >= 0; --i) s->s[s->l++] = buf[i];
+				}
 			} else if (*p == 's') {
 				char *r = va_arg(ap, char*);
-				str_copy(s, r, r + strlen(r));
+				int l;
+				l = strlen(r);
+				len += l;
+				if (s) str_copy(s, r, r + l);
 			} else if (*p == 'c') {
-				str_enlarge(s, 1);
-				s->s[s->l++] = va_arg(ap, int);
+				++len;
+				if (s) {
+					str_enlarge(s, 1);
+					s->s[s->l++] = va_arg(ap, int);
+				}
 			} else {
 				fprintf(stderr, "ERROR: unrecognized type '%%%c'\n", *p);
 				abort();
@@ -281,7 +300,11 @@ void rb3_sprintf_lite(kstring_t *s, const char *fmt, ...)
 			q = p + 1;
 		}
 	}
-	if (p > q) str_copy(s, q, p);
+	if (p > q) {
+		len += p - q;
+		if (s) str_copy(s, q, p);
+	}
 	va_end(ap);
-	s->s[s->l] = 0;
+	if (s) s->s[s->l] = 0;
+	return len;
 }
