@@ -5,7 +5,7 @@
 #include "io.h"
 #include "ketopt.h"
 
-#define RB3_VERSION "3.6-r222-dirty"
+#define RB3_VERSION "3.6-r223-dirty"
 
 int main_build(int argc, char *argv[]);
 int main_merge(int argc, char *argv[]);
@@ -15,6 +15,7 @@ int main_suffix(int argc, char *argv[]);
 int main_search(int argc, char *argv[]);
 int main_kount(int argc, char *argv[]);
 int main_fa2line(int argc, char *argv[]);
+int main_fa2kmer(int argc, char *argv[]);
 int main_plain2fmd(int argc, char *argv[]);
 int main_stat(int argc, char *argv[]);
 
@@ -37,6 +38,7 @@ static int usage(FILE *fp)
 	fprintf(fp, "    stat       basic statistics of BWT\n");
 	fprintf(fp, "    kount      count (high-occurrence) k-mers\n");
 	fprintf(fp, "    fa2line    convert FASTX to lines\n");
+	fprintf(fp, "    fa2kmer    extract k-mers from FASTX\n");
 	fprintf(fp, "    version    print the version number\n");
 	return fp == stdout? 0 : 1;
 }
@@ -58,6 +60,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "get") == 0) ret = main_get(argc-1, argv+1);
 	else if (strcmp(argv[1], "kount") == 0) ret = main_kount(argc-1, argv+1);
 	else if (strcmp(argv[1], "fa2line") == 0) ret = main_fa2line(argc-1, argv+1);
+	else if (strcmp(argv[1], "fa2kmer") == 0) ret = main_fa2kmer(argc-1, argv+1);
 	else if (strcmp(argv[1], "plain2fmd") == 0) ret = main_plain2fmd(argc-1, argv+1);
 	else if (strcmp(argv[1], "version") == 0) {
 		printf("%s\n", RB3_VERSION);
@@ -246,6 +249,50 @@ int main_fa2line(int argc, char *argv[])
 		}
 		rb3_seq_close(fp);
 	}
+	return 0;
+}
+
+int main_fa2kmer(int argc, char *argv[])
+{
+	int32_t c, j, kmer = 151, step = 50;
+	ketopt_t o = KETOPT_INIT;
+	kstring_t out = {0,0,0};
+	while ((c = ketopt(&o, argc, argv, 1, "k:w:", 0)) >= 0) {
+		if (c == 'k') kmer = atoi(o.arg);
+		else if (c == 'w') step = atoi(o.arg);
+		else {
+			fprintf(stderr, "ERROR: unknown option\n");
+			return 1;
+		}
+	}
+	if (argc - o.ind < 1) {
+		fprintf(stdout, "Usage: ropebwt3 fa2kmer [options] <seq.fa> [...]\n");
+		fprintf(stderr, "Options:\n");
+		fprintf(stderr, "  -k INT      k-mer size [%d]\n", kmer);
+		fprintf(stderr, "  -w INT      step size [%d]\n", step);
+		return 0;
+	}
+	for (j = o.ind; j < argc; ++j) {
+		char *seq;
+		const char *name;
+		int64_t len;
+		rb3_seqio_t *fp;
+		fp = rb3_seq_open(argv[j], 0);
+		while ((seq = rb3_seq_read1(fp, &len, &name)) != 0) {
+			int64_t i;
+			for (i = 0; i < len; i += step) {
+				int64_t en = i + step + kmer > len? len : i + kmer; // special treatment for the last k-mer
+				out.l = 0;
+				rb3_sprintf_lite(&out, ">%s:%ld-%ld\n", name, (long)(i + 1), (long)en);
+				fwrite(out.s, 1, out.l, stdout);
+				fwrite(&seq[i], 1, en - i, stdout);
+				fputc('\n', stdout);
+				if (en == len) break;
+			}
+		}
+		rb3_seq_close(fp);
+	}
+	free(out.s);
 	return 0;
 }
 
