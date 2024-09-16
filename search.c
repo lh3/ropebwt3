@@ -9,9 +9,8 @@
 typedef enum { RB3_SA_MEM_TG, RB3_SA_MEM_ORI, RB3_SA_SW, RB3_SA_HAPDIV } rb3_search_algo_t;
 
 #define RB3_MF_NO_KALLOC   0x1
-#define RB3_MF_WRITE_RS    0x2
-#define RB3_MF_WRITE_UNMAP 0x4
-#define RB3_MF_WRITE_COV   0x8
+#define RB3_MF_WRITE_UNMAP 0x2
+#define RB3_MF_WRITE_COV   0x4
 
 typedef struct {
 	uint32_t flag;
@@ -127,7 +126,7 @@ static inline void write_name(kstring_t *out, const m_seq_t *s)
 	else rb3_sprintf_lite(out, "seq%ld", s->id + 1);
 }
 
-static void write_paf(kstring_t *out, const rb3_fmi_t *f, const rb3_swhit_t *h, const m_seq_t *s, int32_t write_rs)
+static void write_paf(kstring_t *out, const rb3_fmi_t *f, const rb3_swhit_t *h, const m_seq_t *s)
 {
 	int32_t k;
 	write_name(out, s);
@@ -151,7 +150,7 @@ static void write_paf(kstring_t *out, const rb3_fmi_t *f, const rb3_swhit_t *h, 
 	for (k = 0; k < h->n_cigar; ++k)
 		rb3_sprintf_lite(out, "%d%c", h->cigar[k]>>4, "MIDNSHP=X"[h->cigar[k]&0xf]);
 	rb3_sprintf_lite(out, "\tcs:Z:%s", h->cs);
-	if (write_rs) {
+	if (h->rseq) {
 		rb3_sprintf_lite(out, "\trs:Z:");
 		for (k = 0; k < h->rlen; ++k)
 			rb3_sprintf_lite(out, "%c", "$ACGTN"[h->rseq[k]]);
@@ -173,7 +172,7 @@ static void write_per_seq(step_t *t)
 			if (r->n > 0) { // mapped
 				for (i = 0; i < r->n; ++i) {
 					out.l = 0;
-					write_paf(&out, &p->fmi, &r->a[i], s, p->opt->flag & RB3_MF_WRITE_RS);
+					write_paf(&out, &p->fmi, &r->a[i], s);
 					fputs(out.s, stdout);
 				}
 			} else if (p->opt->flag & RB3_MF_WRITE_UNMAP) { // unmapped
@@ -366,7 +365,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		else if (c == 'y') opt.swo.e2e_drop = atoi(o.arg);
 		else if (c == 'u') opt.flag |= RB3_MF_WRITE_UNMAP;
 		else if (c == 301) no_ssa = 1;
-		else if (c == 302) opt.flag |= RB3_MF_WRITE_RS;
+		else if (c == 302) opt.swo.flag |= RB3_SWF_KEEP_RS;
 		else if (c == 303) opt.min_gap_len = rb3_parse_num(o.arg);
 		else if (c == 304) opt.flag |= RB3_MF_WRITE_COV;
 		else if (c == 305) opt.algo = RB3_SA_MEM_ORI;

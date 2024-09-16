@@ -150,7 +150,7 @@ static void sw_cs_core(rb3_swhit_t *hit, const uint8_t *qseq, int len_only) // c
 	assert(x == hit->rlen && y - hit->qoff[0] == hit->qlen);
 }
 
-static void sw_backtrack1(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const uint8_t *qseq, const sw_row_t *row, uint32_t pos, rb3_swhit_t *hit)
+static void sw_backtrack1(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const uint8_t *qseq, const sw_row_t *row, uint32_t pos, rb3_swhit_t *hit)
 {
 	int32_t k;
 	const rb3_dawg_node_t *p;
@@ -173,12 +173,16 @@ static void sw_backtrack1(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_
 
 	// get CIGAR
 	sw_backtrack1_core(opt, f, g, row, pos, hit, 1); // compute length without allocation
-	hit->rseq = RB3_CALLOC(uint8_t, hit->rlen);
+	hit->rseq = opt->flag & RB3_SWF_KEEP_RS? RB3_CALLOC(uint8_t, hit->rlen) : Kcalloc(km, uint8_t, hit->rlen);
 	hit->cigar = RB3_CALLOC(uint32_t, hit->n_cigar);
 	sw_backtrack1_core(opt, f, g, row, pos, hit, 0);
-	sw_cs_core(hit, qseq, 1);
-	hit->cs = RB3_MALLOC(char, hit->cs_len + 1);
+	sw_cs_core(hit, qseq, 1); // this requires ::cigar and ::rseq
+	hit->cs = RB3_CALLOC(char, hit->cs_len + 1);
 	sw_cs_core(hit, qseq, 0);
+	if (!(opt->flag & RB3_SWF_KEEP_RS)) {
+		kfree(km, hit->rseq);
+		hit->rseq = 0;
+	}
 
 	// calculate block length and matching length
 	hit->mlen = hit->blen = 0;
@@ -214,7 +218,7 @@ static void sw_cell_dedup(void *km, sw_row_t *row)
 	kfree(km, a);
 }
 
-static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const uint8_t *qseq, const sw_row_t *row, uint32_t best_pos, rb3_swrst_t *r, rb3_hapdiv_t *a)
+static void sw_backtrack(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_dawg_t *g, const uint8_t *qseq, const sw_row_t *row, uint32_t best_pos, rb3_swrst_t *r, rb3_hapdiv_t *a)
 {
 	int32_t i, n_col = opt->n_best;
 	if (opt->flag & (RB3_SWF_E2E|RB3_SWF_HAPDIV)) { // end-to-end mode
@@ -240,7 +244,7 @@ static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_d
 			uint32_t pos = (g->n_node - 1) * n_col + i;
 			if (!q->flt && q->H_from == SW_FROM_H && q->H >= opt->min_sc && (opt->e2e_drop < 0 || H0 - q->H <= opt->e2e_drop)) {
 				if (r) { // get full alignment
-					sw_backtrack1(opt, f, g, qseq, row, pos, &r->a[n++]);
+					sw_backtrack1(km, opt, f, g, qseq, row, pos, &r->a[n++]);
 				} else if (a) { // get summary information
 					int32_t ed;
 					ed = sw_backtrack1_core(opt, f, g, row, pos, &tmp, 1);
@@ -253,7 +257,7 @@ static void sw_backtrack(const rb3_swopt_t *opt, const rb3_fmi_t *f, const rb3_d
 	} else { // local mode; TODO: support split alignment
 		r->n = 1;
 		r->a = RB3_CALLOC(rb3_swhit_t, r->n);
-		sw_backtrack1(opt, f, g, qseq, row, best_pos, &r->a[0]);
+		sw_backtrack1(km, opt, f, g, qseq, row, best_pos, &r->a[0]);
 	}
 }
 
@@ -518,7 +522,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 	rb3_r2cache_destroy(rc);
 
 	if (best_score >= opt->min_sc)
-		sw_backtrack(opt, f, g, qseq, row, best_pos, rst, anno);
+		sw_backtrack(km, opt, f, g, qseq, row, best_pos, rst, anno);
 
 	kfree(km, row);
 	kfree(km, cell);

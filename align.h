@@ -3,8 +3,9 @@
 
 #include "fm-index.h"
 
-#define RB3_SWF_E2E     0x1
-#define RB3_SWF_HAPDIV  0x2
+#define RB3_SWF_E2E      0x1
+#define RB3_SWF_HAPDIV   0x2
+#define RB3_SWF_KEEP_RS  0x4
 
 typedef struct {
 	uint32_t flag;
