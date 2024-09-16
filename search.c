@@ -11,6 +11,7 @@ typedef enum { RB3_SA_MEM_TG, RB3_SA_MEM_ORI, RB3_SA_SW, RB3_SA_HAPDIV } rb3_sea
 #define RB3_MF_NO_KALLOC   0x1
 #define RB3_MF_WRITE_UNMAP 0x2
 #define RB3_MF_WRITE_COV   0x4
+#define RB3_MF_WRITE_ALL   0x8
 
 typedef struct {
 	uint32_t flag;
@@ -158,6 +159,20 @@ static void write_paf(kstring_t *out, const rb3_fmi_t *f, const rb3_swhit_t *h, 
 	rb3_sprintf_lite(out, "\n");
 }
 
+static void write_all_hits(kstring_t *out, const m_seq_t *s, const rb3_swrst_t *r)
+{
+	int32_t i;
+	rb3_sprintf_lite(out, "QS\t");
+	write_name(out, s);
+	rb3_sprintf_lite(out, "\t%d\t%d\n", s->len, r->n);
+	for (i = 0; i < r->n; ++i) {
+		const rb3_swhit_t *h = &r->a[i];
+		rb3_sprintf_lite(out, "QH\t%ld\t%d\t%d\t%s\n", (long)(h->hi - h->lo), h->score, h->blen - h->mlen, h->cs);
+	}
+	rb3_sprintf_lite(out, "//\n");
+	fputs(out->s, stdout);
+}
+
 static void write_per_seq(step_t *t)
 {
 	const pipeline_t *p = t->p;
@@ -167,7 +182,10 @@ static void write_per_seq(step_t *t)
 		m_seq_t *s = &t->seq[j];
 		free(s->seq);
 		out.l = 0;
-		if (p->opt->algo == RB3_SA_SW) { // BWA-SW
+		if (p->opt->algo == RB3_SA_SW && (p->opt->flag & RB3_MF_WRITE_ALL)) { // write all hits in a compact format
+			write_all_hits(&out, s, &t->rst[j]);
+			rb3_swrst_free(&t->rst[j]);
+		} else if (p->opt->algo == RB3_SA_SW) { // write PAF
 			rb3_swrst_t *r = &t->rst[j];
 			if (r->n > 0) { // mapped
 				for (i = 0; i < r->n; ++i) {
@@ -325,6 +343,7 @@ static ko_longopt_t long_options[] = {
 	{ "gap",             ko_required_argument, 303 },
 	{ "cov",             ko_no_argument,       304 },
 	{ "old-mem",         ko_no_argument,       305 },
+	{ "all-e2e",         ko_no_argument,       306 },
 	{ "no-kalloc",       ko_no_argument,       501 },
 	{ "dbg-dawg",        ko_no_argument,       502 },
 	{ "dbg-sw",          ko_no_argument,       503 },
@@ -369,6 +388,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		else if (c == 303) opt.min_gap_len = rb3_parse_num(o.arg);
 		else if (c == 304) opt.flag |= RB3_MF_WRITE_COV;
 		else if (c == 305) opt.algo = RB3_SA_MEM_ORI;
+		else if (c == 306) opt.flag |= RB3_MF_WRITE_ALL, opt.swo.flag |= RB3_SWF_E2E, opt.swo.end_len = 1;
 		else if (c == 501) opt.flag |= RB3_MF_NO_KALLOC;
 		else if (c == 502) rb3_dbg_flag |= RB3_DBG_DAWG;
 		else if (c == 503) rb3_dbg_flag |= RB3_DBG_SW;
@@ -420,6 +440,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 			fprintf(stderr, "  -k INT      require INT-mer match at the end of alignment [%d]\n", opt.swo.end_len);
 			fprintf(stderr, "  -u          write unmapped queries to PAF\n");
 			fprintf(stderr, "  --seq       write reference sequence to the rs tag\n");
+			fprintf(stderr, "  --all-e2e   write all end-to-end hits in a compact format (forcing -e)\n");
 			fprintf(stderr, "  --no-ssa    ignore the sampled suffix array\n");
 		}
 		fprintf(stderr, "  -t INT      number of threads [%d]\n", opt.n_threads);
@@ -434,6 +455,11 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		if (rb3_verbose >= 1)
 			fprintf(stderr, "ERROR: BWT doesn't contain both strands\n");
 		return 1;
+	}
+	if (opt.flag & RB3_MF_WRITE_ALL) {
+		puts("CC\tQS  queryName  queryLen  numHap");
+		puts("CC\tQH  refCount   score     editDist   cs");
+		puts("CC");
 	}
 	for (j = o.ind + 1; j < argc; ++j) {
 		p.fp = rb3_seq_open(argv[j], is_line);

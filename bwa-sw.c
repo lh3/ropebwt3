@@ -563,7 +563,7 @@ void rb3_swrst_free(rb3_swrst_t *rst)
 {
 	int32_t i;
 	for (i = 0; i < rst->n; ++i) {
-		free(rst->a[i].rseq); free(rst->a[i].cigar); free(rst->a[i].qoff);
+		free(rst->a[i].rseq); free(rst->a[i].cigar); free(rst->a[i].cs); free(rst->a[i].qoff);
 	}
 	free(rst->a);
 }
