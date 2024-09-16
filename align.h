@@ -19,13 +19,14 @@ typedef struct {
 typedef struct {
 	int32_t score;
 	int32_t qlen, rlen;
-	int32_t n_cigar;
+	int32_t n_cigar, cs_len;
 	int32_t n_qoff, blen, mlen;
 	int64_t lo, hi; // SA interval
 	int64_t lo_sid, lo_pos; // contig ID and position for the hit corresponding to lo
 	uint8_t *rseq; // reference sequence in the alignment
 	uint32_t *cigar; // cigar in the BAM encoding
 	int32_t *qoff; // list of query offsets for the same hit
+	char *cs;
 } rb3_swhit_t;
 
 typedef struct {

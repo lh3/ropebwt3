@@ -150,6 +150,7 @@ static void write_paf(kstring_t *out, const rb3_fmi_t *f, const rb3_swhit_t *h, 
 	rb3_sprintf_lite(out, "\tAS:i:%d\tqh:i:%d\trh:i:%ld\tcg:Z:", h->score, h->n_qoff, (long)(h->hi - h->lo));
 	for (k = 0; k < h->n_cigar; ++k)
 		rb3_sprintf_lite(out, "%d%c", h->cigar[k]>>4, "MIDNSHP=X"[h->cigar[k]&0xf]);
+	rb3_sprintf_lite(out, "\tcs:Z:%s", h->cs);
 	if (write_rs) {
 		rb3_sprintf_lite(out, "\trs:Z:");
 		for (k = 0; k < h->rlen; ++k)
