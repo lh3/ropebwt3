@@ -402,7 +402,7 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 				sw_cell2sai(p, &ik);
 				rb3_fmd_extend_cached(f, rc, &ik, ok, 1);
 				for (c = 1; c < 6; ++c) {
-					int32_t sc = c == t->c? opt->match : -opt->mis;
+					int32_t sc = c == t->c && c != 5? opt->match : -opt->mis;
 					if (ok[c].size == 0) continue;
 					if (p->H + sc <= 0 || p->H + sc < max_min_sc) continue;
 					if (c != t->c && p->qlen < opt->end_len) continue;
