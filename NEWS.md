@@ -1,3 +1,13 @@
+Release 3.7-r226 (17 September 2024)
+------------------------------------
+
+In this release, the `sw` command outputs the `cs` tag and can report all
+end-to-end hits in a compact format with option `--all-e2e`.
+
+(3.7: 17 September 2024, r226)
+
+
+
 Release 3.6-r217 (10 September 2024)
 ------------------------------------
 
