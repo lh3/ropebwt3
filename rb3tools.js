@@ -156,11 +156,12 @@ function rb3_cmd_call(args)
 	}
 
 	class Variant {
-		constructor(ctg, off, len, w) {
-			this.ctg = ctg, this.st = off + w.st, this.en = off + w.en, this.ref = w.ref, this.alt = w.alt;
-			this.end_dist = w.st > len - w.en? w.st : len - w.en;
+		constructor(kmer_id, ctg, off, len, w) {
+			this.kmer_id = kmer_id, this.ctg = ctg, this.st = off + w.st, this.en = off + w.en, this.ref = w.ref, this.alt = w.alt;
+			this.end_dist = w.st < len - w.en? w.st : len - w.en;
+			this.conflict_flt = false;
 			this.key = `${this.ctg}-${this.st}-${this.ref}-${this.alt}`;
-			this.ac_real = this.ac_ambi = this.ac_flt = this.flt_score_gap = 0;
+			this.ac_real = this.ac_ambi = this.ac_flt = this.flt_score_gap = this.n_conflict = 0;
 		}
 		toString() {
 			let info = [`AC_GOOD=${this.ac_real}`, `AC_AMBI=${this.ac_ambi}`, `AC_FLT=${this.ac_flt}`, `FLT_GAP=${this.flt_score_gap}`];
@@ -176,7 +177,7 @@ function rb3_cmd_call(args)
 		}
 	}
 
-	let v = [], a = [], al = [], ctg1 = "", st1 = 0, en1 = 0;
+	let kmer_id = 0, vcf = [], a = [], al = [], ctg1 = "", st1 = 0, en1 = 0;
 	for (const line of k8_readline(args[1])) {
 		let m;
 		if ((m = /^QS\t(\S+):(\d+)-(\d+)\t/.exec(line)) != null) {
@@ -200,8 +201,11 @@ function rb3_cmd_call(args)
 			}
 			al.push(new Allele(cnt, score, ed));
 		} else if (line === "//") {
-			let n_hap = 0;
+			// output variants that have moved out of the current window
+			while (vcf.length && (vcf[0].ctg != ctg1 || vcf[0].en <= st1))
+				print(vcf.shift());
 			// calculate al[].acc; this assumes al[] is sorted by al[].score
+			let n_hap = 0;
 			for (let i = 1, j = 0; i <= al.length; ++i) {
 				if (i == al.length || al[i].score != al[j].score) {
 					for (let k = j; k < i; ++k)
@@ -220,31 +224,58 @@ function rb3_cmd_call(args)
 				}
 			}
 			// merge calls
-			let b = [];
-			a.sort(function(x, y) { return x.st != y.st? x.st - y.st : x.key == y.key? 0 : x.key < y.key? -1 : 1; });
+			a.sort(function(x, y) { return x.key == y.key? 0 : x.key < y.key? -1 : 1; });
 			for (let i = 1, j = 0; i <= a.length; ++i) {
-				if (i == a.length || a[i].key != a[j].key) {
-					let u = new Variant(ctg1, st1, en1 - st1, a[j]), max_sc = 0;
+				if (i == a.length || a[j].key != a[i].key) {
+					let v = new Variant(kmer_id, ctg1, st1, en1 - st1, a[j]), max_sc = 0;
 					for (let k = j; k < i; ++k) {
 						const t = al[a[k].aid];
 						if (t.score > score_cutoff || (t.score == score_cutoff && t.acc <= max_hap)) {
-							u.ac_real += t.cnt;
+							v.ac_real += t.cnt;
 						} else if (t.score == score_cutoff) {
 							max_sc = t.score;
-							u.ac_ambi += t.cnt;
+							v.ac_ambi += t.cnt;
 						} else {
 							max_sc = max_sc > t.score? max_sc : t.score;
-							u.ac_flt += t.cnt;
+							v.ac_flt += t.cnt;
 						}
 					}
-					u.flt_score_gap = score_cutoff - max_sc;
-					print(u);
-					b.push(u);
+					v.flt_score_gap = score_cutoff - max_sc;
+					vcf.push(v);
 					j = i;
 				}
 			}
+			// resolve conflicts with other k-mers
+			let wcf = [];
+			vcf.sort(function(x, y) { return x.st != y.st? x.st - y.sy : x.key == y.key? 0 : x.key < y.key? -1 : 1; });
+			for (let i = 1, j = 0; i <= vcf.length; ++i) {
+				if (i == vcf.length || vcf[j].key != vcf[i].key) {
+					let n_curr = 0, max_end_dist = -1, max_k = -1;
+					for (let k = j; k < i; ++k) {
+						const v = vcf[k];
+						if (v.kmer_id == kmer_id)
+							++n_curr;
+						if (v.end_dist > max_end_dist)
+							max_end_dist = v.end_dist, max_k = k;
+					}
+					if (n_curr > 1 || max_k < 0) throw("Bug!");
+					if (n_curr == 0) {
+						let v = vcf[max_k];
+						const curr_end_dist = v.st - st1 < en1 - v.en? v.st - st1 : en1 - v.en;
+						v.n_conflict++;
+						if (v.end_dist < curr_end_dist)
+							v.conflict_flt = true;
+					}
+					wcf.push(vcf[max_k]);
+					j = i;
+				}
+			}
+			vcf = wcf;
+			++kmer_id;
 		}
 	}
+	while (vcf.length) // output the rest of calls
+		print(vcf.shift());
 }
 
 /****************
