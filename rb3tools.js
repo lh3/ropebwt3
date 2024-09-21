@@ -161,10 +161,12 @@ function rb3_cmd_call(args)
 			this.end_dist = w.st < len - w.en? w.st : len - w.en;
 			this.conflict_flt = false;
 			this.key = `${this.ctg}-${this.st}-${this.ref}-${this.alt}`;
-			this.ac_real = this.ac_ambi = this.ac_flt = this.flt_score_gap = this.n_conflict = 0;
+			this.ac_real = this.ac_ambi = this.ac_flt = 0;
+			this.an_real = this.an_ambi = this.an_flt = 0;
+			this.flt_score_gap = this.n_conflict = 0;
 		}
 		toString() {
-			let info = [`AC_GOOD=${this.ac_real}`, `AC_AMBI=${this.ac_ambi}`, `AC_FLT=${this.ac_flt}`, `FLT_GAP=${this.flt_score_gap}`];
+			let info = [`AC_GOOD=${this.ac_real}`, `AN_GOOD=${this.an_real}`, `AC_AMBI=${this.ac_ambi}`, `AC_FLT=${this.ac_flt}`, `FLT_GAP=${this.flt_score_gap}`];
 			let flt = this.ac_real > 0 && this.ac_flt == 0? "PASS" : "DUP";
 			let ref, alt, pos;
 			if (this.ref.length == this.alt.length) { // SNP
@@ -216,10 +218,11 @@ function rb3_cmd_call(args)
 				}
 			}
 			// score_cutoff is the score of the max_hap-th haplotype
-			let score_cutoff = 0;
+			let an_real = n_hap, score_cutoff = al.length > 0? al[al.length-1].score : 0;
 			for (let i = 0; i < al.length; ++i) {
 				if (al[i].acc >= max_hap) {
 					score_cutoff = al[i].score;
+					an_real = al[i].acc;
 					break;
 				}
 			}
@@ -231,16 +234,20 @@ function rb3_cmd_call(args)
 					for (let k = j; k < i; ++k) {
 						const t = al[a[k].aid];
 						if (t.score > score_cutoff || (t.score == score_cutoff && t.acc <= max_hap)) {
+							max_sc = max_sc > t.score? max_sc : t.score;
 							v.ac_real += t.cnt;
+							v.an_real = t.acc > an_real? t.acc : an_real;
 						} else if (t.score == score_cutoff) {
 							max_sc = t.score;
 							v.ac_ambi += t.cnt;
+							v.an_ambi = t.acc;
 						} else {
 							max_sc = max_sc > t.score? max_sc : t.score;
 							v.ac_flt += t.cnt;
+							v.an_flt = t.acc;
 						}
 					}
-					v.flt_score_gap = score_cutoff - max_sc;
+					v.flt_score_gap = max_sc - score_cutoff;
 					vcf.push(v);
 					j = i;
 				}
