@@ -1,6 +1,6 @@
 #!/usr/bin/env k8
 
-const rb3_version = "3.7-r226";
+const rb3_version = "3.7-r234-dirty";
 
 /**************
  * From k8.js *
@@ -149,6 +149,22 @@ function rb3_cmd_call(args)
 	}
 	const max_hap = parseInt(args[0]);
 
+	print(`##fileformat=VCFv4.2`);
+	print(`##source=rb3tools-${rb3_version}`);
+	print(`##INFO=<ID=AC,Number=A,Type=Integer,Description="Number of alternate allele">`);
+	print(`##INFO=<ID=AN,Number=1,Type=Integer,Description="Number of samples">`);
+	print(`##INFO=<ID=AC_AMBI,Number=A,Type=Integer,Description="Number of ambiguous alleles">`);
+	print(`##INFO=<ID=AN_AMBI,Number=1,Type=Integer>`);
+	print(`##INFO=<ID=AC_DUP,Number=A,Type=Integer,Description="Number of duplicate alleles">`);
+	print(`##INFO=<ID=AN_DUP,Number=1,Type=Integer>`);
+	print(`##INFO=<ID=RSCORE,Number=1,Type=Integer,Description="Relative k-mer alignment score">`);
+	print(`##INFO=<ID=SUPPORT,Number=1,Type=Integer,Description="Number of supporting k-mers">`);
+	print(`##FILTER=<ID=LOWCONF,Description="Low confidence">`);
+	print(`##FILTER=<ID=AMBI,Description="Ambiguous">`);
+	print(`##FILTER=<ID=DUP,Description="Likely caused by duplications">`);
+	print(`##FILTER=<ID=CONFLICT,Description="Conflictive with a better k-mer alignment">`);
+	print("#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO");
+
 	class Allele {
 		constructor(cnt, score, ed) {
 			this.cnt = cnt, this.score = score, this.ed = ed, this.acc = 0; // acc is the number of haplotypes up to score
@@ -171,20 +187,24 @@ function rb3_cmd_call(args)
 			this.key = `${this.ctg}-${this.st}-${this.ref}-${this.alt}`;
 			this.ac_real = this.ac_ambi = this.ac_flt = 0;
 			this.an_real = this.an_ambi = this.an_flt = 0;
-			this.rel_score = this.n_conflict = 0;
+			this.rel_score = 0;
+			this.n_support = 1;
 			this.type = -1;
 		}
 		toString() {
 			let info = [`AC=${this.ac_real}`, `AN=${this.an_real}`, `AC_AMBI=${this.ac_ambi}`, `AN_AMBI=${this.an_ambi}`,
-						`AC_FLT=${this.ac_flt}`, `AN_FLT=${this.an_flt}`, `RSCORE=${this.rel_score}`, `CONFLICT=${this.n_conflict}`];
-			let flt = this.type == 0? "PASS" : this.type == 1? "LOWCONF" : this.type == 2? "UNKNOWN" : "SEGDUP";
+						`AC_DUP=${this.ac_flt}`, `AN_DUP=${this.an_flt}`, `RSCORE=${this.rel_score}`, `SUPPORT=${this.n_support}`];
+			let flt = [];
+			if (this.type > 0) flt.push(this.type == 1? "LOWCONF" : this.type == 2? "AMBI" : "DUP");
+			if (this.conflict_flt) flt.push("CONFLICT");
+			if (flt.length == 0) flt.push("PASS");
 			let ref, alt, pos;
 			if (this.ref.length == this.alt.length) { // SNP
 				pos = this.st + 1, ref = this.ref, alt = this.alt;
 			} else {
 				pos = this.st, ref = `N${this.ref}`, alt = `N${this.alt}`;
 			}
-			let t = [this.ctg, pos, ".", ref, alt, 60, flt, info.join(";")];
+			let t = [this.ctg, pos, ".", ref, alt, 60, flt.join(";"), info.join(";")];
 			return t.join("\t");
 		}
 	}
@@ -285,23 +305,24 @@ function rb3_cmd_call(args)
 			vcf.sort(function(x, y) { return x.st != y.st? x.st - y.st : x.key == y.key? 0 : x.key < y.key? -1 : 1; });
 			for (let i = 1, j = 0; i <= vcf.length; ++i) {
 				if (i == vcf.length || vcf[j].key != vcf[i].key) {
-					let n_curr = 0, max_end_dist = -1, max_k = -1;
+					let n_curr = 0, max_end_dist = -1, max_k = -1, n_support = 0;
 					for (let k = j; k < i; ++k) {
 						const v = vcf[k];
 						if (v.kmer_id == kmer_id)
 							++n_curr;
 						if (v.end_dist > max_end_dist)
 							max_end_dist = v.end_dist, max_k = k;
+						n_support += v.n_support;
 					}
 					if (n_curr > 1 || max_k < 0) throw("Bug!");
+					let v = vcf[max_k];
+					v.n_support = n_support;
 					if (n_curr == 0) {
-						let v = vcf[max_k];
 						const curr_end_dist = v.st - st1 < en1 - v.en? v.st - st1 : en1 - v.en;
-						v.n_conflict++;
 						if (v.end_dist < curr_end_dist)
 							v.conflict_flt = true;
 					}
-					wcf.push(vcf[max_k]);
+					wcf.push(v);
 					j = i;
 				}
 			}
