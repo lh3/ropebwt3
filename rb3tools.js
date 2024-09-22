@@ -94,8 +94,8 @@ function rb3_cmd_mapflt(args)
 {
 	let opt = { max_diff:5, gap_size:50 };
 	for (const o of getopt(args, "d:g:", [])) {
-		if (o.opt == 'd') opt.max_diff = parseInt(o.arg);
-		else if (o.opt == 'g') opt.gap_size = parseInt(o.arg);
+		if (o.opt == '-d') opt.max_diff = parseInt(o.arg);
+		else if (o.opt == '-g') opt.gap_size = parseInt(o.arg);
 	}
 	if (args.length < 2) {
 		print("Usage: rb3tools.js mapflt [options] <maxHap> <in.e2e>");
@@ -131,13 +131,18 @@ function rb3_cmd_mapflt(args)
 
 function rb3_cmd_call(args)
 {
-	let opt = { };
+	let opt = { dbg:false, ambi_range:4, drop_score:12 };
 	let re_cs = /([:=*+-])(\d+|[A-Za-z]+)/g;
-	for (const o of getopt(args, "", [])) {
+	for (const o of getopt(args, "d:a:", ["dbg"])) {
+		if (o.opt == "--dbg") opt.dbg = true;
+		else if (o.opt == "-d") opt.drop_score = parseInt(o.arg);
+		else if (o.opt == "-a") opt.ambi_range = parseInt(o.arg);
 	}
 	if (args.length < 2) {
 		print("Usage: rb3tools.js call [options] <nHap> <in.e2e>");
 		print("Options:");
+		print(`  -a INT     filter a variant if score within cutoff-INT [${opt.ambi_range}]`);
+		print(`  -d INT     drop alignments with score lower than cutoff-INT [${opt.drop_score}]`);
 		return 1;
 	}
 	const max_hap = parseInt(args[0]);
@@ -145,10 +150,11 @@ function rb3_cmd_call(args)
 	class Allele {
 		constructor(cnt, score, ed) {
 			this.cnt = cnt, this.score = score, this.ed = ed, this.acc = 0; // acc is the number of haplotypes up to score
+			this.type = -1; // -1 for unset
 		}
 	}
 
-	class LocalVar {
+	class KmerVar {
 		constructor(st, en, aid, ref, alt) {
 			this.st = st, this.en = en, this.aid = aid, this.ref = ref, this.alt = alt;
 			this.key = `${this.st}-${this.ref}-${this.alt}`;
@@ -163,11 +169,12 @@ function rb3_cmd_call(args)
 			this.key = `${this.ctg}-${this.st}-${this.ref}-${this.alt}`;
 			this.ac_real = this.ac_ambi = this.ac_flt = 0;
 			this.an_real = this.an_ambi = this.an_flt = 0;
-			this.flt_score_gap = this.n_conflict = 0;
+			this.rel_score = this.n_conflict = 0;
+			this.type = -1;
 		}
 		toString() {
-			let info = [`AC_GOOD=${this.ac_real}`, `AN_GOOD=${this.an_real}`, `AC_AMBI=${this.ac_ambi}`, `AC_FLT=${this.ac_flt}`, `FLT_GAP=${this.flt_score_gap}`];
-			let flt = this.ac_real > 0 && this.ac_flt == 0? "PASS" : "DUP";
+			let info = [`AC_GOOD=${this.ac_real}`, `AN_GOOD=${this.an_real}`, `AC_AMBI=${this.ac_ambi}`, `AC_FLT=${this.ac_flt}`, `RSCORE=${this.rel_score}`, `CONFLICT=${this.n_conflict}`];
+			let flt = this.type == 0? "PASS" : this.type == 1? "DUBIOUS" : this.type == 2? "UNKNOWN" : "DUP";
 			let ref, alt, pos;
 			if (this.ref.length == this.alt.length) { // SNP
 				pos = this.st + 1, ref = this.ref, alt = this.alt;
@@ -191,18 +198,19 @@ function rb3_cmd_call(args)
 				if (m[1] == ':') {
 					x += parseInt(m[2]);
 				} else if (m[1] == '*') {
-					a.push(new LocalVar(x, x + 1,   al.length, m[2][0].toUpperCase(), m[2][1].toUpperCase()));
+					a.push(new KmerVar(x, x + 1,   al.length, m[2][0].toUpperCase(), m[2][1].toUpperCase()));
 					++x;
 				} else if (m[1] == '+') {
 					const len = m[2].length;
-					a.push(new LocalVar(x, x + len, al.length, m[2].toUpperCase(), ""));
+					a.push(new KmerVar(x, x + len, al.length, m[2].toUpperCase(), ""));
 					x += len;
 				} else if (m[1] == '-') {
-					a.push(new LocalVar(x, x,       al.length, "", m[2].toUpperCase()));
+					a.push(new KmerVar(x, x,       al.length, "", m[2].toUpperCase()));
 				}
 			}
 			al.push(new Allele(cnt, score, ed));
 		} else if (line === "//") {
+			if (opt.dbg) print("X1", `${ctg1}:${st1+1}-${en1}`);
 			// output variants that have moved out of the current window
 			while (vcf.length && (vcf[0].ctg != ctg1 || vcf[0].en <= st1))
 				print(vcf.shift());
@@ -218,43 +226,50 @@ function rb3_cmd_call(args)
 				}
 			}
 			// score_cutoff is the score of the max_hap-th haplotype
-			let an_real = n_hap, score_cutoff = al.length > 0? al[al.length-1].score : 0;
+			let an_real = n_hap, score_cutoff = 0, score_next = 0;
 			for (let i = 0; i < al.length; ++i) {
-				if (al[i].acc >= max_hap) {
-					score_cutoff = al[i].score;
-					an_real = al[i].acc;
-					break;
-				}
+				if (al[i].acc >= max_hap && score_cutoff == 0)
+					score_cutoff = al[i].score, an_real = al[i].acc;
+				if (al[i].acc > max_hap && score_next == 0)
+					score_next = al[i].score;
+			}
+			if (score_cutoff == 0 && al.length > 0)
+				score_cutoff = al[al.length - 1].score;
+			if (opt.dbg) print("X2", score_cutoff, score_next);
+			// classify each allele
+			for (let i = 0; i < al.length; ++i) {
+				let t = al[i];
+				if (t.score >= score_cutoff && t.score >= score_next + opt.ambi_range) t.type = 0; // probably real
+				else if (t.score >= score_cutoff && t.score > score_next) t.type = 1; // perhaps real but not reliable
+				else if (t.score < score_cutoff - opt.drop_score) t.type = 4; // discard
+				else if (t.score == score_next) t.type = 2; // can't tell
+				else if (t.score < score_next) t.type = 3; // probably false variants
 			}
 			// merge calls
 			a.sort(function(x, y) { return x.key == y.key? 0 : x.key < y.key? -1 : 1; });
 			for (let i = 1, j = 0; i <= a.length; ++i) {
 				if (i == a.length || a[j].key != a[i].key) {
-					let v = new Variant(kmer_id, ctg1, st1, en1 - st1, a[j]), max_sc = 0;
+					let v = new Variant(kmer_id, ctg1, st1, en1 - st1, a[j]), max_sc = 0, best_type = 4;
 					for (let k = j; k < i; ++k) {
 						const t = al[a[k].aid];
-						if (t.score > score_cutoff || (t.score == score_cutoff && t.acc <= max_hap)) {
-							max_sc = max_sc > t.score? max_sc : t.score;
-							v.ac_real += t.cnt;
-							v.an_real = t.acc > an_real? t.acc : an_real;
-						} else if (t.score == score_cutoff) {
-							max_sc = t.score;
-							v.ac_ambi += t.cnt;
-							v.an_ambi = t.acc;
-						} else {
-							max_sc = max_sc > t.score? max_sc : t.score;
-							v.ac_flt += t.cnt;
-							v.an_flt = t.acc;
-						}
+						best_type = best_type < t.type? best_type : t.type;
+						if (t.type == 4) continue;
+						else if (t.type <= 1) v.ac_real += t.cnt, v.an_real = 0;
+						else if (t.type == 2) v.ac_ambi += t.cnt;
+						else if (t.type == 3) v.ac_flt += t.cnt;
+						max_sc = max_sc > t.score? max_sc : t.score;
 					}
-					v.flt_score_gap = max_sc - score_cutoff;
-					vcf.push(v);
+					if (best_type < 4) {
+						v.type = best_type;
+						v.rel_score = max_sc - score_cutoff;
+						vcf.push(v);
+					}
 					j = i;
 				}
 			}
 			// resolve conflicts with other k-mers
 			let wcf = [];
-			vcf.sort(function(x, y) { return x.st != y.st? x.st - y.sy : x.key == y.key? 0 : x.key < y.key? -1 : 1; });
+			vcf.sort(function(x, y) { return x.st != y.st? x.st - y.st : x.key == y.key? 0 : x.key < y.key? -1 : 1; });
 			for (let i = 1, j = 0; i <= vcf.length; ++i) {
 				if (i == vcf.length || vcf[j].key != vcf[i].key) {
 					let n_curr = 0, max_end_dist = -1, max_k = -1;
