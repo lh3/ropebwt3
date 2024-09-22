@@ -175,8 +175,9 @@ function rb3_cmd_call(args)
 			this.type = -1;
 		}
 		toString() {
-			let info = [`AC_GOOD=${this.ac_real}`, `AN_GOOD=${this.an_real}`, `AC_AMBI=${this.ac_ambi}`, `AC_FLT=${this.ac_flt}`, `RSCORE=${this.rel_score}`, `CONFLICT=${this.n_conflict}`];
-			let flt = this.type == 0? "PASS" : this.type == 1? "DUBIOUS" : this.type == 2? "UNKNOWN" : "DUP";
+			let info = [`AC=${this.ac_real}`, `AN=${this.an_real}`, `AC_AMBI=${this.ac_ambi}`, `AN_AMBI=${this.an_ambi}`,
+						`AC_FLT=${this.ac_flt}`, `AN_FLT=${this.an_flt}`, `RSCORE=${this.rel_score}`, `CONFLICT=${this.n_conflict}`];
+			let flt = this.type == 0? "PASS" : this.type == 1? "LOWCONF" : this.type == 2? "UNKNOWN" : "SEGDUP";
 			let ref, alt, pos;
 			if (this.ref.length == this.alt.length) { // SNP
 				pos = this.st + 1, ref = this.ref, alt = this.alt;
@@ -233,10 +234,10 @@ function rb3_cmd_call(args)
 				}
 			}
 			// score_cutoff is the score of the max_hap-th haplotype
-			let an_real = n_hap, score_cutoff = 0, score_next = 0;
+			let score_cutoff = 0, score_next = 0;
 			for (let i = 0; i < al.length; ++i) {
 				if (al[i].acc >= max_hap && score_cutoff == 0)
-					score_cutoff = al[i].score, an_real = al[i].acc;
+					score_cutoff = al[i].score;
 				if (al[i].acc > max_hap && score_next == 0)
 					score_next = al[i].score;
 			}
@@ -244,14 +245,18 @@ function rb3_cmd_call(args)
 				score_cutoff = al[al.length - 1].score;
 			if (opt.dbg) print("X2", score_cutoff, score_next);
 			// classify each allele
+			let an_real = 0, an_ambi = 0, an_flt = 0;
 			for (let i = 0; i < al.length; ++i) {
 				let t = al[i];
-				if (t.score >= score_cutoff && t.score >= score_next + opt.ambi_range) t.type = 0; // probably real
-				else if (t.score >= score_cutoff && t.score > score_next) t.type = 1; // perhaps real but not reliable
+				if (t.score >= score_cutoff && t.score >= score_next + opt.ambi_range) t.type = 0, an_real += t.cnt; // probably real
+				else if (t.score >= score_cutoff && t.score > score_next) t.type = 1, an_real += t.cnt; // perhaps real but not reliable
 				else if (t.score < score_cutoff - opt.drop_score) t.type = 4; // discard
-				else if (t.score == score_next) t.type = 2; // can't tell
-				else if (t.score < score_next) t.type = 3; // probably false variants
+				else if (t.score == score_next) t.type = 2, an_ambi += t.cnt; // can't tell
+				else if (t.score < score_next) t.type = 3, an_flt += t.cnt; // probably false variants
 			}
+			an_flt += an_real + an_ambi;
+			an_ambi += an_real;
+			if (score_cutoff == score_next) an_real = max_hap;
 			// merge calls
 			a.sort(function(x, y) { return x.key == y.key? 0 : x.key < y.key? -1 : 1; });
 			for (let i = 1, j = 0; i <= a.length; ++i) {
@@ -269,6 +274,7 @@ function rb3_cmd_call(args)
 					if (best_type < 4) {
 						v.type = best_type;
 						v.rel_score = max_sc - score_cutoff;
+						v.an_real = an_real, v.an_ambi = an_ambi, v.an_flt = an_flt;
 						vcf.push(v);
 					}
 					j = i;
