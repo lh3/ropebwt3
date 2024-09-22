@@ -131,18 +131,20 @@ function rb3_cmd_mapflt(args)
 
 function rb3_cmd_call(args)
 {
-	let opt = { dbg:false, ambi_range:4, drop_score:12 };
+	let opt = { dbg:false, ambi_range:4, drop_score:12, max_gced:5 };
 	let re_cs = /([:=*+-])(\d+|[A-Za-z]+)/g;
-	for (const o of getopt(args, "d:a:", ["dbg"])) {
+	for (const o of getopt(args, "r:a:d:", ["dbg"])) {
 		if (o.opt == "--dbg") opt.dbg = true;
-		else if (o.opt == "-d") opt.drop_score = parseInt(o.arg);
+		else if (o.opt == "-r") opt.drop_score = parseInt(o.arg);
 		else if (o.opt == "-a") opt.ambi_range = parseInt(o.arg);
+		else if (o.opt == "-d") opt.max_gced = parseInt(o.arg);
 	}
 	if (args.length < 2) {
 		print("Usage: rb3tools.js call [options] <nHap> <in.e2e>");
 		print("Options:");
+		print(`  -d INT     max gap-compressed edit distance [${opt.max_gced}]`);
 		print(`  -a INT     filter a variant if score within cutoff-INT [${opt.ambi_range}]`);
-		print(`  -d INT     drop alignments with score lower than cutoff-INT [${opt.drop_score}]`);
+		print(`  -r INT     drop alignments with score lower than cutoff-INT [${opt.drop_score}]`);
 		return 1;
 	}
 	const max_hap = parseInt(args[0]);
@@ -193,22 +195,27 @@ function rb3_cmd_call(args)
 			ctg1 = m[1], st1 = parseInt(m[2]) - 1, en1 = parseInt(m[3]), a = [], al = [];
 		} else if ((m = /^QH\t(\d+)\t(\d+)\t(\d+)\t(\S+)/.exec(line)) != null) {
 			const cnt = parseInt(m[1]), score = parseInt(m[2]), ed = parseInt(m[3]), cs = m[4];
-			let x = 0;
+			let x = 0, gced = 0, b = [];
 			while ((m = re_cs.exec(cs)) != null) {
 				if (m[1] == ':') {
 					x += parseInt(m[2]);
 				} else if (m[1] == '*') {
-					a.push(new KmerVar(x, x + 1,   al.length, m[2][0].toUpperCase(), m[2][1].toUpperCase()));
-					++x;
+					b.push(new KmerVar(x, x + 1,   al.length, m[2][0].toUpperCase(), m[2][1].toUpperCase()));
+					++x, ++gced;
 				} else if (m[1] == '+') {
 					const len = m[2].length;
-					a.push(new KmerVar(x, x + len, al.length, m[2].toUpperCase(), ""));
-					x += len;
+					b.push(new KmerVar(x, x + len, al.length, m[2].toUpperCase(), ""));
+					x += len, ++gced;
 				} else if (m[1] == '-') {
-					a.push(new KmerVar(x, x,       al.length, "", m[2].toUpperCase()));
+					b.push(new KmerVar(x, x,       al.length, "", m[2].toUpperCase()));
+					++gced;
 				}
 			}
-			al.push(new Allele(cnt, score, ed));
+			if (gced <= opt.max_gced) {
+				for (let i = 0; i < b.length; ++i)
+					a.push(b[i]);
+				al.push(new Allele(cnt, score, ed));
+			}
 		} else if (line === "//") {
 			if (opt.dbg) print("X1", `${ctg1}:${st1+1}-${en1}`);
 			// output variants that have moved out of the current window
