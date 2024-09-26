@@ -334,6 +334,34 @@ function rb3_cmd_call(args)
 		print(vcf.shift());
 }
 
+function rb3_cmd_getsnp(args)
+{
+	let opt = { auto_only:false };
+	for (const o of getopt(args, "a", [])) {
+		if (o.opt == '-a') opt.auto_only = true;
+	}
+	if (args.length < 1) {
+		print("Usage: rb3tools.js getsnp [options] <in.vcf>");
+		print("Options:");
+		print(`  -a         chromsome names must match /^(chr[0-9]+|[0-9]+)$/`);
+		return 1;
+	}
+	for (const line of k8_readline(args[0])) {
+		if (typeof line != "string" || line.length == 0 || line[0] == '#') continue; // header line
+		let t = line.split("\t", 8);
+		if (opt.auto_only && !/^(chr\d+|\d+)$/.test(t[0])) continue;
+		const ref = t[3];
+		let s = t[4].split(",");
+		for (let i = 0; i < s.length; ++i) {
+			const alt = s[i];
+			if (ref.length != alt.length) continue;
+			for (let k = 0; k < ref.length; ++k)
+				if (ref[k] != alt[k])
+					print([t[0], t[1], ref[k], alt[k]].join("-"));
+		}
+	}
+}
+
 /****************
  * main functon *
  ****************/
@@ -345,6 +373,7 @@ function main(args)
 		print("Commands:");
 		print("  call           call small variants");
 		print("  mapflt         generate mappability filter");
+		print("  getsnp         extract SNPs");
 		print("  version        print version number");
 		exit(1);
 	}
@@ -352,9 +381,9 @@ function main(args)
 	var cmd = args.shift();
 	if (cmd == "mapflt") rb3_cmd_mapflt(args);
 	else if (cmd == "call") rb3_cmd_call(args);
-	else if (cmd == "version") {
-		print(rb3_version);
-	} else throw Error("unrecognized command: " + cmd);
+	else if (cmd == "getsnp") rb3_cmd_getsnp(args);
+	else if (cmd == "version") print(rb3_version);
+	else throw Error("unrecognized command: " + cmd);
 }
 
 main(arguments);
