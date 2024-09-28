@@ -1,6 +1,6 @@
 #!/usr/bin/env k8
 
-const rb3_version = "3.7-r234-dirty";
+const rb3_version = "3.7-r236-dirty";
 
 /**************
  * From k8.js *
@@ -131,13 +131,15 @@ function rb3_cmd_mapflt(args)
 
 function rb3_cmd_call(args)
 {
-	let opt = { dbg:false, ambi_range:4, drop_score:12, max_gced:5 };
+	let opt = { dbg:false, ambi_range:4, drop_score:12, max_gced:5, keep_supp1:false, flag_conflict:false };
 	let re_cs = /([:=*+-])(\d+|[A-Za-z]+)/g;
-	for (const o of getopt(args, "r:a:d:", ["dbg"])) {
+	for (const o of getopt(args, "r:a:d:1c", ["dbg"])) {
 		if (o.opt == "--dbg") opt.dbg = true;
 		else if (o.opt == "-r") opt.drop_score = parseInt(o.arg);
 		else if (o.opt == "-a") opt.ambi_range = parseInt(o.arg);
 		else if (o.opt == "-d") opt.max_gced = parseInt(o.arg);
+		else if (o.opt == "-1") opt.keep_supp1 = true;
+		else if (o.opt == "-c") opt.flag_conflict = true;
 	}
 	if (args.length < 2) {
 		print("Usage: rb3tools.js call [options] <nHap> <in.e2e>");
@@ -145,6 +147,8 @@ function rb3_cmd_call(args)
 		print(`  -d INT     max gap-compressed edit distance [${opt.max_gced}]`);
 		print(`  -a INT     filter a variant if score within cutoff-INT [${opt.ambi_range}]`);
 		print(`  -r INT     drop alignments with score lower than cutoff-INT [${opt.drop_score}]`);
+		print(`  -1         keep variants supported by one k-mer only`);
+		print(`  -c         output the CONFLICT filter`);
 		return 1;
 	}
 	const max_hap = parseInt(args[0]);
@@ -162,7 +166,9 @@ function rb3_cmd_call(args)
 	print(`##FILTER=<ID=LOWCONF,Description="Low confidence">`);
 	print(`##FILTER=<ID=AMBI,Description="Ambiguous">`);
 	print(`##FILTER=<ID=DUP,Description="Likely caused by duplications">`);
-	print(`##FILTER=<ID=CONFLICT,Description="Conflictive with a better k-mer alignment">`);
+	print(`##FILTER=<ID=SUPPORT1,Description="Supported by one k-mer only">`);
+	if (opt.flag_conflict)
+		print(`##FILTER=<ID=CONFLICT,Description="Conflictive with a better k-mer alignment">`);
 	print("#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO");
 
 	class Allele {
@@ -196,7 +202,8 @@ function rb3_cmd_call(args)
 						`AC_DUP=${this.ac_flt}`, `AN_DUP=${this.an_flt}`, `RSCORE=${this.rel_score}`, `SUPPORT=${this.n_support}`];
 			let flt = [];
 			if (this.type > 0) flt.push(this.type == 1? "LOWCONF" : this.type == 2? "AMBI" : "DUP");
-			if (this.conflict_flt) flt.push("CONFLICT");
+			if (!opt.keep_supp1 && this.n_support < 2) flt.push("SUPPORT1");
+			if (opt.flag_conflict && this.conflict_flt) flt.push("CONFLICT");
 			if (flt.length == 0) flt.push("PASS");
 			let ref, alt, pos;
 			if (this.ref.length == this.alt.length) { // SNP
