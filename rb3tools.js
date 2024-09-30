@@ -1,6 +1,6 @@
 #!/usr/bin/env k8
 
-const rb3_version = "3.7-r236-dirty";
+const rb3_version = "3.7-r237-dirty";
 
 /**************
  * From k8.js *
@@ -100,7 +100,7 @@ function rb3_cmd_mapflt(args)
 	if (args.length < 2) {
 		print("Usage: rb3tools.js mapflt [options] <maxHap> <in.e2e>");
 		print("Options:");
-		print(`  -d INT      max edit distance [${opt.maxdiff}]`);
+		print(`  -d INT      max edit distance [${opt.max_diff}]`);
 		print(`  -g INT      close a gap up to INT [${opt.gap_size}]`);
 		return 1;
 	}
