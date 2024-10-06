@@ -123,7 +123,7 @@ typedef struct {
 	int64_t n_sa, max_sa, n0;
 	int32_t n_a, m_a;
 	ssa_intv_t *a;
-	rb3_sa_t *sa;
+	rb3_pos_t *sa;
 	void *km;
 } ssa_aux_t;
 
@@ -142,6 +142,7 @@ static int32_t ssa_add_intv(const rb3_ssa_t *ssa, ssa_aux_t *aux, int64_t lo, in
 	if (aux->n_sa == aux->max_sa) return -1;
 	while (k >= lo && k < hi) {
 		int64_t l = (k - m) >> ssa->ss;
+		assert(l < ssa->n_ssa && aux->n_sa < aux->max_sa);
 		aux->sa[aux->n_sa].sid = ssa->ssa[l] & ((1LL << ssa->ms) - 1);
 		aux->sa[aux->n_sa].pos = off + (ssa->ssa[l] >> ssa->ms);
 		aux->n_sa++;
@@ -154,15 +155,16 @@ static int32_t ssa_add_intv(const rb3_ssa_t *ssa, ssa_aux_t *aux, int64_t lo, in
 	return 0;
 }
 
-int64_t rb3_ssa_multi(void *km, const rb3_fmi_t *f, const rb3_ssa_t *ssa, int64_t lo, int64_t hi, int64_t max_sa, rb3_sa_t *sa)
+int64_t rb3_ssa_multi(void *km, const rb3_fmi_t *f, const rb3_ssa_t *ssa, int64_t lo, int64_t hi, int64_t max_sa, rb3_pos_t *sa)
 {
 	ssa_aux_t aux;
 	int64_t ok[RB3_ASIZE], ol[RB3_ASIZE];
 	if (max_sa == 0 || lo >= hi) return 0;
+	memset(&aux, 0, sizeof(aux));
 	aux.max_sa = max_sa < hi - lo? max_sa : hi - lo;
 	aux.m_a = 256, aux.n_a = 0;
 	aux.a = Kmalloc(km, ssa_intv_t, aux.m_a);
-	aux.km = km, aux.n0 = f->acc[1];
+	aux.km = km, aux.sa = sa, aux.n0 = f->acc[1];
 	ssa_add_intv(ssa, &aux, lo, hi, 0);
 	if (aux.n_sa == aux.max_sa) goto end_ssa_multi;
 	while (aux.n_a > 0) {

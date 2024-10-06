@@ -46,7 +46,7 @@ typedef struct mp_tbuf_s {
 typedef struct {
 	int64_t n_pos;
 	rb3_sai_t mem;
-	rb3_sa_t *pos;
+	rb3_pos_t *pos;
 } m_sai_pos_t;
 
 typedef struct {
@@ -119,13 +119,13 @@ static void worker_for_seq(void *data, long i, int tid)
 			s->gap = RB3_MALLOC(uint64_t, s->n_gap);
 			memcpy(s->gap, b->gap, s->n_gap * 8);
 		} else if (p->opt->max_pos > 0) {
-			rb3_sa_t *pos;
-			pos = Kmalloc(b->km, rb3_sa_t, p->opt->max_pos);
+			rb3_pos_t *pos;
+			pos = Kmalloc(b->km, rb3_pos_t, p->opt->max_pos);
 			for (i = 0; i < s->n_mem; ++i) {
 				m_sai_pos_t *q = &s->mem[i];
 				q->n_pos = rb3_ssa_multi(b->km, &p->fmi, p->fmi.ssa, q->mem.x[0], q->mem.x[0] + q->mem.size, p->opt->max_pos, pos);
-				q->pos = RB3_MALLOC(rb3_sa_t, q->n_pos);
-				memcpy(q->pos, pos, sizeof(rb3_sa_t) * q->n_pos);
+				q->pos = RB3_MALLOC(rb3_pos_t, q->n_pos);
+				memcpy(q->pos, pos, sizeof(rb3_pos_t) * q->n_pos);
 			}
 			kfree(b->km, pos);
 		}
@@ -255,8 +255,12 @@ static void write_per_seq(step_t *t)
 				if (r->n_pos > 0) {
 					int32_t j;
 					rb3_sprintf_lite(&out, "\t%ld", r->n_pos);
-					for (j = 0; j < r->n_pos; ++j)
-						rb3_sprintf_lite(&out, "\t%s:%c:%ld", f->sid->name[r->pos[j].sid>>1], "+-"[r->pos[j].sid&1], r->pos[j].pos);
+					for (j = 0; j < r->n_pos; ++j) {
+						rb3_pos_t *t = &r->pos[j];
+						int64_t rlen = f->sid->len[t->sid>>1], pos;
+						pos = t->sid&1? rlen - (t->pos + (en - st)) : t->pos;
+						rb3_sprintf_lite(&out, "\t%s:%c:%ld", f->sid->name[t->sid>>1], "+-"[t->sid&1], pos);
+					}
 					free(r->pos);
 				}
 				rb3_sprintf_lite(&out, "\n");
