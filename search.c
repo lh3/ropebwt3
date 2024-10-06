@@ -16,6 +16,7 @@ typedef enum { RB3_SA_MEM_TG, RB3_SA_MEM_ORI, RB3_SA_SW, RB3_SA_HAPDIV } rb3_sea
 typedef struct {
 	uint32_t flag;
 	int32_t n_threads, min_gap_len, hapdiv_k, hapdiv_w;
+	int32_t max_pos;
 	rb3_search_algo_t algo;
 	int64_t min_occ, min_len;
 	int64_t batch_size;
@@ -43,12 +44,18 @@ typedef struct mp_tbuf_s {
 } m_tbuf_t;
 
 typedef struct {
+	int64_t n_pos;
+	rb3_sai_t mem;
+	rb3_sa_t *pos;
+} m_sai_pos_t;
+
+typedef struct {
 	char *name;
 	uint8_t *seq;
-	int64_t id;
+	int64_t id, n_pos;
 	int32_t len, n_mem, n_gap;
 	uint64_t *gap;
-	rb3_sai_t *mem;
+	m_sai_pos_t *mem;
 } m_seq_t;
 
 typedef struct {
@@ -84,16 +91,18 @@ static void worker_for_seq(void *data, long i, int tid)
 	if (p->opt->algo == RB3_SA_SW) { // BWA-SW
 		rb3_sw(b->km, &p->opt->swo, &p->fmi, s->len, s->seq, &t->rst[i]);
 	} else { // MEM algorithms
+		int32_t i;
 		b->mem.n = 0;
 		if (p->opt->algo == RB3_SA_MEM_TG)
 			rb3_fmd_smem_TG(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
 		else if (p->opt->algo == RB3_SA_MEM_ORI)
 			rb3_fmd_smem(b->km, &p->fmi, s->len, s->seq, &b->mem, p->opt->min_occ, p->opt->min_len);
 		s->n_mem = b->mem.n;
-		s->mem = RB3_MALLOC(rb3_sai_t, s->n_mem);
-		memcpy(s->mem, b->mem.a, s->n_mem * sizeof(rb3_sai_t));
-		if (p->opt->min_gap_len > 0) {
-			int32_t i, last = 0;
+		s->mem = RB3_CALLOC(m_sai_pos_t, s->n_mem);
+		for (i = 0; i < s->n_mem; ++i)
+			s->mem[i].mem = b->mem.a[i];
+		if (p->opt->min_gap_len > 0) { // find gaps not covered by MEMs
+			int32_t last = 0;
 			b->n_gap = 0;
 			Kgrow(b->km, uint64_t, b->gap, b->mem.n + 1, b->m_gap);
 			for (i = 0; i < b->mem.n; ++i) {
@@ -109,6 +118,16 @@ static void worker_for_seq(void *data, long i, int tid)
 			s->n_gap = b->n_gap;
 			s->gap = RB3_MALLOC(uint64_t, s->n_gap);
 			memcpy(s->gap, b->gap, s->n_gap * 8);
+		} else if (p->opt->max_pos > 0) {
+			rb3_sa_t *pos;
+			pos = Kmalloc(b->km, rb3_sa_t, p->opt->max_pos);
+			for (i = 0; i < s->n_mem; ++i) {
+				m_sai_pos_t *q = &s->mem[i];
+				q->n_pos = rb3_ssa_multi(b->km, &p->fmi, p->fmi.ssa, q->mem.x[0], q->mem.x[0] + q->mem.size, p->opt->max_pos, pos);
+				q->pos = RB3_MALLOC(rb3_sa_t, q->n_pos);
+				memcpy(q->pos, pos, sizeof(rb3_sa_t) * q->n_pos);
+			}
+			kfree(b->km, pos);
 		}
 	}
 }
@@ -210,7 +229,7 @@ static void write_per_seq(step_t *t)
 		} else if (p->opt->flag & RB3_MF_WRITE_COV) { // output breadth of coverage
 			int32_t st0 = 0, en0 = 0, cov = 0;
 			for (i = 0; i < s->n_mem; ++i) {
-				rb3_sai_t *q = &s->mem[i];
+				rb3_sai_t *q = &s->mem[i].mem;
 				int32_t st = q->info>>32, en = (int32_t)q->info;
 				if (st > en0) {
 					cov += en0 - st0;
@@ -225,12 +244,22 @@ static void write_per_seq(step_t *t)
 				fputs(out.s, stdout);
 			}
 		} else { // output long MEMs
+			const rb3_fmi_t *f = &p->fmi;
 			for (i = 0; i < s->n_mem; ++i) {
-				rb3_sai_t *q = &s->mem[i];
+				m_sai_pos_t *r = &s->mem[i];
+				rb3_sai_t *q = &r->mem;
 				int32_t st = q->info>>32, en = (int32_t)q->info;
 				out.l = 0;
 				write_name(&out, s);
-				rb3_sprintf_lite(&out, "\t%d\t%d\t%ld\n", st, en, (long)q->size);
+				rb3_sprintf_lite(&out, "\t%d\t%d\t%ld", st, en, (long)q->size);
+				if (r->n_pos > 0) {
+					int32_t j;
+					rb3_sprintf_lite(&out, "\t%ld", r->n_pos);
+					for (j = 0; j < r->n_pos; ++j)
+						rb3_sprintf_lite(&out, "\t%s:%c:%ld", f->sid->name[r->pos[j].sid>>1], "+-"[r->pos[j].sid&1], r->pos[j].pos);
+					free(r->pos);
+				}
+				rb3_sprintf_lite(&out, "\n");
 				fputs(out.s, stdout);
 			}
 		}
@@ -361,7 +390,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MdN:A:B:O:E:C:m:k:uj:ey:a:w:", long_options)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MdN:A:B:O:E:C:m:k:uj:ey:a:w:p:", long_options)) >= 0) {
 		if (c == 'L') is_line = 1;
 		else if (c == 'a') opt.algo = RB3_SA_HAPDIV, opt.hapdiv_k = atoi(o.arg);
 		else if (c == 'w') opt.algo = RB3_SA_HAPDIV, opt.hapdiv_w = atoi(o.arg);
@@ -370,6 +399,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		else if (c == 'c') opt.min_occ = atol(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
 		else if (c == 'K') opt.batch_size = rb3_parse_num(o.arg);
+		else if (c == 'p') opt.max_pos = atoi(o.arg);
 		else if (c == 'N') opt.swo.n_best = atoi(o.arg);
 		else if (c == 'M') load_flag |= RB3_LOAD_MMAP;
 		else if (c == 'A') opt.swo.match = atoi(o.arg);
@@ -399,20 +429,27 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 			return 1;
 		}
 	}
+
+	if (opt.min_gap_len > 0) opt.max_pos = 0;
 	if (strcmp(argv[0], "sw") == 0) {
 		opt.algo = RB3_SA_SW;
 		if (!no_ssa) load_flag |= RB3_LOAD_ALL;
 	} else if (strcmp(argv[0], "hapdiv") == 0) {
 		opt.algo = RB3_SA_HAPDIV, opt.swo.end_len = 1;
+	} else if (strcmp(argv[0], "mem") == 0) {
+		if (opt.max_pos > 0)
+			load_flag |= RB3_LOAD_ALL;
 	}
 	if (opt.algo == RB3_SA_HAPDIV)
 		opt.swo.flag |= RB3_SWF_E2E | RB3_SWF_HAPDIV;
+
 	if (argc - o.ind < 2) {
 		fprintf(stdout, "Usage: ropebwt3 %s [options] <idx.fmr> <seq.fa> [...]\n", argv[0]);
 		fprintf(stderr, "Options:\n");
 		if (strcmp(argv[0], "mem") == 0 || strcmp(argv[0], "search") == 0) {
 			fprintf(stderr, "  -l INT      min MEM length [%ld]\n", (long)opt.min_len);
 			fprintf(stderr, "  -c INT      min interval size [%ld]\n", (long)opt.min_occ);
+			fprintf(stderr, "  -p INT      output up to INT positions [%d]\n", opt.max_pos);
 			fprintf(stderr, "  --old-mem   use the original MEM algorithm (for testing)\n");
 			fprintf(stderr, "  --gap=NUM   output regions >=NUM that are not covered by MEMs [%d]\n", opt.min_gap_len);
 			fprintf(stderr, "  --cov       output breadth of coverage\n");
@@ -449,6 +486,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		fprintf(stderr, "  -M          use mmap to load FMD\n");
 		return 0;
 	}
+
 	ret = rb3_fmi_load_all(&p.fmi, argv[o.ind], load_flag);
 	if (ret < 0) return 1;
 	if (!rb3_fmi_is_symmetric(&p.fmi)) {
