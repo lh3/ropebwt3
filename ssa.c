@@ -6,8 +6,13 @@
 #include "kalloc.h"
 #include "kthread.h"
 #include "ketopt.h"
+#include "ksort.h"
 
-typedef struct { size_t n, m; uint64_t  *a; } uint64_v;
+/********************
+ * ssa construction *
+ ********************/
+
+typedef struct { size_t n, m; uint64_t *a; } uint64_v;
 
 static void ssa_gen1(void *km, const rb3_fmi_t *f, rb3_ssa_t *sa, int64_t k, uint64_v *buf)
 {
@@ -81,6 +86,10 @@ void rb3_ssa_destroy(rb3_ssa_t *sa)
 	free(sa->r2i); free(sa->ssa); free(sa);
 }
 
+/**************
+ * Compute SA *
+ **************/
+
 int64_t rb3_ssa(const rb3_fmi_t *f, const rb3_ssa_t *sa, int64_t k, int64_t *si)
 {
 	int32_t c, mask = (1<<sa->ss) - 1;
@@ -101,6 +110,90 @@ int64_t rb3_ssa(const rb3_fmi_t *f, const rb3_ssa_t *sa, int64_t k, int64_t *si)
 	*si = sa->ssa[k] & ((1ULL<<sa->ms) - 1);
 	return x + (sa->ssa[k] >> sa->ms);
 }
+
+typedef struct {
+	int64_t off;
+	int64_t lo, hi;
+} ssa_intv_t;
+
+#define intv_lt(x, y) ((x).hi - (x).lo < (y).hi - (y).lo)
+KSORT_INIT(ssa_intv, ssa_intv_t, intv_lt)
+
+typedef struct {
+	int64_t n_sa, max_sa, n0;
+	int32_t n_a, m_a;
+	ssa_intv_t *a;
+	rb3_sa_t *sa;
+	void *km;
+} ssa_aux_t;
+
+static inline void ssa_add_intv1(ssa_aux_t *aux, int64_t lo, int64_t hi, int64_t off)
+{
+	Kgrow(aux->km, ssa_intv_t, aux->a, aux->n_a, aux->m_a);
+	aux->a[aux->n_a].off = off, aux->a[aux->n_a].lo = lo, aux->a[aux->n_a].hi = hi;
+	aux->n_a++;
+	ks_heapup_ssa_intv(aux->n_a, aux->a);
+}
+
+static int32_t ssa_add_intv(const rb3_ssa_t *ssa, ssa_aux_t *aux, int64_t lo, int64_t hi, int64_t off)
+{
+	int64_t m = aux->n0;
+	int64_t k = ((lo - m) >> ssa->ss << ssa->ss) + m;
+	if (aux->n_sa == aux->max_sa) return -1;
+	while (k >= lo && k < hi) {
+		int64_t l = (k - m) >> ssa->ss;
+		aux->sa[aux->n_sa].sid = ssa->ssa[l] & ((1LL << ssa->ms) - 1);
+		aux->sa[aux->n_sa].pos = off + (ssa->ssa[l] >> ssa->ms);
+		aux->n_sa++;
+		if (aux->n_sa == aux->max_sa) return -1;
+		if (lo < k) ssa_add_intv1(aux, lo, k - 1, off);
+		lo = k + 1;
+		k += 1LL << ssa->ss;
+	}
+	ssa_add_intv1(aux, lo, hi, off);
+	return 0;
+}
+
+int64_t rb3_ssa_multi(void *km, const rb3_fmi_t *f, const rb3_ssa_t *ssa, int64_t lo, int64_t hi, int64_t max_sa, rb3_sa_t *sa)
+{
+	ssa_aux_t aux;
+	int64_t ok[RB3_ASIZE], ol[RB3_ASIZE];
+	if (max_sa == 0 || lo >= hi) return 0;
+	aux.max_sa = max_sa < hi - lo? max_sa : hi - lo;
+	aux.m_a = 256, aux.n_a = 0;
+	aux.a = Kmalloc(km, ssa_intv_t, aux.m_a);
+	aux.km = km, aux.n0 = f->acc[1];
+	ssa_add_intv(ssa, &aux, lo, hi, 0);
+	if (aux.n_sa == aux.max_sa) goto end_ssa_multi;
+	while (aux.n_a > 0) {
+		int64_t l;
+		int32_t c;
+		ssa_intv_t x = aux.a[0];
+		--aux.n_a;
+		if (aux.n_a > 0) { // maintain heap
+			aux.a[0] = aux.a[aux.n_a];
+			ks_heapdown_ssa_intv(0, aux.n_a, aux.a);
+		}
+		rb3_fmi_rank2a(f, x.lo, x.hi, ok, ol);
+		for (l = ok[0]; l < ol[0]; ++l) { // reaching sentinels
+			aux.sa[aux.n_sa].sid = ssa->r2i[l];
+			aux.sa[aux.n_sa].pos = x.off - 1;
+			aux.n_sa++;
+			if (aux.n_sa == aux.max_sa) goto end_ssa_multi;
+		}
+		for (c = 1; c < 6; ++c)
+			if (ok[c] < ol[c])
+				ssa_add_intv(ssa, &aux, f->acc[c] + ok[c], f->acc[c] + ol[c], x.off + 1);
+		if (aux.n_sa == aux.max_sa) goto end_ssa_multi;
+	}
+end_ssa_multi:
+	kfree(km, aux.a);
+	return aux.n_sa;
+}
+
+/***********
+ * ssa I/O *
+ ***********/
 
 int rb3_ssa_dump(const rb3_ssa_t *sa, const char *fn)
 {
@@ -146,6 +239,10 @@ rb3_ssa_t *rb3_ssa_restore(const char *fn)
 	fclose(fp);
 	return sa;
 }
+
+/*******************
+ * main() function *
+ *******************/
 
 int main_ssa(int argc, char *argv[])
 {
