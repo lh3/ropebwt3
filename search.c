@@ -355,8 +355,10 @@ static void *worker_pipeline(void *shared, int step, void *in)
 			kt_for(p->opt->n_threads, worker_for_seq, in, t->n_seq);
 		return in;
 	} else if (step == 2) {
-		for (i = 0; i < p->opt->n_threads; ++i)
+		for (i = 0; i < p->opt->n_threads; ++i) {
+			kfree(t->buf[i].km, t->buf[i].mem.a);
 			km_destroy(t->buf[i].km);
+		}
 		free(t->buf);
 		if (p->opt->algo == RB3_SA_HAPDIV)
 			write_hapdiv(t);
