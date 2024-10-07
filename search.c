@@ -136,7 +136,7 @@ static void worker_for_seq(void *data, long i, int tid)
 				q->n_pos = q->mem.size < p->opt->max_pos? q->mem.size : p->opt->max_pos;
 				q->pos = RB3_MALLOC(rb3_pos_t, q->n_pos);
 				for (j = 0; j < q->n_pos; ++j)
-					q->pos[j].pos = rb3_ssa(&p->fmi, p->fmi.ssa, q->mem.x[j], &q->pos[j].sid);
+					q->pos[j].pos = rb3_ssa(&p->fmi, p->fmi.ssa, q->mem.x[0] + j, &q->pos[j].sid);
 			}
 			#endif
 		}
