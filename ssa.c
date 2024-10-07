@@ -166,8 +166,7 @@ int64_t rb3_ssa_multi(void *km, const rb3_fmi_t *f, const rb3_ssa_t *ssa, int64_
 	aux.a = Kmalloc(km, ssa_intv_t, aux.m_a);
 	aux.km = km, aux.sa = sa, aux.n0 = f->acc[1];
 	ssa_add_intv(ssa, &aux, lo, hi, 0);
-	if (aux.n_sa == aux.max_sa) goto end_ssa_multi;
-	while (aux.n_a > 0) {
+	while (aux.n_a > 0 && aux.n_sa < aux.max_sa) {
 		int64_t l;
 		int32_t c;
 		ssa_intv_t x = aux.a[0];
@@ -186,7 +185,6 @@ int64_t rb3_ssa_multi(void *km, const rb3_fmi_t *f, const rb3_ssa_t *ssa, int64_
 		for (c = 1; c < 6; ++c)
 			if (ok[c] < ol[c])
 				ssa_add_intv(ssa, &aux, f->acc[c] + ok[c], f->acc[c] + ol[c], x.off + 1);
-		if (aux.n_sa == aux.max_sa) goto end_ssa_multi;
 	}
 end_ssa_multi:
 	kfree(km, aux.a);
