@@ -119,7 +119,7 @@ static void worker_for_seq(void *data, long i, int tid)
 			s->gap = RB3_MALLOC(uint64_t, s->n_gap);
 			memcpy(s->gap, b->gap, s->n_gap * 8);
 		} else if (p->opt->max_pos > 0) {
-			#if 0
+			#if 1 // faster algorithm
 			rb3_pos_t *pos;
 			pos = Kmalloc(b->km, rb3_pos_t, p->opt->max_pos);
 			for (i = 0; i < s->n_mem; ++i) {
@@ -129,7 +129,7 @@ static void worker_for_seq(void *data, long i, int tid)
 				memcpy(q->pos, pos, sizeof(rb3_pos_t) * q->n_pos);
 			}
 			kfree(b->km, pos);
-			#else
+			#else // naive algorithm
 			for (i = 0; i < s->n_mem; ++i) {
 				m_sai_pos_t *q = &s->mem[i];
 				int32_t j;

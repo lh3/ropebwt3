@@ -140,16 +140,16 @@ static int32_t ssa_add_intv(const rb3_ssa_t *ssa, ssa_aux_t *aux, int64_t lo, in
 	int64_t m = aux->n0;
 	int64_t k = ((lo - m) >> ssa->ss << ssa->ss) + m;
 	if (aux->n_sa == aux->max_sa) return -1;
-	while (k >= lo && k < hi) {
+	for (; k < hi; k += 1LL << ssa->ss) {
 		int64_t l = (k - m) >> ssa->ss;
+		if (k < lo) continue;
 		assert(l < ssa->n_ssa && aux->n_sa < aux->max_sa);
 		aux->sa[aux->n_sa].sid = ssa->ssa[l] & ((1LL << ssa->ms) - 1);
 		aux->sa[aux->n_sa].pos = off + (ssa->ssa[l] >> ssa->ms);
 		aux->n_sa++;
 		if (aux->n_sa == aux->max_sa) return -1;
-		if (lo < k) ssa_add_intv1(aux, lo, k - 1, off);
+		if (lo < k) ssa_add_intv1(aux, lo, k, off);
 		lo = k + 1;
-		k += 1LL << ssa->ss;
 	}
 	ssa_add_intv1(aux, lo, hi, off);
 	return 0;
