@@ -162,16 +162,16 @@ static void write_paf(kstring_t *out, const rb3_fmi_t *f, const rb3_swhit_t *h, 
 	int32_t k;
 	write_name(out, s);
 	rb3_sprintf_lite(out, "\t%d\t%d\t%d", s->len, h->qoff[0], h->qoff[0] + h->qlen);
-	if (h->lo_pos >= 0 && h->lo_sid >= 0) {
+	if (h->pos >= 0 && h->sid >= 0) {
 		if (f->sid) { // sequence names and lengths are available
-			int64_t rlen = f->sid->len[h->lo_sid>>1];
-			rb3_sprintf_lite(out, "\t%c\t%s\t%ld", "+-"[h->lo_sid&1], f->sid->name[h->lo_sid>>1], (long)rlen);
-			if ((h->lo_sid&1) == 0) // forward strand
-				rb3_sprintf_lite(out, "\t%ld\t%ld", h->lo_pos, h->lo_pos + h->rlen);
+			int64_t rlen = f->sid->len[h->sid>>1];
+			rb3_sprintf_lite(out, "\t%c\t%s\t%ld", "+-"[h->sid&1], f->sid->name[h->sid>>1], (long)rlen);
+			if ((h->sid&1) == 0) // forward strand
+				rb3_sprintf_lite(out, "\t%ld\t%ld", h->pos, h->pos + h->rlen);
 			else // reverse strand
-				rb3_sprintf_lite(out, "\t%ld\t%ld", rlen - (h->lo_pos + h->rlen), rlen - h->lo_pos);
+				rb3_sprintf_lite(out, "\t%ld\t%ld", rlen - (h->pos + h->rlen), rlen - h->pos);
 		} else { // sequence names and lengths are not available
-			rb3_sprintf_lite(out, "\t+\t%ld\t*\t%ld\t%ld", h->lo_sid, h->lo_pos, h->lo_pos + h->rlen); // always on the forward strand
+			rb3_sprintf_lite(out, "\t+\t%ld\t*\t%ld\t%ld", h->sid, h->pos, h->pos + h->rlen); // always on the forward strand
 		}
 	} else {
 		rb3_sprintf_lite(out, "\t*\t*\t%d\t*\t*", h->rlen);

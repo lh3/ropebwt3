@@ -23,7 +23,7 @@ typedef struct {
 	int32_t n_cigar, cs_len;
 	int32_t n_qoff, blen, mlen;
 	int64_t lo, hi; // SA interval
-	int64_t lo_sid, lo_pos; // contig ID and position for the hit corresponding to lo
+	int64_t sid, pos; // contig ID and position of a semi-random hit in [lo,hi)
 	uint8_t *rseq; // reference sequence in the alignment
 	uint32_t *cigar; // cigar in the BAM encoding
 	int32_t *qoff; // list of query offsets for the same hit

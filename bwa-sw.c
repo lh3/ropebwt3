@@ -193,8 +193,12 @@ static void sw_backtrack1(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, 
 	}
 
 	// get reference position for the first hit in the SA interval
-	hit->lo_pos = hit->lo_sid = -1;
-	if (f->ssa) hit->lo_pos = rb3_ssa(f, f->ssa, hit->lo, &hit->lo_sid);
+	hit->pos = hit->sid = -1;
+	if (f->ssa) {
+		rb3_pos_t pos;
+		rb3_ssa_multi(km, f, f->ssa, hit->lo, hit->hi, 1, &pos);
+		hit->pos = pos.pos, hit->sid = pos.sid;
+	}
 }
 
 static void sw_cell_dedup(void *km, sw_row_t *row)
