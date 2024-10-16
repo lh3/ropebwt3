@@ -506,6 +506,11 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 
 	ret = rb3_fmi_load_all(&p.fmi, argv[o.ind], load_flag);
 	if (ret < 0) return 1;
+	if (opt.max_pos > 0 && (p.fmi.ssa == 0 || p.fmi.sid == 0)) {
+		if (rb3_verbose >= 1)
+			fprintf(stderr, "ERROR: failed to load suffix array samples or sequence names/lengths\n");
+		return 1;
+	}
 	if (!rb3_fmi_is_symmetric(&p.fmi)) {
 		if (rb3_verbose >= 1)
 			fprintf(stderr, "ERROR: BWT doesn't contain both strands\n");
