@@ -1,4 +1,4 @@
-Release 3.8-r248 (18 October 2024)
+Release 3.8-r249 (18 October 2024)
 ----------------------------------
 
 Notable changes:
@@ -13,7 +13,7 @@ Notable changes:
  * New feature: added auxiliary script `rb3tools.js` for generating mappability
    filter and for simple SNP calling.
 
-(3.8: 18 October 2024, r248)
+(3.8: 18 October 2024, r249)
 
 
 
