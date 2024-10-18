@@ -210,32 +210,32 @@ Double circles indicate nodes that can reach the beginning of $T$.
 {\bf (c)} The prefix directed acyclic word graph (DAWG) of $T$ by merging nodes with identical suffix array intervals.}\label{fig:1}
 \end{figure}
 
-\begin{algorithm}[tb]
-	\caption{A naive bwa-aln algorithm with PSSM}\label{algo:bwa-aln}
-	\begin{algorithmic}[1]
-		\Procedure{BwaAlnPSSM}{$B,P,s,g$}\Comment{$g$ is gap penalty}
-			\State $H\gets\mbox{empty heap prioritized on the 1st value}$
-			\State $H.{\rm push}(0,|P|,0,|T|)$
-			\While{$H$ is not empty}
-				\State $(p,i,l,h)\gets H.{\rm pop}()$\Comment{element with the smallest $p$}
-				\If{$i=0$}
-					\State \Return $[l,h)$\Comment{this is the best match}
-				\EndIf
-				\State $H.{\rm push}(p+g_{i-1},i-1,l,h)$\Comment{insertion}
-				\State $a\gets P[i-1]$
-				\For{$c\in\Sigma$}\Comment{match, mismatch or deletion}
-					\State $l'\gets C_B(c)+{\rm rank}_B(c,l)$\Comment{backward search}
-					\State $h'\gets C_B(c)+{\rm rank}_B(c,h)$
-					\If{$l'<h'$}\Comment{$[l',h')$ is a child of $[l,h)$}
-						\State $H.{\rm push}(p+s_i(a|c),i-1,l',h')$\Comment{(mis)match}
-						\State $H.{\rm push}(p+g_i,i,l',h')$\Comment{deletion}
-					\EndIf
-				\EndFor
-			\EndWhile
-			\State \Return $\emptyset$\Comment{no match}
-		\EndProcedure
-	\end{algorithmic}
-\end{algorithm}
+%\begin{algorithm}[tb]
+%	\caption{A naive bwa-aln algorithm with PSSM}\label{algo:bwa-aln}
+%	\begin{algorithmic}[1]
+%		\Procedure{BwaAlnPSSM}{$B,P,s,g$}\Comment{$g$ is gap penalty}
+%			\State $H\gets\mbox{empty heap prioritized on the 1st value}$
+%			\State $H.{\rm push}(0,|P|,0,|T|)$
+%			\While{$H$ is not empty}
+%				\State $(p,i,l,h)\gets H.{\rm pop}()$\Comment{element with the smallest $p$}
+%				\If{$i=0$}
+%					\State \Return $[l,h)$\Comment{this is the best match}
+%				\EndIf
+%				\State $H.{\rm push}(p+g_{i-1},i-1,l,h)$\Comment{insertion}
+%				\State $a\gets P[i-1]$
+%				\For{$c\in\Sigma$}\Comment{match, mismatch or deletion}
+%					\State $l'\gets C_B(c)+{\rm rank}_B(c,l)$\Comment{backward search}
+%					\State $h'\gets C_B(c)+{\rm rank}_B(c,h)$
+%					\If{$l'<h'$}\Comment{$[l',h')$ is a child of $[l,h)$}
+%						\State $H.{\rm push}(p+s_i(a|c),i-1,l',h')$\Comment{(mis)match}
+%						\State $H.{\rm push}(p+g_i,i,l',h')$\Comment{deletion}
+%					\EndIf
+%				\EndFor
+%			\EndWhile
+%			\State \Return $\emptyset$\Comment{no match}
+%		\EndProcedure
+%	\end{algorithmic}
+%\end{algorithm}
 
 %\begin{algorithm}[!b]
 %	\caption{Retrieve the $i$-th sequence, $0\le i<m$}\label{algo:get}

@@ -1,3 +1,22 @@
+Release 3.8-r248 (18 October 2024)
+----------------------------------
+
+Notable changes:
+
+ * Improvement: a faster algorithm to locate a subset of positions in a suffix
+   array interval. Given m highly similar genomes, the expected time is O(s/m)
+   where s is the suffix array sample rate.
+
+ * New feature: added option `mem -p` to optionally output a semi-random subset
+   of SMEM positions.
+
+ * New feature: added auxiliary script `rb3tools.js` for generating mappability
+   filter and for simple SNP calling.
+
+(3.8: 18 October 2024, r248)
+
+
+
 Release 3.7-r226 (17 September 2024)
 ------------------------------------
 
