@@ -178,7 +178,7 @@ int64_t rb3_ssa_multi(void *km, const rb3_fmi_t *f, const rb3_ssa_t *ssa, int64_
 		rb3_fmi_rank2a(f, x.lo, x.hi, ok, ol);
 		for (l = ok[0]; l < ol[0]; ++l) { // reaching sentinels
 			aux.sa[aux.n_sa].sid = ssa->r2i[l];
-			aux.sa[aux.n_sa].pos = x.off - 1;
+			aux.sa[aux.n_sa].pos = x.off;
 			aux.n_sa++;
 			if (aux.n_sa == aux.max_sa) goto end_ssa_multi;
 		}
