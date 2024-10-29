@@ -211,7 +211,7 @@ Double circles indicate nodes that can reach the beginning of $T$.
 \end{figure}
 
 %\begin{algorithm}[tb]
-%	\caption{A naive bwa-aln algorithm with PSSM}\label{algo:bwa-aln}
+%	\caption{A simplified bwa-aln algorithm with PSSM}\label{algo:bwa-aln}
 %	\begin{algorithmic}[1]
 %		\Procedure{BwaAlnPSSM}{$B,P,s,g$}\Comment{$g$ is gap penalty}
 %			\State $H\gets\mbox{empty heap prioritized on the 1st value}$
@@ -344,6 +344,42 @@ If we know the SA interval of $P$, we can calculate the SA interval of $aP$ with
 To calculate ${\rm occ}(P)$,
 we can start with $[0,n)$ and repeatedly apply the equation above from the last symbol in $P$ to the first.
 This procedure is called \emph{backward search}.
+
+\subsection{Locating the positions of an SA interval}
+
+By definition of BWT, if $i\in[{\rm lo}(P),{\rm hi}(P))$, $P=T[S(i),S(i)+|P|)$ must stand.
+We can thus locate an occurrence of $P$ in the original string $T$.
+However, suffix array $S$ takes $O(n\log n)$ in space and may be too large to store explicitly.
+In an FM-index, we only store $S(i)$ if and only if $i$ is a multiple of $s$ where $s$ is a positive integer controlling the sample rate.
+If $i$ is not a multiple of $s$, we repeatedly apply $\pi(\cdot)$ $k$ times until $\pi^k(i)$ is a multiple of $s$ or $B[\pi^k(i)]=\$$.
+In the first case, $S(i)=S(\pi^k(i))+k$.
+In the second case, $S(i)=R(\pi^k(i))+k$.
+
+\begin{algorithm}[tb]
+	\caption{Locate a hit given suffix array samples}\label{algo:locate}
+	\begin{algorithmic}[1]
+		\Procedure{Locate1}{$B,S,R,{\rm lo},{\rm hi},s$}
+			\State $I\gets\{({\rm lo},{\rm hi},0)\}$
+			\While{$I\not=\emptyset$}
+				\State $(l,h,o)\gets\mbox{longest interval in $I$}$
+				\State $I\gets I\setminus \{(l,h,o)\}$
+				\If{$\exists k$ such that $k\cdot s\in[l,h)$}
+					\State \Return $S(ks)+o$
+				\EndIf
+				\If{${\rm rank}_B(\$,l)<{\rm rank}_B(\$,h)$}
+					\State \Return $R({\rm rank}_B(\$,l))+o$
+				\EndIf
+				\For{$a\in\Sigma$}
+					\State $l'\gets C(a)+{\rm rank}_B(a,l)$
+					\State $h'\gets C(a)+{\rm rank}_B(a,h)$
+					\If{$l'<h'$}
+						\State $I\gets I\cup\{(l',h',o+1)\}$
+					\EndIf
+				\EndFor
+			\EndWhile
+		\EndProcedure
+	\end{algorithmic}
+\end{algorithm}
 
 \subsection{Double-strand BWT}\label{sec:ds-bwt}
 
@@ -506,32 +542,6 @@ This heuristic is akin to dynamic banding for linear sequences~\citep{Suzuki:201
 		\EndProcedure
 	\end{algorithmic}
 \end{algorithm}
-
-%\begin{algorithm}[tb]
-%	\caption{Locate a hit given suffix array samples}\label{algo:locate}
-%	\begin{algorithmic}[1]
-%		\Procedure{Locate1}{$B,S,R,{\rm lo},{\rm hi},s$}
-%			\State $I\gets\{({\rm lo},{\rm hi},0)\}$
-%			\While{$I\not=\emptyset$}
-%				\State $(l,h,o)\gets\mbox{longest interval in $I$}$
-%				\State $I\gets I\setminus \{(l,h,o)\}$
-%				\If{$\exists k$ such that $k\cdot s\in[l,h)$}
-%					\State \Return $S(ks)+o$
-%				\EndIf
-%				\If{${\rm rank}_B(\$,l)<{\rm rank}_B(\$,h)$}
-%					\State \Return $R({\rm rank}_B(\$,l))+o$
-%				\EndIf
-%				\For{$a\in\Sigma$}
-%					\State $l'\gets C(a)+{\rm rank}_B(a,l)$
-%					\State $h'\gets C(a)+{\rm rank}_B(a,h)$
-%					\If{$l'<h'$}
-%						\State $I\gets I\cup\{(l',h',o+1)\}$
-%					\EndIf
-%				\EndFor
-%			\EndWhile
-%		\EndProcedure
-%	\end{algorithmic}
-%\end{algorithm}
 
 \subsection{Estimating local haplotype diversity}
 
