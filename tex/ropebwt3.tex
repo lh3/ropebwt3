@@ -165,7 +165,8 @@ $n$        & Total length: $n\triangleq|T|=|B|$ \\
 $r$        & Number of runs: $r\triangleq|\{i:B[i]\not=B[i+1]\}|+1$ \\
 $C_B(a)$   & Accumulative count: $C_B(a)\triangleq|\{i:B[i]<a\}|$ \\
 ${\rm rank}_B(a,k)$ & Rank: ${\rm rank}_B(a,k)\triangleq|\{i<k:B[i]=a\}|$ \\
-$\pi(i)$   & LF-mapping: $\pi(i)\triangleq S^{-1}(S(i)-1)$ \\
+$\pi_B(a,k)$& $\pi_B(a,k)\triangleq C_B(a)+{\rm rank}_B(a,k)$\\
+$\pi(k)$   & LF-mapping: $\pi(k)\triangleq S^{-1}(S(k)-1)=\pi_B(B[k],k)$ \\
 \botrule
 \end{tabular*}
 \end{table}
@@ -195,7 +196,7 @@ and ${\rm rank}_B(a,k)\triangleq|\{i<k:B[i]=a\}|$ be the number of $a$ before of
 We may omit subscription $B$ when we are describing one string only.
 The last-to-first mapping (\emph{LF mapping}) $\pi$ is defined by $\pi(i)\triangleq S^{-1}(S(i)-1)$,
 where $S^{-1}$ is the inverse function of suffix array $S$.
-It can be calculated as $\pi(i)=C(B[i])+{\rm rank}(B[i],i)$.
+It can be calculated as $\pi(i)=\pi_B(B[i],i)$, where $\pi_B(a,i)\triangleq C(B[i])+{\rm rank}(B[i],i)$.
 As $B[\pi(i)]$ immediately proceeds $B[i]$ on $T$, we can use $\pi$ to decode the $i$-th sequence in $B$.
 
 \begin{figure}[bt]
@@ -261,14 +262,14 @@ Double circles indicate nodes that can reach the beginning of $T$.
 			\State $m_2\gets|\{k:B_2[k]=\$\}|$
 			\For{$k\gets 0$ {\bf to} $|B_2|-1$}
 				\State $a\gets B_2[k]$
-				\State $R(k)\gets (a,C_{B_2}(a)+{\rm rank}_{B_2}(a,k))$
+				\State $R(k)\gets (a,\pi_{B_2}(a,k))$
 			\EndFor
 			\For{$i\gets 0$ {\bf to} $m_2-1$}
 				\State $k\gets i$; $l\gets m_1$
 				\Repeat
 					\State $(a,k')\gets R(k)$
 					\State $R(k)\gets(a,k+l)$\Comment{position in the merged BWT}
-					\State $k\gets k'$; $l\gets C_{B_1}(a)+{\rm rank}_{B_1}(a,l)$
+					\State $k\gets k'$; $l\gets \pi_{B_1}(a,l)$
 				\Until{$a=\$$}
 			\EndFor
 			\For{$(a,k)\in R$}\Comment{N.B. $k$ is sorted in array $R$}
@@ -336,45 +337,105 @@ and ${\rm hi}(P)\triangleq {\rm lo}(P)+{\rm occ}(P)$.
 $[{\rm lo}(P),{\rm hi}(P))$ is called the \emph{suffix array interval} of $P$, or \emph{SA interval} in brief.
 An SA interval is \emph{important} if there exists $P$ such that it is the SA interval of $P$.
 The SA interval of the empty string is $[0,n)$ where $n=|T|$.
+
 If we know the SA interval of $P$, we can calculate the SA interval of $aP$ with:
-\begin{eqnarray*}
-{\rm lo}(aP)&=&C(a)+{\rm rank}(a,{\rm lo}(P))\\
-{\rm hi}(aP)&=&C(a)+{\rm rank}(a,{\rm hi}(P))
-\end{eqnarray*}
+${\rm lo}(aP)=\pi_B(a,{\rm lo}(P))$ and ${\rm hi}(aP)=\pi_B(a,{\rm hi}(P))$.
+%\begin{eqnarray*}
+%{\rm lo}(aP)&=&C(a)+{\rm rank}(a,{\rm lo}(P))\\
+%{\rm hi}(aP)&=&C(a)+{\rm rank}(a,{\rm hi}(P))
+%\end{eqnarray*}
 To calculate ${\rm occ}(P)$,
-we can start with $[0,n)$ and repeatedly apply the equation above from the last symbol in $P$ to the first.
+we start with $[0,n)$ and repeatedly apply the equation above from the last symbol in $P$ to the first.
 This procedure is called \emph{backward search}.
 
-\subsection{Locating the positions of an SA interval}
+\subsection{Locating with FM-index}
 
-By definition of BWT, if $i\in[{\rm lo}(P),{\rm hi}(P))$, $P=T[S(i),S(i)+|P|)$ must stand.
+By definition of BWT, if $i\in[{\rm lo}(P),{\rm hi}(P))$, $P=T[S(i),S(i)+|P|)$.
 We can thus locate an occurrence of $P$ in the original string $T$.
 However, suffix array $S$ takes $O(n\log n)$ in space and may be too large to store explicitly.
-In an FM-index, we only store $S(i)$ if and only if $i$ is a multiple of $s$ where $s$ is a positive integer controlling the sample rate.
-If $i$ is not a multiple of $s$, we repeatedly apply $\pi(\cdot)$ $k$ times until $\pi^k(i)$ is a multiple of $s$ or $B[\pi^k(i)]=\$$.
-In the first case, $S(i)=S(\pi^k(i))+k$.
-In the second case, $S(i)=R(\pi^k(i))+k$.
+With an FM-index, we only store $S(i)$ if and only if $i$ is a multiple of $s$ where $s$ is a positive integer controlling the sample rate.
+We calculate the rest of $S(i)$ using LF-mapping $\pi(\cdot)$.
+
+A complication with multi-string BWT is that $\pi(i)$ does not point to the preceeding symbol when $B[i]=\$$.
+This is because sentinels are ordered during suffix sorting but are not distinguished from each other in BWT.
+We will have to store the rank of each string in $T$ (array $R$ in Algorithm~\ref{algo:locate}).
+For convenience, we also keep the index of the string and the offset on the string instead of the offset on the concatenated string $T$.
+
+To find the position of $i\in[{\rm lo}(P),{\rm hi}(P))$ in the original string,
+we repeatedly apply $\pi(\cdot)$ $k$ times until the position of $\pi^k(i)$ is stored.
+With $U$, $V$ and $R$ precalculated by {\sc IndexSSA} in Algorithm~\ref{algo:locate},
+we can locate $i$ with
+$$
+\left\{\begin{array}{ll}
+(R(\pi^k(i)),k) & (B[\pi^k(i)]=\$) \\
+(U(\pi^k(i)),V(\pi^k(i)+k)) & (\mbox{otherwise and $\pi^k(i)\bmod s=0$})\\
+\end{array}\right.
+$$
+where $k$ is the smallest non-negative integer such that $B[\pi^k(i)]=\$$ or $\pi^k(i)\bmod s=0$.
+On average, $k\approx s$.
+
+{\sc Locate1} in Algorithm~\ref{algo:locate} provides a faster way to find one position in SA interval $[l,h)$.
+A key observation is that if the interval contains a sentinel or there exists $k$ such that $l\le ks<h$,
+we can immediately locate one occurrence; if not, we can apply backward search repeatedly until an SA interval $[l',h')$
+brackets a stored suffix array value.
+If $T$ consists of $m'$ identical strings, we apply $s/\min(h-l,m')$ rounds of backward searches on average,
+usually much faster than the naive algorithm.
+Ropebwt3 implements a generalized {\sc Locate1} function that finds multiple occurrences.
 
 \begin{algorithm}[tb]
-	\caption{Locate a hit given suffix array samples}\label{algo:locate}
+	\caption{Locate one hit given suffix array samples}\label{algo:locate}
 	\begin{algorithmic}[1]
-		\Procedure{Locate1}{$B,S,R,{\rm lo},{\rm hi},s$}
+		\Procedure{IndexSSA}{$B,s$}
+			\State $A\gets\emptyset$; $m\gets|\{i:B[i]=\$\}|$\Comment{Number of sequences}
+			\For{$t\gets 0$ {\bf to} $m-1$}\Comment{Traverse all sequences}
+				\State $k\gets t$; $l\gets 0$\Comment{$l$ will be the length of $t$-th sequence}
+				\Repeat\Comment{Iterate from the end of the sequence}
+					\State $k\gets\pi(k)$; $l\gets l+1$
+					\If{$B[k]=\$$}
+						\State $R(k)\gets t$\Comment{The rank of $t$-th sequence}
+					\ElsIf{$k \bmod s=0$}
+						\State $A\gets A\cup\{k/s\}$
+					\EndIf
+				\Until{$B[k]=\$$}
+				\For{$k\in A$}
+					\State $U(k)=t$; $V(k)\gets l-1-k$
+				\EndFor
+			\EndFor
+			\State \Return $(U,V,R)$
+		\EndProcedure
+%		\Procedure{Locate}{$B,U,V,R,{\rm lo},{\rm hi},s,l$}
+%			\State $m\gets|\{i:B[i]=\$\}|$; $A\gets\emptyset$
+%			\If{${\rm lo}={\rm hi}$}
+%				\State\Return{$\emptyset$}
+%			\ElsIf{${\rm lo}<{\rm hi}\le m$}
+%				\For{$k\gets{\rm lo}$ {\bf to} ${\rm hi}-1$}
+%					\State $A\gets A\cup\{(R(k),l)\}$
+%				\EndFor
+%			\ElsIf{$\exists k$ such that $k\cdot s+m\in[{\rm lo},{\rm hi})$}
+%				\State $A\gets A\cup\{(U(k),V(k)+l)\}$
+%				\State $A\gets A\cup\mbox{\sc Locate}(B,U,V,R,{\rm lo},ks+m,l+1)$
+%				\State $A\gets A\cup\mbox{\sc Locate}(B,U,V,R,ks+m+1,{\rm hi},l+1)$
+%			\Else
+%				\For{$a\in\Sigma\cup\{\$\}$}
+%					\State ${\rm lo}'\gets C(a)+{\rm rank}_B(a,{\rm lo})$
+%					\State ${\rm hi}'\gets C(a)+{\rm rank}_B(a,{\rm hi})$
+%					\State $A\gets A\cup\mbox{\sc Locate}(B,U,V,R,{\rm lo}',{\rm hi}',l+1)$
+%				\EndFor
+%			\EndIf
+%			\State\Return {$A$}
+%		\EndProcedure
+		\Procedure{Locate1}{$B,U,V,R,{\rm lo},{\rm hi},s$}
 			\State $I\gets\{({\rm lo},{\rm hi},0)\}$
 			\While{$I\not=\emptyset$}
-				\State $(l,h,o)\gets\mbox{longest interval in $I$}$
+				\State $(l,h,o)\gets\mbox{largest interval in $I$}$
 				\State $I\gets I\setminus \{(l,h,o)\}$
 				\If{$\exists k$ such that $k\cdot s\in[l,h)$}
-					\State \Return $S(ks)+o$
-				\EndIf
-				\If{${\rm rank}_B(\$,l)<{\rm rank}_B(\$,h)$}
-					\State \Return $R({\rm rank}_B(\$,l))+o$
+					\State \Return $(U(k),V(k)+o)$
+				\ElsIf{$\pi_B(\$,l)<\pi_B(\$,h)$}
+					\State \Return $(R(\pi_B(\$,l)),o)$
 				\EndIf
 				\For{$a\in\Sigma$}
-					\State $l'\gets C(a)+{\rm rank}_B(a,l)$
-					\State $h'\gets C(a)+{\rm rank}_B(a,h)$
-					\If{$l'<h'$}
-						\State $I\gets I\cup\{(l',h',o+1)\}$
-					\EndIf
+					\State $I\gets I\cup\{(\pi_B(a,l),\pi_B(a,h),o+1)\}$
 				\EndFor
 			\EndWhile
 		\EndProcedure
@@ -407,10 +468,10 @@ The \emph{suffix array bidirectional interval} (\emph{SA bi-interval}) of $P$ is
 	\begin{algorithmic}[1]
 		\Procedure{BackwardExt}{$B,(k,k',s),a$}
 			\ForAll{$b<\overline{a}$}\Comment{$b$ can be $\$$}
-				\State $k'\gets k'+\big[{\rm rank}_B(\overline{b},k+s)-{\rm rank}_B(\overline{b},k)\big]$
+				\State $k'\gets k'+\big[\pi_B(\overline{b},k+s)-\pi_B(\overline{b},k)\big]$
 			\EndFor
-			\State $s\gets {\rm rank}_B(a,k+s)-{\rm rank}_B(a,k)$
-			\State $k\gets C_B(a)+{\rm rank}_B(a,k)$
+			\State $s\gets \pi_B(a,k+s)-\pi_B(a,k)$
+			\State $k\gets \pi_B(a,k)$
 			\State \Return{$(k,k',s)$}
 		\EndProcedure
 		\Procedure{ForwardExt}{$B,(k,k',s),a$}
@@ -470,7 +531,7 @@ Both algorithms can also find SMEMs occurring at least $s_{\min}$ times~\citep{D
 		\Procedure{FindSMEM}{$\ell,s_{\min},B,P$}
 			\State $i\gets0$
 			\Repeat
-			\State $i\gets${\sc FindSMEM1}$(\ell,s_{\min},B,P,i)$
+				\State $i\gets${\sc FindSMEM1}$(\ell,s_{\min},B,P,i)$
 			\Until{$i\ge|P|$}
 		\EndProcedure
 	\end{algorithmic}
@@ -554,15 +615,25 @@ We are instead more interested in the collection of haplotypes a query sequence 
 This now becomes possible as BWA-SW explores suboptimal alignments to multiple haplotypes.
 
 More exactly, we perform semi-global sequence-to-DAWG alignment (i.e. requiring the query sequence to be aligned from end to end)
-by applying BWA-SW to the graph of the linear query sequence $P$.
+by applying BWA-SW to the graph representing the linear query sequence $P$, from the end to the start.
 We can find the set of matching haplotypes $\mathcal{M}\triangleq\{v\in V(G_T):H_{u_0v}>0\}$ where $u_0$ represents the start of $P$.
 $\mathcal{M}$ may include suboptimal haplotypes caused by small variants as well as the optimal one.
-Importantly, $P$ may be aligned to similar positions on $T$ with slightly different gap placements and alignment scores.
-In theory, we can identify this case by locating the position of each alignment.
-This procedure is slow as such locating operation is costly.
+
+Importantly, $P$ may be aligned to similar positions on $T$ with slightly different gap placements.
+For example, given $T={\tt CAAGCA}$ and $P={\tt AGC}$,
+the algorithm above may find the following two alignments around the same position but in different SA intervals:
+\begin{verbatim}
+   T: CAAGCA        CAAGCA
+        |||    or    | ||
+   P:   AGC          A-GC
+\end{verbatim}
+When counting hits, we want to ignore the second suboptimal alignment.
+In theory, we can identify this case by comparing the position of each alignment.
+This procedure is slow as the locate operation is costly.
 We instead leverage the bi-directionality to identify redundancy heuristically.
 Suppose $P$ can be aligned to SA bi-intervals $(k_1,k'_1,s_1)$ and $(k_2,k'_2,s_2)$ and the alignment score to the first interval is higher.
 We filter out the second interval if $[k_2,k_2+s_2)\subset[k_1,k_1+s_1)$ or $[k'_2,k'_2+s_2)\subset[k'_1,k'_1+s_1)$.
+This strategy does not avoid all overcounting but it works well on multiple real examples we have closely inspected.
 
 In practice, we may apply this algorithm to the flanking sequence of a variant
 or to sliding k-mers of a long query sequence to enumerate possible local haplotypes and estimate their frequencies in the index.
@@ -592,22 +663,24 @@ It is a new query type that is biologically meaningful.
 \caption{Indexing performance\label{tab:index}}
 \begin{tabular*}{\columnwidth}{@{\extracolsep\fill}llrrr@{\extracolsep\fill}}
 \toprule
-Dataset        & Algorithm     & Elapsed$^1$ & CPU$^1$  &     RAM \\
+Dataset        & Algorithm     & Elapsed$^1$ & CPU$^1$  &     RAM$^2$ \\
 \midrule
 human100       & grlBWT        &  8.3 h       &  29.6 h &  84.8 GB \\
-		       & pfp-thres$^2$ &<51.7 h       & <51.5 h & 788.1 GB \\
+		       & pfp-thres$^3$ &$<$51.7 h     &$<$51.5 h & 788.1 GB \\
                & ropebwt3      & 20.5 h       & 469.4 h &  83.0 GB \\
-			   & metagraph$^3$ & 16.9 h       & 314.8 h & 251.0 GB \\
-			   & fulgor$^4$ (lossy)& 1.2 h    &  32.7 h & 165.2 GB \\
+			   & metagraph$^4$ & 16.9 h       & 314.8 h & 251.0 GB \\
+			   & fulgor$^5$    & 1.2 h    &  32.7 h & 165.2 GB \\
+human320       & ropebwt3      & 81.2 h       & 1343.4 h & 99.2 GB \\
 CommonBacteria & ropebwt3      & 25.6 d       & 830.3 d &  67.3 GB \\
 \botrule
 \end{tabular*}
 \begin{tablenotes}\setlength\itemsep{0.0em}
 \item Up to 64 threads specified if multi-threading is supported.
 \item[$^{1}$] excluding time for format conversion; ``h'' for hours; ``d'' for days
-\item[$^{2}$] pfp-thresholds was run on a slower machine with more RAM
-\item[$^{3}$] k-mer coordinates in the ``row\_diff\_brwt\_coord'' encoding
-\item[$^{4}$] without ``-{}-meta -{}-diff'' as the basic index is smaller; lossy index
+\item[$^{2}$] 1 GB is equal to $1024^3$ bytes
+\item[$^{3}$] pfp-thresholds was run on a slower machine with more RAM
+\item[$^{4}$] k-mer coordinates in the ``row\_diff\_brwt\_coord'' encoding
+\item[$^{5}$] without ``-{}-meta -{}-diff'' as the basic index is smaller; lossy index
 \end{tablenotes}
 \end{table}
 
@@ -635,10 +708,12 @@ In the lossless mode, metagraph (v0.3.6; \citealt*{Karasikov2020.10.01.322164}) 
 Fulgor (v3.0.0; \citealt*{Fan:2024aa}) is by far the fastest.
 However, lossy in nature, it is not directly comparable to the rest of the tools in the table.
 
-To test the scalability of ropebwt3 in preparation for larger incoming pangenome datasets,
-we constructed the BWT of AllTheBacteria~\citep{Hunt2024.03.08.584059} excluding the ``dustbin'' and ``unknown'' categories that include relatively unique genomes.
-This subset, which we call CommonBacteria, consists of 278.4 million sequences in 7.33 Tb.
-An older version of ropebwt3 took less than a month to construct the double-strand BWT with 14.66 trillion symbols.
+To test the scalability of ropebwt3, we indexed a large dataset consisting of 320 human genomes.
+Ropebwt3 took 3.4 days and generated a 13.1 GB file in the fermi format.
+It contains 1.9 trillion bases and 4.9 billion runs.
+We also constructed the BWT of AllTheBacteria~\citep{Hunt2024.03.08.584059} excluding the ``dustbin'' and ``unknown'' categories that include relatively unique genomes.
+This subset, which we call CommonBacteria, consists of 278.4 million sequences.
+Ropebwt3 took less than a month to construct the double-strand BWT with 14.66 trillion symbols.
 The final index in the fermi format is 27.6 GB in size.
 Indexing the entire AllTheBacteria dataset will probably take 100--200 GB as unique sequences are not compressed well.
 
@@ -769,19 +844,25 @@ Generating BWT purely in memory and supporting incremental build, ropebwt3 is co
 It provides the fastest algorithm so far for finding supermaximal exact matches and can report inexact hits as well.
 Ropebwt3 demonstrates that BWT-based data structures are scalable to terabases of pangenome data.
 
-Ropebwt3 will take 2--3 weeks to index 1,000 human genomes assembled from long reads.
+Ropebwt3 is likely to take $\sim$3 weeks to index 1,000 human genomes assembled from long reads.
 When there are more genomes, it will be faster to construct the BWT of individual genome independently
 and then merge them one by one.
 This strategy will use working disk space but achieve better parallelization.
 \citet{DBLP:conf/dcc/Siren16} introduced disk-based algorithms for merging large BWTs, which may further improve the parallelization of BWT merge.
 
-We thought about implementing r-index in ropebwt3.
-However, although an r-index is faster than an FM-index of the same size,
+Ropebwt3 implements an FM-index to locate SMEMs or local hits.
+Although the standard r-index is faster than an FM-index of the same size,
 it imposes a fixed sampling rate: two suffix array values per run.
 The BWT of CommonBacteria has 14.6 trillion bases and 17.6 billion runs.
 An r-index is likely to take more than 200GB,
 while an FM-index sampled at one position per 8,192bp takes 17.5GB in ropebwt3.
-We are still looking for a more balanced algorithm for the ``locate'' operation.
+Subsampled r-index (sr-index; \citealt*{DBLP:journals/corr/abs-2409-14654}) is probably the better solution, which we will explore in future.
+
+This article has not evaluated several recent BWT-based tools including
+r-index-f~\citep{DBLP:conf/wea/BrownG022}, block\_RLBWT~\citep{DBLP:conf/wea/Diaz-DominguezD23}, Move-r~\citep{DBLP:conf/wea/Bertram0N24} and b-move~\citep{DBLP:conf/wabi/DepuydtRVVGF24}.
+Although they have not been tested on large datasets like human pangenome and they do not report SMEMs,
+some of their data structures are probably better than the ones we use.
+We may integrate these methods into ropebwt3 in future as well.
 
 We often use pangenome graphs to analyze multiple similar genomes~\citep{Liao:2023aa}.
 These graphs are built from the multiple sequence alignment through complex procedures involving many parameters~\citep{Li:2020aa,Hickey:2023aa,Garrison2023.04.05.535718}.
@@ -813,7 +894,8 @@ This work is supported by National Institute of Health grant R01HG010040 and U01
 \section*{Data availability}
 
 The ropebwt3 source code is available at \url{https://github.com/lh3/ropebwt3}.
-Prebuilt ropebwt3 indices can be obtained from \url{https://zenodo.org/doi/10.5281/zenodo.11533210}.
+Prebuilt ropebwt3 indices can be obtained from \url{https://zenodo.org/doi/10.5281/zenodo.11533210}
+and \url{https://doi.org/10.5281/zenodo.13955431}.
 
 \bibliographystyle{apalike}
 {\sffamily\small
