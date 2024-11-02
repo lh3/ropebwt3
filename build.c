@@ -8,6 +8,7 @@
 #include "io.h"
 #include "rld0.h"
 #include "ketopt.h"
+#include "kthread.h"
 
 #define RB3_BF_NO_FOR     0x1
 #define RB3_BF_NO_REV     0x2
@@ -18,7 +19,7 @@ typedef struct {
 	int64_t flag;
 	rb3_fmt_t fmt;
 	int32_t n_threads;
-	int32_t max_sais_threads;
+	int32_t sais_threads;
 	int32_t block_len;
 	int32_t max_nodes;
 	int32_t sort_order;
@@ -29,12 +30,54 @@ void rb3_bopt_init(rb3_bopt_t *opt)
 {
 	memset(opt, 0, sizeof(*opt));
 	opt->n_threads = 4;
-	opt->max_sais_threads = 0;
+	opt->sais_threads = 0;
 	opt->fmt = RB3_PLAIN;
 	opt->block_len = ROPE_DEF_BLOCK_LEN;
 	opt->max_nodes = ROPE_DEF_MAX_NODES;
 	opt->batch_size = 7000000000LL;
 	opt->sort_order = MR_SO_IO;
+}
+
+typedef struct {
+	int64_t len;
+	uint8_t *bwt;
+} step_t;
+
+typedef struct {
+	const rb3_bopt_t *opt;
+	int64_t id;
+	rb3_seqio_t *fp;
+	mrope_t *r;
+} pipeline_t;
+
+static void *worker_pipeline(void *shared, int step, void *in)
+{
+	pipeline_t *p = (pipeline_t*)shared;
+	step_t *t = (step_t*)in;
+	if (step == 0) {
+		kstring_t seq = {0,0,0};
+		int64_t n_seq;
+		seq.m = 0x100000;
+		seq.s = RB3_MALLOC(char, seq.m + 1);
+		n_seq = rb3_seq_read(p->fp, &seq, p->opt->batch_size, !(p->opt->flag&RB3_BF_NO_FOR), !(p->opt->flag&RB3_BF_NO_REV));
+		if (n_seq > 0) {
+			int32_t n_threads = p->id == 0? p->opt->n_threads : p->opt->sais_threads;
+			if (rb3_verbose >= 3) fprintf(stderr, "[M::%s::%.3f*%.2f] read %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)seq.l);
+			t = RB3_CALLOC(step_t, 1);
+			rb3_build_sais(n_seq, seq.l, seq.s, n_threads);
+			if (rb3_verbose >= 3) fprintf(stderr, "[M::%s::%.3f*%.2f] constructed partial BWT for %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)seq.l);
+			t->len = seq.l, t->bwt = (uint8_t*)seq.s;
+			p->id++;
+			return t;
+		} else free(seq.s);
+	} else if (step == 1) {
+		int32_t n_threads = p->opt->n_threads - p->opt->sais_threads;
+		if (p->r == 0) p->r = rb3_enc_plain2fmr(t->len, t->bwt, p->opt->max_nodes, p->opt->block_len, n_threads);
+		else rb3_fmi_merge_plain(p->r, t->len, t->bwt, n_threads);
+		if (rb3_verbose >= 3) fprintf(stderr, "[M::%s::%.3f*%.2f] encoded/merged the partial BWT for %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)t->len);
+		free(t->bwt); free(t);
+	}
+	return 0;
 }
 
 static int usage_build(FILE *fp, const rb3_bopt_t *opt)
@@ -43,8 +86,8 @@ static int usage_build(FILE *fp, const rb3_bopt_t *opt)
 	fprintf(fp, "Options:\n");
 	fprintf(fp, "  Algorithm:\n");
 	fprintf(fp, "    -m NUM      batch size [7G]\n");
-	fprintf(fp, "    -t INT      number of threads [%d]\n", opt->n_threads);
-//	fprintf(fp, "    -p INT      max number of threads for sais [%d]\n", opt->max_sais_threads);
+	fprintf(fp, "    -t INT      total number of threads [%d]\n", opt->n_threads);
+	fprintf(fp, "    -p INT      #threads for sais and run sais and merge together (more RAM) [%d]\n", opt->sais_threads);
 	fprintf(fp, "    -l INT      leaf block size in B+-tree [%d]\n", opt->block_len);
 	fprintf(fp, "    -n INT      max number children per internal node [%d]\n", opt->max_nodes);
 	fprintf(fp, "    -2          use the ropebwt2 algorithm (libsais by default)\n");
@@ -78,7 +121,7 @@ int main_build(int argc, char *argv[])
 		// algorithm
 		if (c == 'm') opt.batch_size = rb3_parse_num(o.arg);
 		else if (c == 't') opt.n_threads = atoi(o.arg);
-		else if (c == 'p') opt.max_sais_threads = atoi(o.arg);
+		else if (c == 'p') opt.sais_threads = atoi(o.arg);
 		else if (c == 'l') opt.block_len = atoi(o.arg);
 		else if (c == 'n') opt.max_nodes = atoi(o.arg);
 		else if (c == '2') opt.flag |= RB3_BF_USE_RB2;
@@ -113,6 +156,23 @@ int main_build(int argc, char *argv[])
 			fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the index from file '%s'\n", __func__, rb3_realtime(), rb3_percent_cpu(), fn_in);
 	}
 
+	if (argc - o.ind == 1 && opt.sais_threads > 0 && opt.n_threads - opt.sais_threads > 0) {
+		rb3_seqio_t *fp;
+		pipeline_t p;
+		fp = rb3_seq_open(argv[o.ind], !!(opt.flag&RB3_BF_LINE));
+		if (fp == 0) {
+			if (rb3_verbose >= 1)
+				fprintf(stderr, "ERROR: failed to open file '%s'\n", argv[o.ind]);
+			goto end_build;
+		}
+		memset(&p, 0, sizeof(p));
+		p.opt = &opt, p.fp = fp, p.r = r;
+		kt_pipeline(2, worker_pipeline, &p, 2);
+		r = p.r;
+		rb3_seq_close(fp);
+		goto end_build;
+	}
+
 	for (i = o.ind; i < argc; ++i) {
 		rb3_seqio_t *fp;
 		int64_t n_seq = 0;
@@ -130,10 +190,7 @@ int main_build(int argc, char *argv[])
 				mr_insert_multi(r, seq.l, (uint8_t*)seq.s, (opt.n_threads > 1));
 				if (rb3_verbose >= 3) fprintf(stderr, "[M::%s::%.3f*%.2f] inserted %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)seq.l);
 			} else { // use libsais
-				int32_t sais_threads = opt.n_threads;
-				if (opt.max_sais_threads > 0 && sais_threads > opt.max_sais_threads)
-					sais_threads = opt.max_sais_threads;
-				rb3_build_sais(n_seq, seq.l, seq.s, sais_threads);
+				rb3_build_sais(n_seq, seq.l, seq.s, opt.n_threads);
 				if (rb3_verbose >= 3) fprintf(stderr, "[M::%s::%.3f*%.2f] constructed partial BWT for %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)seq.l);
 				if (r == 0) {
 					r = rb3_enc_plain2fmr(seq.l, (uint8_t*)seq.s, opt.max_nodes, opt.block_len, opt.n_threads);
@@ -154,6 +211,8 @@ int main_build(int argc, char *argv[])
 		}
 	}
 	free(seq.s);
+
+end_build:
 	if (r == 0) return 1;
 
 	if (opt.fmt == RB3_FMR) {
