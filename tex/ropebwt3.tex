@@ -41,8 +41,8 @@ These limitations have hampered the biological applications of full-text indices
 \vspace{0.5em}\\
 \textbf{Results:}
 We developed ropebwt3 for efficient BWT construction and query.
-Ropebwt3 could index 100 assembled human genomes in 21 hours and index 7.3 terabases of commonly studied bacterial assemblies in 26 days.
-This was achieved using 82 gigabytes of memory at the peak without working disk space.
+Ropebwt3 indexed 320 assembled human genomes in 81 hours and indexed 7.3 terabases of commonly studied bacterial assemblies in 26 days.
+This was achieved using 100 gigabytes of memory at the peak without working disk space.
 Ropebwt3 can find maximal exact matches and inexact alignments under affine-gap penalties,
 and can retrieve all distinct local haplotypes matching a query sequence.
 It demonstrates the feasibility of full-text indexing at the terabase scale.
@@ -670,7 +670,8 @@ human100       & grlBWT        &  8.3 h       &  29.6 h &  84.8 GB \\
                & ropebwt3      & 20.5 h       & 469.4 h &  83.0 GB \\
 			   & metagraph$^4$ & 16.9 h       & 314.8 h & 251.0 GB \\
 			   & fulgor$^5$    & 1.2 h    &  32.7 h & 165.2 GB \\
-human320       & ropebwt3      & 81.2 h       & 1343.4 h & 99.2 GB \\
+human320       & grlBWT        & 24.4 h   &  97.4 h & 270.4 GB \\
+               & ropebwt3      & 81.2 h       & 1343.4 h & 99.2 GB \\
 CommonBacteria & ropebwt3      & 25.6 d       & 830.3 d &  67.3 GB \\
 \botrule
 \end{tabular*}
