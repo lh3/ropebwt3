@@ -29,7 +29,7 @@ void rb3_bopt_init(rb3_bopt_t *opt)
 {
 	memset(opt, 0, sizeof(*opt));
 	opt->n_threads = 4;
-	opt->max_sais_threads = 48;
+	opt->max_sais_threads = 0;
 	opt->fmt = RB3_PLAIN;
 	opt->block_len = ROPE_DEF_BLOCK_LEN;
 	opt->max_nodes = ROPE_DEF_MAX_NODES;
@@ -44,7 +44,7 @@ static int usage_build(FILE *fp, const rb3_bopt_t *opt)
 	fprintf(fp, "  Algorithm:\n");
 	fprintf(fp, "    -m NUM      batch size [7G]\n");
 	fprintf(fp, "    -t INT      number of threads [%d]\n", opt->n_threads);
-	fprintf(fp, "    -p INT      max number of threads for sais [%d]\n", opt->max_sais_threads);
+//	fprintf(fp, "    -p INT      max number of threads for sais [%d]\n", opt->max_sais_threads);
 	fprintf(fp, "    -l INT      leaf block size in B+-tree [%d]\n", opt->block_len);
 	fprintf(fp, "    -n INT      max number children per internal node [%d]\n", opt->max_nodes);
 	fprintf(fp, "    -2          use the ropebwt2 algorithm (libsais by default)\n");
@@ -130,7 +130,10 @@ int main_build(int argc, char *argv[])
 				mr_insert_multi(r, seq.l, (uint8_t*)seq.s, (opt.n_threads > 1));
 				if (rb3_verbose >= 3) fprintf(stderr, "[M::%s::%.3f*%.2f] inserted %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)seq.l);
 			} else { // use libsais
-				rb3_build_sais(n_seq, seq.l, seq.s, opt.max_sais_threads < opt.n_threads? opt.max_sais_threads : opt.n_threads);
+				int32_t sais_threads = opt.n_threads;
+				if (opt.max_sais_threads > 0 && sais_threads > opt.max_sais_threads)
+					sais_threads = opt.max_sais_threads;
+				rb3_build_sais(n_seq, seq.l, seq.s, sais_threads);
 				if (rb3_verbose >= 3) fprintf(stderr, "[M::%s::%.3f*%.2f] constructed partial BWT for %ld symbols\n", __func__, rb3_realtime(), rb3_percent_cpu(), (long)seq.l);
 				if (r == 0) {
 					r = rb3_enc_plain2fmr(seq.l, (uint8_t*)seq.s, opt.max_nodes, opt.block_len, opt.n_threads);

@@ -641,58 +641,58 @@ It is a new query type that is biologically meaningful.
 
 \section{Results}
 
-%\begin{table}[!tb]
-%\caption{Datasets\label{tab:data}}
-%\begin{tabular*}{\columnwidth}{@{\extracolsep\fill}lrrr@{\extracolsep\fill}}
-%\toprule
-%Name               & \#bases$^1$ & \#sequences & avg run length$^2$ \\
-%\midrule
-%human100$^3$       &  301.6 Gb &  38.6 k & 141.6 \\
-%CommonBacteria$^4$ & 7326.6 Gb & 278.4 M & 828.6 \\
-%\botrule
-%\end{tabular*}
-%\begin{tablenotes}\setlength\itemsep{0.0em}
-%\item[$^{1}$] number of bases in the input sequences on one strand
-%\item[$^{2}$] average run length in BWT constructed from both strands
-%\item[$^{3}$] 100 long-read human assemblies
-%\item[$^{4}$] AllTheBacteria~\citep{Hunt2024.03.08.584059} excluding ``dustbin'' and ``unknown''
-%\end{tablenotes}
-%\end{table}
+\begin{table}[!tb]
+\caption{Datasets\label{tab:data}}
+\begin{tabular*}{\columnwidth}{@{\extracolsep\fill}lrrr@{\extracolsep\fill}}
+\toprule
+Name               & \#bases$^1$ & \#sequences & avg run length$^2$ \\
+\midrule
+human100$^3$       &  301.6 Gb &  38.6 k & 141.6 \\
+human320$^4$       &  963.0 Gb &  27.1 k & 395.6 \\
+CommonBacteria$^5$ & 7326.6 Gb & 278.4 M & 828.6 \\
+\botrule
+\end{tabular*}
+\begin{tablenotes}\setlength\itemsep{0.0em}
+\item[$^{1}$] number of bases in the input sequences on one strand
+\item[$^{2}$] average run length in BWT constructed from both strands
+\item[$^{3}$] 100 long-read human assemblies
+\item[$^{4}$] 320 long-read human assemblies
+\item[$^{5}$] AllTheBacteria~\citep{Hunt2024.03.08.584059} excluding ``dustbin'' and ``unknown''
+\end{tablenotes}
+\end{table}
 
 \begin{table}[b]
 \caption{Indexing performance\label{tab:index}}
 \begin{tabular*}{\columnwidth}{@{\extracolsep\fill}llrrr@{\extracolsep\fill}}
 \toprule
-Dataset        & Algorithm     & Elapsed$^1$ & CPU$^1$  &     RAM$^2$ \\
+Dataset        & Algorithm     & Elapsed$^1$ & CPU$^1$  &      RAM \\
 \midrule
 human100       & grlBWT        &  8.3 h       &  29.6 h &  84.8 GB \\
-		       & pfp-thres$^3$ &$<$51.7 h     &$<$51.5 h & 788.1 GB \\
+		       & pfp-thres$^2$ &$<$51.7 h     &$<$51.5 h& 788.1 GB \\
                & ropebwt3      & 20.5 h       & 469.4 h &  83.0 GB \\
-			   & metagraph$^4$ & 16.9 h       & 314.8 h & 251.0 GB \\
-			   & fulgor$^5$    & 1.2 h    &  32.7 h & 165.2 GB \\
-human320       & grlBWT        & 24.4 h   &  97.4 h & 270.4 GB \\
-               & ropebwt3      & 81.2 h       & 1343.4 h & 99.2 GB \\
+			   & metagraph$^3$ & 16.9 h       & 314.8 h & 251.0 GB \\
+			   & fulgor$^4$    & 1.2 h        &  32.7 h & 165.2 GB \\
+human320       & grlBWT        & 24.4 h       &  97.4 h & 270.4 GB \\
+               & ropebwt3      & 81.2 h       & 1343.4 h&  99.2 GB \\
 CommonBacteria & ropebwt3      & 25.6 d       & 830.3 d &  67.3 GB \\
 \botrule
 \end{tabular*}
 \begin{tablenotes}\setlength\itemsep{0.0em}
 \item Up to 64 threads specified if multi-threading is supported.
 \item[$^{1}$] excluding time for format conversion; ``h'' for hours; ``d'' for days
-\item[$^{2}$] 1 GB is equal to $1024^3$ bytes
-\item[$^{3}$] pfp-thresholds was run on a slower machine with more RAM
-\item[$^{4}$] k-mer coordinates in the ``row\_diff\_brwt\_coord'' encoding
-\item[$^{5}$] without ``-{}-meta -{}-diff'' as the basic index is smaller; lossy index
+\item[$^{2}$] pfp-thresholds was run on a slower machine with more RAM
+\item[$^{3}$] k-mer coordinates in the ``row\_diff\_brwt\_coord'' encoding
+\item[$^{4}$] without ``-{}-meta -{}-diff'' as the basic index is smaller; lossy index
 \end{tablenotes}
 \end{table}
 
 \subsection{Performance on index construction}
 
 We evaluated the performance of BWT construction on 100 haplotype-resolved human assemblies collected in~\citet{Li:2024ab}.
-As we included both strands (Section~\ref{sec:ds-bwt}), each BWT construction algorithm took about 600 billion bases as input.
-The average run length is 141.6.
+As we included both strands (Section~\ref{sec:ds-bwt}), each BWT construction algorithm took about 600 billion bases as input (Table~\ref{tab:data}).
 grlBWT (commit 5b6d26a; \citealt*{DBLP:journals/iandc/DiazDominguezN23}) is the fastest algorithm (Table~\ref{tab:index})
-at the cost of more than a terabyte of working disk space including decompressed sequences.
-Ropebwt3 took 21 hours from input sequences in gzip'd FASTA to the final index, of which 7.7 hours were spent on libsais.
+at the cost of $\sim$2 terabytes of working disk space including decompressed sequences.
+Ropebwt3 took 21 hours from input sequences in gzip'd FASTA to the final index, of which 7.7 hours was spent on libsais.
 It does not use working disk space and can append new sequences to an existing BWT.
 However, hardcoded for the DNA alphabet, ropebwt3 does not work with more general alphabets.
 pfp-thresholds~\citep{Rossi:2022aa} used more memory than the input sequences.
@@ -709,14 +709,13 @@ In the lossless mode, metagraph (v0.3.6; \citealt*{Karasikov2020.10.01.322164}) 
 Fulgor (v3.0.0; \citealt*{Fan:2024aa}) is by far the fastest.
 However, lossy in nature, it is not directly comparable to the rest of the tools in the table.
 
-To test the scalability of ropebwt3, we indexed a large dataset consisting of 320 human genomes.
-Ropebwt3 took 3.4 days and generated a 13.1 GB file in the fermi format.
-It contains 1.9 trillion bases and 4.9 billion runs.
-We also constructed the BWT of AllTheBacteria~\citep{Hunt2024.03.08.584059} excluding the ``dustbin'' and ``unknown'' categories that include relatively unique genomes.
-This subset, which we call CommonBacteria, consists of 278.4 million sequences.
-Ropebwt3 took less than a month to construct the double-strand BWT with 14.66 trillion symbols.
+To test scalability, we indexed a larger dataset consisting of 320 human genomes.
+grlBWT is over three times as fast as ropebwt3 but uses more memory (Table~\ref{tab:index}).
+On the largest CommonBacteria dataset (Table~\ref{tab:data}),
+ropebwt3 took less than a month to construct the double-strand BWT with 14.66 trillion symbols.
 The final index in the fermi format is 27.6 GB in size.
-Indexing the entire AllTheBacteria dataset will probably take 100--200 GB as unique sequences are not compressed well.
+The ``dustbin'' and ``unknown'' categories in AllTheBacteria consist of many unique sequences which are not compressed well.
+Indexing the entire AllTheBacteria with ropebwt3 will probably take 100--200 GB memory at the peak.
 
 \begin{table}[!tb]
 \caption{Query performance\label{tab:query}}
@@ -774,12 +773,10 @@ It is important to note that no two tools support exactly the same type of query
 but the comparison can still give a hint about the relative performance.
 
 Among the three BWT-based tools, ropebwt3 is slower than Movi but faster than MONI on finding exact matches.
-Movi finds pseudo-matching length (PML).
-Although the fastest, it finds the longest exact matches for only 195 out of one million short reads
-and it misses the longest exact matches for all long reads.
+Movi finds pseudo-matching length (PML) which is not intended to be the longest exact match.
+PML corresponds to the longest MEM for only 195 out of one million short reads, and none for long reads.
 The longest PML of each read is on average 27\% shorter than the longest exact match for LR$+$ and 22\% shorter for SR$+$.
-Nonetheless, PML is not designed for finding the longest matches.
-We also believe it should be possible to implement SMEM finding based on the Movi data structure with a minor performance overhead.
+Nonetheless, we believe it is possible to implement SMEM finding based on the Movi data structure with minor performance overhead.
 
 MONI and ropebwt3 can also find inexact matches.
 Implementing r-index, MONI can relatively cheaply locate one SMEM.
@@ -797,14 +794,14 @@ However, when most k-mers are present in the index, metagraph is impractically s
 
 As a biological application, we used the pangenome index to identify novel sequences in reads that are absent from other human genomes.
 For this, we downloaded the PacBio HiFi reads for tumor sample COLO829 (\url{https://downloads.pacbcloud.com/public/revio/2023Q2/COLO829/COLO829/}),
-mapped them to the pangenome index with 100 human genomes, which includes T2T-CHM13,
+mapped them to human100 (Table~\ref{tab:data}), which includes T2T-CHM13~\citep{Nurk:2022up},
 and extracted $\ge$1kb regions on reads that are not covered by SMEMs of 51bp or longer.
 We found 95kb sequences in 43 reads.
 These sequences could not be assembled.
 NCBI BLAST suggested multiple weak hits to cow genomes.
 We could not identify the source of these sequences but there were few of them anyway.
 
-When we mapped the COLO829 reads to a single T2T-CHM13 genome~\citep{Nurk:2022up} and applied the same procedure,
+When we mapped the COLO829 reads to T2T-CHM13 only and applied the same procedure,
 we found 55.9Mb of ``novel'' sequences in 25,365 reads.
 The much larger number is caused by regions with dense SNPs that prevented long exact matches.
 Counterintuitively, mapping these reads to T2T-CHM13 with minimap2~\citep{Li:2018ab} resulted in more ``novel'' sequences at 78.6Mb,
@@ -845,7 +842,7 @@ Generating BWT purely in memory and supporting incremental build, ropebwt3 is co
 It provides the fastest algorithm so far for finding supermaximal exact matches and can report inexact hits as well.
 Ropebwt3 demonstrates that BWT-based data structures are scalable to terabases of pangenome data.
 
-Ropebwt3 is likely to take $\sim$3 weeks to index 1,000 human genomes assembled from long reads.
+Ropebwt3 is likely to take $\sim$3 weeks to index 1,000 human genomes.
 When there are more genomes, it will be faster to construct the BWT of individual genome independently
 and then merge them one by one.
 This strategy will use working disk space but achieve better parallelization.
