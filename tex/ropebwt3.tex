@@ -624,12 +624,12 @@ We can find the set of matching haplotypes $\mathcal{M}\triangleq\{v\in V(G_T):H
 $\mathcal{M}$ may include suboptimal haplotypes caused by small variants as well as the optimal one.
 
 Importantly, $P$ may be aligned to similar positions on $T$ with slightly different gap placements.
-For example, given $T={\tt CAAGCA}$ and $P={\tt AGC}$,
+For example, given $T={\tt CAAGCAG}$ and $P={\tt AGCG}$,
 the algorithm above may find the following two alignments around the same position but in different SA intervals:
 \begin{verbatim}
-   T: CAAGCA        CAAGCA
-        |||    or    | ||
-   P:   AGC          A-GC
+   T: CAAGCAG        CAAGCAG
+        ||||    or    | |||
+   P:   AGCA          A-GCA
 \end{verbatim}
 When counting hits, we want to ignore the second suboptimal alignment.
 In theory, we can identify this case by comparing the position of each alignment.
