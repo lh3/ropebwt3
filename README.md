@@ -116,9 +116,10 @@ This provides a way to retrieve similar haplotypes from the index.
 
 The `hapdiv` command applies this algorithm to 101-mers in a query sequence and
 outputs 1) query name, 2) query start, 3) query end, 4) number of distinct
-alleles the 101-mer matches, 5) number of haplotypes with perfectly matching
-the 101-mer, 6-10) number of haplotypes with edit distance 1-5 from the 101-mer,
-and 11) with distance 6 or higher.
+alleles the 101-mer matches, 5) maximum edit distance observed,
+6) number of haplotypes with perfectly matching the 101-mer,
+7-11) number of haplotypes with edit distance 1-5 from the 101-mer,
+and 12) with distance 6 or higher.
 
 ### <a name="build"></a>Indexing
 
