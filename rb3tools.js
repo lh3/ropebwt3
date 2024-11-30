@@ -1,6 +1,6 @@
 #!/usr/bin/env k8
 
-const rb3_version = "3.7-r237-dirty";
+const rb3_version = "3.9-r259";
 
 /**************
  * From k8.js *

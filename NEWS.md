@@ -1,3 +1,15 @@
+Release 3.9-r259 (30 November 2024)
+-----------------------------------
+
+Notable changes:
+
+ * New feature: with option -p, the build command optionally runs partial
+   suffix array construction and BWT merge at the same time.
+
+(3.9 30 November 2024, r259)
+
+
+
 Release 3.8-r249 (18 October 2024)
 ----------------------------------
 
