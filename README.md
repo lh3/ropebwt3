@@ -36,7 +36,7 @@ echo CCAGGACCCCTGTCCAGTGTTAGACAGGAGCATGCAG | ./ropebwt3 sw -eN200 -Lm10 human100
 - [Getting Started](#start)
 - [Introduction](#intro)
 - [Usage](#use)
-  - [Counting maximal exact matches](#mem)
+  - [Finding maximal exact matches](#mem)
   - [Local alignment](#bwasw)
   - [Haplotype diversity with end-to-end alignment](#e2e)
   - [Indexing](#build)
@@ -73,7 +73,7 @@ A full ropebwt3 index consists of three files:
   -f1,2 | gzip`. This file is needed for reporting sequence names and lengths
   in the PAF output.
 
-### <a name="mem"></a>Counting maximal exact matches
+### <a name="mem"></a>Finding maximal exact matches
 
 A maximal exact match (MEM) is an exact alignment between the index and a query
 that cannot be extended in either direction. A super MEM (SMEM) is a MEM that
@@ -85,9 +85,10 @@ ropebwt3 mem -t4 -l31 bwt.fmd query.fa > matches.bed
 In the output, the first three columns give the query sequence name, start and
 end of a match and the fourth column gives the number of hits. Option `-l`
 specifies the minimum SMEM length. A larger value helps performance.
-
-You can use `--gap` to obtain regions not covered by long SMEMs or `--cov` to
-get the total length of regions covered by long SMEMs.
+This command does not output positions of SMEMs by default.
+You can use option `-p` to get the positions of a subset of SMEMs.
+In addition, you can use `--gap` to obtain regions not covered by long SMEMs or
+`--cov` to get the total length of regions covered by long SMEMs.
 
 ### <a name="bwasw"></a>Local alignment
 
