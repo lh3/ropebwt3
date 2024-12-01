@@ -14,7 +14,7 @@ extern "C" {
 
 #define RB3_ASIZE 6
 
-typedef enum { RB3_PLAIN, RB3_FMD, RB3_FMR, RB3_TREE } rb3_fmt_t;
+typedef enum { RB3_PLAIN, RB3_FMD, RB3_FMR, RB3_TREE, RB3_BRE } rb3_fmt_t;
 
 #define RB3_LOAD_MMAP  0x1
 #define RB3_LOAD_SSA   0x2

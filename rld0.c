@@ -7,6 +7,9 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include "rld0.h"
+#ifdef RLD_HAVE_BRE
+#include "bre.h"
+#endif
 
 #define RLD_IBITS_PLUS 4
 
@@ -239,7 +242,29 @@ int rld_dump(const rld_t *e, const char *fn)
 	return 0;
 }
 
-static rld_t *rld_restore_header(const char *fn, FILE **_fp)
+static rld_t *rld_restore_from_bre(FILE *fp)
+{
+#ifdef RLD_HAVE_BRE
+	rld_t *e;
+	rlditr_t ei;
+	bre_file_t *b;
+	const bre_hdr_t *bh;
+	int64_t c, l;
+	b = bre_open_no_magic(fp);
+	bh = bre_get_hdr(b);
+	e = rld_init(bh->asize, 3);
+	rld_itr_init(e, &ei, 0);
+	while ((l = bre_read(b, &c)) > 0)
+		rld_enc(e, &ei, l, c);
+	rld_enc_finish(e, &ei);
+	bre_close(b);
+	return e;
+#else
+	return 0;
+#endif
+}
+
+static rld_t *rld_restore_header(const char *fn, FILE **_fp, int *from_bre)
 {
 	FILE *fp;
 	rld_t *e;
@@ -247,9 +272,14 @@ static rld_t *rld_restore_header(const char *fn, FILE **_fp)
 	uint64_t a[3];
 	int32_t i, x;
 
+	*from_bre = 0;
 	if (strcmp(fn, "-") == 0) *_fp = fp = stdin;
 	else if ((*_fp = fp = fopen(fn, "rb")) == 0) return 0;
 	fread(magic, 1, 4, fp);
+	if (strncmp(magic, "BRE\1", 4) == 0) {
+		*from_bre = 1;
+		return rld_restore_from_bre(fp);
+	}
 	if (strncmp(magic, "RLD\3", 4)) return 0;
 	fread(&x, 4, 1, fp);
 	e = rld_init(x>>16, x&0xffff);
@@ -267,9 +297,10 @@ rld_t *rld_restore(const char *fn)
 	FILE *fp;
 	rld_t *e;
 	uint64_t k, n_blks;
-	int32_t i;
+	int32_t i, from_bre;
 
-	e = rld_restore_header(fn, &fp);
+	e = rld_restore_header(fn, &fp, &from_bre);
+	if (from_bre && e) return e;
 	if (e == 0) return 0;
 	if (e->n_bytes / 8 > RLD_LSIZE) { // allocate enough memory
 		e->n = (e->n_bytes / 8 + RLD_LSIZE - 1) / RLD_LSIZE;
@@ -292,10 +323,10 @@ rld_t *rld_restore_mmap(const char *fn)
 {
 	FILE *fp;
 	rld_t *e;
-	int i;
+	int i, from_bre;
 	int64_t n_blks;
 
-	e = rld_restore_header(fn, &fp);
+	e = rld_restore_header(fn, &fp, &from_bre);
 	fclose(fp);
 	free(e->z[0]); free(e->z);
 	e->n = (e->n_bytes / 8 + RLD_LSIZE - 1) / RLD_LSIZE;

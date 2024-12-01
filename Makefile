@@ -2,7 +2,7 @@ CC=			gcc
 CFLAGS=		-g -Wall -Wc++-compat -O3
 CPPFLAGS=
 INCLUDES=
-OBJS=		libsais16.o libsais16x64.o kalloc.o kthread.o misc.o io.o rld0.o rle.o rope.o mrope.o \
+OBJS=		libsais16.o libsais16x64.o kalloc.o kthread.o misc.o io.o rld0.o bre.o rle.o rope.o mrope.o \
 			dawg.o fm-index.o ssa.o sais-ss.o build.o search.o bwa-sw.o
 PROG=		ropebwt3
 LIBS=		-lpthread -lz -lm
@@ -29,6 +29,9 @@ all:$(PROG)
 ropebwt3:$(OBJS) main.o
 		$(CC) $(CFLAGS) $^ -o $@ $(LIBS)
 
+rld0.o:rld0.c rld0.h bre.h
+		$(CC) -c $(CFLAGS) $(CPPFLAGS) -DRLD_HAVE_BRE $(INCLUDES) $< -o $@
+
 clean:
 		rm -fr *.o a.out $(PROG) *~ *.a *.dSYM
 
@@ -37,7 +40,9 @@ depend:
 
 # DO NOT DELETE
 
-build.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h io.h ketopt.h kthread.h
+bre.o: bre.h
+build.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h io.h rle.h bre.h ketopt.h
+build.o: kthread.h
 bwa-sw.o: rb3priv.h fm-index.h rld0.h mrope.h rope.h io.h align.h kalloc.h
 bwa-sw.o: dawg.h khashl-km.h ksort.h
 dawg.o: dawg.h kalloc.h libsais16.h io.h rb3priv.h khashl-km.h
