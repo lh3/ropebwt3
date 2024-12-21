@@ -20,15 +20,15 @@ echo ACCTACAACACCGGTaGGCTACAACGTGG | ./ropebwt3 sw -Lm20 mtb152.fmd -
 # Retrieve R15311, the 46th genome in the collection. 90=(46-1)*2
 ./ropebwt3 get mtb152.fmd 90 > R15311.fa
 
-# Download the index of 100 human long-read assemblies (10GB in size)
-wget -O human100.fmr.gz https://zenodo.org/records/13147120/files/human100.fmr.gz?download=1
-wget -O human100.fmd.ssa https://zenodo.org/records/13147120/files/human100.fmd.ssa?download=1
-wget -O human100.fmd.len.gz https://zenodo.org/records/13147120/files/human100.fmd.len.gz?download=1
-gzip -d human100.fmr.gz
-./ropebwt3 build -i human100.fmr -do human100.fmd   # convert the static format for speed
+# Download the index of 398 human long-read assemblies (16GB download size)
+wget -O human398.fmr.gz https://zenodo.org/records/14511009/files/human398.fmr.gz?download=1
+wget -O human398.fmd.ssa.gz https://zenodo.org/records/14511009/files/human398.fmd.ssa.gz?download=1
+wget -O human398.fmd.len.gz https://zenodo.org/records/14511009/files/human398.fmd.len.gz?download=1
+gzip -d human398.fmr.gz human398.fmd.ssa.gz
+./ropebwt3 build -i human398.fmr -do human398.fmd   # convert to a faster format
 
 # Find C4 alleles (the query is on the exon 26 of C4A)
-echo CCAGGACCCCTGTCCAGTGTTAGACAGGAGCATGCAG | ./ropebwt3 sw -eN200 -Lm10 human100.fmd -
+echo CCAGGACCCCTGTCCAGTGTTAGACAGGAGCATGCAG | ./ropebwt3 sw -eN200 -Lm10 human398.fmd -
 ```
 
 ## Table of Contents
