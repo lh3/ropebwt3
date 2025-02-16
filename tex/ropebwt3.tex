@@ -647,23 +647,22 @@ It is a new query type that is biologically meaningful.
 
 \begin{table}[!tb]
 \caption{Datasets\label{tab:data}}
-\begin{tabular*}{\columnwidth}{@{\extracolsep\fill}lrrr@{\extracolsep\fill}}
+\begin{tabular*}{\columnwidth}{@{\extracolsep\fill}lrrrr@{\extracolsep\fill}}
 \toprule
-Name               & \#bases$^1$ & \#sequences & avg run length$^2$ \\
+Name               & \#bases$^1$ & \#seqs & N50$^2$  & rlen$^3$ \\
 \midrule
-human100$^3$       &  301.6 Gb &  38.6 k & 141.6 \\
-human320$^4$       &  963.0 Gb &  27.1 k & 395.6 \\
-human472$^5$       & 1421.2 Gb &  39.1 k & 540.5 \\
-CommonBacteria$^6$ & 7326.6 Gb & 278.4 M & 828.6 \\
+human100$^4$       &  301.6 Gb &  38.6 k  & 39.9  Mb & 141.6 \\
+human320$^4$       &  963.0 Gb &  27.1 k  & 135.3 Mb & 395.6 \\
+human472$^4$       & 1421.2 Gb &  39.1 k  & 135.5 Mb & 540.5 \\
+CommonBacteria$^5$ & 7326.6 Gb & 278.4 M  & 151.8 kb & 828.6 \\
 \botrule
 \end{tabular*}
 \begin{tablenotes}\setlength\itemsep{0.0em}
 \item[$^{1}$] number of bases in the input sequences on one strand
-\item[$^{2}$] average run length in BWT constructed from both strands
-\item[$^{3}$] 100 long-read human assemblies; N50 string length: 39.9 Mb
-\item[$^{4}$] 320 long-read human assemblies; N50 string length: 135.3 Mb
-\item[$^{5}$] 472 long-read human assemblies; N50 string length: 135.5 Mb
-\item[$^{6}$] AllTheBacteria~\citep{Hunt2024.03.08.584059} excluding ``dustbin'' and ``unknown''
+\item[$^{2}$] N50 string length
+\item[$^{3}$] average run length in BWT constructed from both strands
+\item[$^{4}$] 100, 320 and 472 human genomes
+\item[$^{5}$] AllTheBacteria~\citep{Hunt2024.03.08.584059} excluding ``dustbin'' and ``unknown''
 \end{tablenotes}
 \end{table}
 
