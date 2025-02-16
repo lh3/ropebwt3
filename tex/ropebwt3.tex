@@ -653,16 +653,33 @@ Name               & \#bases$^1$ & \#sequences & avg run length$^2$ \\
 \midrule
 human100$^3$       &  301.6 Gb &  38.6 k & 141.6 \\
 human320$^4$       &  963.0 Gb &  27.1 k & 395.6 \\
-CommonBacteria$^5$ & 7326.6 Gb & 278.4 M & 828.6 \\
+human472$^5$       & 1421.2 Gb &  39.1 k & 540.5 \\
+CommonBacteria$^6$ & 7326.6 Gb & 278.4 M & 828.6 \\
 \botrule
 \end{tabular*}
 \begin{tablenotes}\setlength\itemsep{0.0em}
 \item[$^{1}$] number of bases in the input sequences on one strand
 \item[$^{2}$] average run length in BWT constructed from both strands
-\item[$^{3}$] 100 long-read human assemblies; N50 string length: 44.4 Mb
+\item[$^{3}$] 100 long-read human assemblies; N50 string length: 39.9 Mb
 \item[$^{4}$] 320 long-read human assemblies; N50 string length: 135.3 Mb
-\item[$^{5}$] AllTheBacteria~\citep{Hunt2024.03.08.584059} excluding ``dustbin'' and ``unknown''
+\item[$^{5}$] 472 long-read human assemblies; N50 string length: 135.5 Mb
+\item[$^{6}$] AllTheBacteria~\citep{Hunt2024.03.08.584059} excluding ``dustbin'' and ``unknown''
 \end{tablenotes}
+\end{table}
+
+\begin{table}[!tb]
+\caption{Features\label{tab:feat}}
+\begin{tabular*}{\columnwidth}{@{\extracolsep\fill}lccccc@{\extracolsep\fill}}
+\toprule
+Name        & BWT & Disk & Incremental & Lossless & SA \\
+\midrule
+fulgor      & No  & No  & No  & No  & N/A \\
+grlBWT      & Yes & Yes & No  & Yes & No \\
+metagraph   & No  & Yes & No  & Yes & N/A \\
+pfp-thres   & Yes & Yes & No  & Yes & Yes \\
+ropebwt3    & Yes & No  & Yes & Yes & Optional \\
+\botrule
+\end{tabular*}
 \end{table}
 
 \begin{table}[b]
@@ -679,6 +696,7 @@ human100       & grlBWT        &  8.3 h       &  $\times3.6$ &  84.8 GB \\
 human320       & grlBWT$^6$    & 23.3 h       &  $\times4.2$ & 270.4 GB \\
                & ropebwt3      & 81.2 h       & $\times16.5$ &  99.2 GB \\
                & ropebwt3$^7$  & 64.9 h       & $\times23.7$ & 170.5 GB \\
+human472       & ropebwt3$^7$  & 96.0 h       & $\times23.8$ & 171.3 GB \\
 CommonBacteria & ropebwt3      & 25.6 d       & $\times32.4$ &  67.3 GB \\
 \botrule
 \end{tabular*}
