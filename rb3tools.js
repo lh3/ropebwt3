@@ -129,6 +129,66 @@ function rb3_cmd_mapflt(args)
 	if (ctg0 != "") print(ctg0, st0, en0, gap);
 }
 
+function rb3_e2e_read1(f, buf, thres1, thres2)
+{
+	let r = { c1:0, c2:0, ctg:null, st:-1, en:-1 };
+	while (f.readline(buf) >= 0) {
+		let m, line = buf.toString();
+		if ((m = /^QS\t(\S+):(\d+)-(\d+)\t/.exec(line)) != null) {
+			r.ctg = m[1], r.st = parseInt(m[2]) - 1, r.en = parseInt(m[3]);
+		} else if ((m = /^QH\t(\d+)\t(\d+)\t(\d+)/.exec(line)) != null) {
+			let ed = parseInt(m[3]), cnt = parseInt(m[1]);
+			if (ed <= thres1) r.c1 += cnt;
+			if (ed <= thres2) r.c2 += cnt;
+		} else if (line == "//") {
+			break;
+		}
+	}
+	return r.ctg != null? r : null;
+}
+
+function rb3_cmd_mapflt2(args)
+{
+	let opt = { max_rdiff:3, max_pdiff:7, gap_size:50 };
+	for (const o of getopt(args, "p:r:g:", [])) {
+		if (o.opt == '-p') opt.max_pdiff = parseInt(o.arg);
+		else if (o.opt == '-r') opt.max_rdiff = parseInt(o.arg);
+		else if (o.opt == '-g') opt.gap_size = parseInt(o.arg);
+	}
+	if (args.length < 3) {
+		print("Usage: rb3tools.js mapflt2 [options] <maxHap> <in.ref.e2e> <in.pan.e2e>");
+		print("Options:");
+		print(`  -r INT      max edit distance for reference [${opt.max_rdiff}]`);
+		print(`  -p INT      max edit distance for pangenome [${opt.max_pdiff}]`);
+		print(`  -g INT      close a gap up to INT [${opt.gap_size}]`);
+		return 1;
+	}
+	const max_hap = parseInt(args[0]);
+	let fr = new File(args[1]), fp = new File(args[2]);
+	let buf = new Bytes();
+	let ctg0 = "", st0 = 0, en0 = 0, gap = 0, r;
+	while ((r = rb3_e2e_read1(fr, buf, opt.max_rdiff, opt.max_pdiff)) != null) {
+		let p = rb3_e2e_read1(fp, buf, opt.max_rdiff, opt.max_pdiff);
+		if (p == null) throw Error("more records in the reference e2e file");
+		if (r.ctg != p.ctg || r.st != p.st || r.en != p.en) throw Error("inconsistent coordinate");
+		let flt = false;
+		if (r.c1 == 1 && p.c1 > 0 && p.c1 <= max_hap) { // reference count is exactly 1; pangenome count no more than the threshold
+			if (r.c2 == 1 && p.c2 > max_hap) flt = true;
+		} else flt = true;
+		if (flt) {
+			if (r.ctg != ctg0 || r.st > en0 + opt.gap_size) {
+				if (ctg0 != "") print(ctg0, st0, en0, gap);
+				ctg0 = r.ctg, st0 = r.st, en0 = r.en, gap = 0;
+			} else {
+				gap += r.st > en0? r.st - en0 : 0;
+				en0 = en0 > r.en? en0 : r.en;
+			}
+		}
+	}
+	buf.destroy();
+	fr.close(); fp.close();
+}
+
 function rb3_cmd_call(args)
 {
 	let opt = { dbg:false, ambi_range:4, drop_score:12, max_gced:5, keep_supp1:false, flag_conflict:false };
@@ -379,7 +439,8 @@ function main(args)
 		print("Usage: rb3tools.js <command> [arguments]");
 		print("Commands:");
 		print("  call           call small variants");
-		print("  mapflt         generate mappability filter");
+		//print("  mapflt         generate mappability filter");
+		print("  mapflt2        generate mappability filter");
 		print("  getsnp         extract SNPs");
 		print("  version        print version number");
 		exit(1);
@@ -387,6 +448,7 @@ function main(args)
 
 	var cmd = args.shift();
 	if (cmd == "mapflt") rb3_cmd_mapflt(args);
+	else if (cmd == "mapflt2") rb3_cmd_mapflt2(args);
 	else if (cmd == "call") rb3_cmd_call(args);
 	else if (cmd == "getsnp") rb3_cmd_getsnp(args);
 	else if (cmd == "version") print(rb3_version);
