@@ -28,11 +28,11 @@ typedef struct {
 } rb3_sai_t;
 
 typedef struct {
-	int32_t ms;
-	int32_t ss;
-	int64_t m, n_ssa;
-	uint64_t *r2i; // rank -> index
-	uint64_t *ssa; // sampled suffix array
+	int32_t ms; // for each ssa[i], the lower ms bits keep the sequence ID in [0,m); the higher bits keep the offset of on sequence
+	int32_t ss; // sample one SA per 1<<ss entries on average
+	int64_t m, n_ssa; // m: number of sequences/sentinels; n_ssa: size of the ssa[] array below
+	uint64_t *r2i; // rank -> index, of size m; when you reach a sentinel via backward search, r2i[] tells you the sequence ID in [0,m)
+	uint64_t *ssa; // sampled suffix array; of size n_ssa
 } rb3_ssa_t;
 
 typedef struct {
