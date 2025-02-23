@@ -185,6 +185,7 @@ function rb3_cmd_mapflt2(args)
 			}
 		}
 	}
+	if (ctg0 != "") print(ctg0, st0, en0, gap);
 	buf.destroy();
 	fr.close(); fp.close();
 }
