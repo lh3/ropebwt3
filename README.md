@@ -234,7 +234,8 @@ int main(int argc, char *argv[]) {
 
 Ropebwt3 is described in
 
-> Li (2024) BWT construction and search at the terabase scale, [arXiv:2409.00613](https://arxiv.org/abs/2409.00613)
+> Li (2024) BWT construction and search at the terabase scale, *Bioinformatics*, **40**:btae717.
+> DOI:[10.1093/bioinformatics/btae717](https://doi.org/10.1093/bioinformatics/btae717)
 
 ## <a name="limit"></a>Limitations
 
