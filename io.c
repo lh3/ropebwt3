@@ -259,7 +259,8 @@ int64_t rb3_sprintf_lite(kstring_t *s, const char *fmt, ...)
 					for (i = l - 1; i >= 0; --i) s->s[s->l++] = buf[i];
 				}
 			} else if (*p == 'l' && *(p+1) == 'd') {
-				int c, i, l = 0;
+				int i, l = 0;
+				long int c;
 				unsigned long x;
 				c = va_arg(ap, long);
 				x = c >= 0? c : -c;
