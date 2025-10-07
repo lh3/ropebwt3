@@ -19,7 +19,7 @@ typedef struct {
 	int32_t n_threads, min_gap_len, hapdiv_k, hapdiv_w;
 	int32_t max_pos;
 	rb3_search_algo_t algo;
-	int64_t min_occ, min_len;
+	int64_t min_occ, min_len, max_all_out;
 	int64_t batch_size;
 	rb3_swopt_t swo;
 } rb3_mopt_t;
@@ -195,15 +195,24 @@ static void write_paf(kstring_t *out, const rb3_fmi_t *f, const rb3_swhit_t *h, 
 	rb3_sprintf_lite(out, "\n");
 }
 
-static void write_all_hits(kstring_t *out, const m_seq_t *s, const rb3_swrst_t *r, char strand)
+static void write_all_hits(kstring_t *out, const m_seq_t *s, const rb3_swrst_t *r, char strand, int64_t max_all_out)
 {
+	int64_t n_out = 0, tot = 0;
 	int32_t i;
+	if (max_all_out <= 0) max_all_out = INT64_MAX;
+	for (i = 0; i < r->n; ++i) tot += r->a[i].hi - r->a[i].lo;
+	for (i = 0; i < r->n; ++i) {
+		n_out += r->a[i].hi - r->a[i].lo;
+		if (n_out >= max_all_out) break;
+	}
 	rb3_sprintf_lite(out, "QS\t");
 	write_name(out, s);
-	rb3_sprintf_lite(out, "\t%d\t%d\t%c\n", s->len, r->n, strand);
-	for (i = 0; i < r->n; ++i) {
+	rb3_sprintf_lite(out, "\t%d\t%d\t%c\t%ld\t%ld\n", s->len, r->n, strand, n_out, tot);
+	for (i = 0, n_out = 0; i < r->n; ++i) {
 		const rb3_swhit_t *h = &r->a[i];
 		rb3_sprintf_lite(out, "QH\t%ld\t%d\t%d\t%s\n", (long)(h->hi - h->lo), h->score, h->blen - h->mlen, h->cs);
+		n_out += h->hi - h->lo;
+		if (n_out >= max_all_out) break;
 	}
 	rb3_sprintf_lite(out, "//\n");
 }
@@ -218,10 +227,10 @@ static void write_per_seq(step_t *t)
 		free(s->seq);
 		out.l = 0;
 		if (p->opt->algo == RB3_SA_SW && (p->opt->flag & RB3_MF_WRITE_ALL)) { // write all hits in a compact format
-			write_all_hits(&out, s, &t->rst[j], '+');
+			write_all_hits(&out, s, &t->rst[j], '+', p->opt->max_all_out);
 			rb3_swrst_free(&t->rst[j]);
 			if (t->rst_rev) {
-				write_all_hits(&out, s, &t->rst_rev[j], '-');
+				write_all_hits(&out, s, &t->rst_rev[j], '-', p->opt->max_all_out);
 				rb3_swrst_free(&t->rst_rev[j]);
 			}
 			fputs(out.s, stdout);
@@ -420,13 +429,14 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 
 	rb3_mopt_init(&opt);
 	p.opt = &opt, p.id = 0;
-	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MdN:A:B:O:E:C:m:k:uj:ey:a:w:p:b", long_options)) >= 0) {
+	while ((c = ketopt(&o, argc, argv, 1, "Ll:c:t:K:MdN:A:B:O:E:C:m:k:uj:ey:a:w:p:bg:", long_options)) >= 0) {
 		if (c == 'L') is_line = 1;
 		else if (c == 'a') opt.algo = RB3_SA_HAPDIV, opt.hapdiv_k = atoi(o.arg);
 		else if (c == 'w') opt.algo = RB3_SA_HAPDIV, opt.hapdiv_w = atoi(o.arg);
 		else if (c == 'd') opt.algo = RB3_SA_SW, load_flag |= RB3_LOAD_ALL;
 		else if (c == 'l') opt.min_len = atol(o.arg);
 		else if (c == 'c') opt.min_occ = atol(o.arg);
+		else if (c == 'g') opt.max_all_out = atol(o.arg), opt.flag |= RB3_MF_WRITE_ALL, opt.swo.flag |= RB3_SWF_E2E, opt.swo.end_len = 1, no_ssa = 1;
 		else if (c == 't') opt.n_threads = atoi(o.arg);
 		else if (c == 'K') opt.batch_size = rb3_parse_num(o.arg);
 		else if (c == 'p') opt.max_pos = atoi(o.arg);
@@ -510,6 +520,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 			fprintf(stderr, "  -u          write unmapped queries to PAF\n");
 			fprintf(stderr, "  --seq       write reference sequence to the rs tag\n");
 			fprintf(stderr, "  --all-e2e   write all end-to-end hits in a compact format (forcing -e)\n");
+			fprintf(stderr, "  -g INT      cap the number of --all-e2e output to INT (forcing --all-e2e)\n");
 			fprintf(stderr, "  --no-ssa    ignore the sampled suffix array\n");
 		}
 		fprintf(stderr, "  -t INT      number of threads [%d]\n", opt.n_threads);
@@ -533,7 +544,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 	}
 	if (opt.flag & RB3_MF_WRITE_ALL) {
 		puts("CC\tQS  queryName  queryLen  numHap");
-		puts("CC\tQH  refCount   score     editDist   cs   strand");
+		puts("CC\tQH  refCount   score     editDist   cs   strand   nOut   totAln");
 		puts("CC");
 	}
 	for (j = o.ind + 1; j < argc; ++j) {
