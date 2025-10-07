@@ -163,24 +163,28 @@ static inline void write_name(kstring_t *out, const m_seq_t *s)
 	else rb3_sprintf_lite(out, "seq%ld", s->id + 1);
 }
 
+static void pos_stranded(const rb3_sid_t *sid, const rb3_pos_t *pos, int32_t rlen, int64_t *clen, int64_t *st, int64_t *en)
+{
+	*clen = sid->len[pos->sid>>1];
+	if ((pos->sid & 1) == 0)
+		*st = pos->pos, *en = pos->pos + rlen;
+	else
+		*st = *clen - (pos->pos + rlen), *en = *clen - pos->pos;
+}
+
 static void write_paf(kstring_t *out, const rb3_fmi_t *f, const rb3_swhit_t *h, const m_seq_t *s)
 {
 	int32_t k;
 	write_name(out, s);
 	rb3_sprintf_lite(out, "\t%d\t%d\t%d", s->len, h->qoff[0], h->qoff[0] + h->qlen);
 	if (h->n_pos > 0) {
-		for (k = 0; k < h->n_pos; ++k) {
-			int64_t sid = h->pos[k].sid, pos = h->pos[k].pos;
-			if (f->sid) { // print with sequence names and lengths
-				int64_t rlen = f->sid->len[sid>>1];
-				rb3_sprintf_lite(out, "\t%c\t%s\t%ld", "+-"[sid&1], f->sid->name[sid>>1], (long)rlen);
-				if ((sid&1) == 0) // forward strand
-					rb3_sprintf_lite(out, "\t%ld\t%ld", pos, pos + h->rlen);
-				else // reverse strand
-					rb3_sprintf_lite(out, "\t%ld\t%ld", rlen - (pos + h->rlen), rlen - pos);
-			} else {
-				rb3_sprintf_lite(out, "\t+\t%ld\t*\t%ld\t%ld", sid, pos, pos + h->rlen); // always on the forward strand
-			}
+		int64_t sid = h->pos[0].sid, pos = h->pos[0].pos;
+		if (f->sid) { // print with sequence names and lengths
+			int64_t clen, st, en;
+			pos_stranded(f->sid, &h->pos[0], h->rlen, &clen, &st, &en);
+			rb3_sprintf_lite(out, "\t%c\t%s\t%ld\t%ld\t%ld", "+-"[sid&1], f->sid->name[sid>>1], (long)clen, st, en);
+		} else {
+			rb3_sprintf_lite(out, "\t+\t%ld\t*\t%ld\t%ld", sid, pos, pos + h->rlen); // always on the forward strand
 		}
 	} else {
 		rb3_sprintf_lite(out, "\t*\t*\t%d\t*\t*", h->rlen);
@@ -194,6 +198,19 @@ static void write_paf(kstring_t *out, const rb3_fmi_t *f, const rb3_swhit_t *h, 
 		rb3_sprintf_lite(out, "\trs:Z:");
 		for (k = 0; k < h->rlen; ++k)
 			rb3_sprintf_lite(out, "%c", "$ACGTN"[h->rseq[k]]);
+	}
+	if (h->n_pos > 1) {
+		rb3_sprintf_lite(out, "\ta%c:Z:", f->sid? 'p' : 'q');
+		for (k = 1; k < h->n_pos; ++k) {
+			int64_t sid = h->pos[k].sid, pos = h->pos[k].pos;
+			if (f->sid) {
+				int64_t clen, st, en;
+				pos_stranded(f->sid, &h->pos[k], h->rlen, &clen, &st, &en);
+				rb3_sprintf_lite(out, "%s,%c,%ld;", f->sid->name[sid>>1], "+-"[sid&1]);
+			} else {
+				rb3_sprintf_lite(out, "%ld,%ld;", sid, pos);
+			}
+		}
 	}
 	rb3_sprintf_lite(out, "\n");
 }
