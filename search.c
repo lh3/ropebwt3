@@ -168,16 +168,19 @@ static void write_paf(kstring_t *out, const rb3_fmi_t *f, const rb3_swhit_t *h, 
 	int32_t k;
 	write_name(out, s);
 	rb3_sprintf_lite(out, "\t%d\t%d\t%d", s->len, h->qoff[0], h->qoff[0] + h->qlen);
-	if (h->pos >= 0 && h->sid >= 0) {
-		if (f->sid) { // sequence names and lengths are available
-			int64_t rlen = f->sid->len[h->sid>>1];
-			rb3_sprintf_lite(out, "\t%c\t%s\t%ld", "+-"[h->sid&1], f->sid->name[h->sid>>1], (long)rlen);
-			if ((h->sid&1) == 0) // forward strand
-				rb3_sprintf_lite(out, "\t%ld\t%ld", h->pos, h->pos + h->rlen);
-			else // reverse strand
-				rb3_sprintf_lite(out, "\t%ld\t%ld", rlen - (h->pos + h->rlen), rlen - h->pos);
-		} else { // sequence names and lengths are not available
-			rb3_sprintf_lite(out, "\t+\t%ld\t*\t%ld\t%ld", h->sid, h->pos, h->pos + h->rlen); // always on the forward strand
+	if (h->n_pos > 0) {
+		for (k = 0; k < h->n_pos; ++k) {
+			int64_t sid = h->pos[k].sid, pos = h->pos[k].pos;
+			if (f->sid) { // print with sequence names and lengths
+				int64_t rlen = f->sid->len[sid>>1];
+				rb3_sprintf_lite(out, "\t%c\t%s\t%ld", "+-"[sid&1], f->sid->name[sid>>1], (long)rlen);
+				if ((sid&1) == 0) // forward strand
+					rb3_sprintf_lite(out, "\t%ld\t%ld", pos, pos + h->rlen);
+				else // reverse strand
+					rb3_sprintf_lite(out, "\t%ld\t%ld", rlen - (pos + h->rlen), rlen - pos);
+			} else {
+				rb3_sprintf_lite(out, "\t+\t%ld\t*\t%ld\t%ld", sid, pos, pos + h->rlen); // always on the forward strand
+			}
 		}
 	} else {
 		rb3_sprintf_lite(out, "\t*\t*\t%d\t*\t*", h->rlen);
@@ -439,7 +442,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		else if (c == 'g') opt.max_all_out = atol(o.arg), opt.flag |= RB3_MF_WRITE_ALL, opt.swo.flag |= RB3_SWF_E2E, opt.swo.end_len = 1, no_ssa = 1;
 		else if (c == 't') opt.n_threads = atoi(o.arg);
 		else if (c == 'K') opt.batch_size = rb3_parse_num(o.arg);
-		else if (c == 'p') opt.max_pos = atoi(o.arg);
+		else if (c == 'p') opt.max_pos = opt.swo.max_pos = atoi(o.arg);
 		else if (c == 'N') opt.swo.n_best = atoi(o.arg);
 		else if (c == 'M') load_flag |= RB3_LOAD_MMAP;
 		else if (c == 'A') opt.swo.match = atoi(o.arg);
@@ -490,7 +493,6 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 		if (strcmp(argv[0], "mem") == 0 || strcmp(argv[0], "search") == 0) {
 			fprintf(stderr, "  -l INT      min MEM length [%ld]\n", (long)opt.min_len);
 			fprintf(stderr, "  -c INT      min interval size [%ld]\n", (long)opt.min_occ);
-			fprintf(stderr, "  -p INT      output up to INT positions [%d]\n", opt.max_pos);
 			fprintf(stderr, "  --old-mem   use the original MEM algorithm (for testing)\n");
 			fprintf(stderr, "  --gap=NUM   output regions >=NUM that are not covered by MEMs [%d]\n", opt.min_gap_len);
 			fprintf(stderr, "  --cov       output breadth of coverage\n");
@@ -524,6 +526,7 @@ int main_search(int argc, char *argv[]) // "sw" and "mem" share the same CLI
 			fprintf(stderr, "  --no-ssa    ignore the sampled suffix array\n");
 		}
 		fprintf(stderr, "  -t INT      number of threads [%d]\n", opt.n_threads);
+		fprintf(stderr, "  -p INT      output up to INT positions [%d]\n", opt.max_pos);
 		fprintf(stderr, "  -L          one sequence per line in the input\n");
 		fprintf(stderr, "  -K NUM      query batch size [100m]\n");
 		fprintf(stderr, "  -M          use mmap to load FMD\n");

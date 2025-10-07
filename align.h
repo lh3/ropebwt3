@@ -10,7 +10,7 @@
 typedef struct {
 	uint32_t flag;
 	int32_t n_best;
-	int32_t min_sc, end_len, min_mem_len;
+	int32_t min_sc, end_len, min_mem_len, max_pos;
 	int32_t match, mis;
 	int32_t e2e_drop;
 	int32_t gap_open, gap_ext;
@@ -21,13 +21,13 @@ typedef struct {
 	int32_t score;
 	int32_t qlen, rlen;
 	int32_t n_cigar, cs_len;
-	int32_t n_qoff, blen, mlen;
+	int32_t n_qoff, n_pos, blen, mlen;
 	int64_t lo, hi; // SA interval
-	int64_t sid, pos; // contig ID and position of a semi-random hit in [lo,hi)
 	uint8_t *rseq; // reference sequence in the alignment
 	uint32_t *cigar; // cigar in the BAM encoding
 	int32_t *qoff; // list of query offsets for the same hit
 	char *cs;
+	rb3_pos_t *pos;
 } rb3_swhit_t;
 
 typedef struct {

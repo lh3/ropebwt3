@@ -24,6 +24,7 @@ void rb3_swopt_init(rb3_swopt_t *opt)
 	opt->end_len = 11;
 	opt->e2e_drop = -1; // disabled by default
 	opt->min_mem_len = 0;
+	opt->max_pos = 0;
 	opt->r2cache_size = 0x10000;
 }
 
@@ -190,14 +191,6 @@ static void sw_backtrack1(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, 
 		int32_t op = hit->cigar[k]&0xf, len = hit->cigar[k]>>4;
 		hit->blen += len;
 		if (op == 7) hit->mlen += len;
-	}
-
-	// get reference position for the first hit in the SA interval
-	hit->pos = hit->sid = -1;
-	if (f->ssa) {
-		rb3_pos_t pos;
-		rb3_ssa_multi(km, f, f->ssa, hit->lo, hit->hi, 1, &pos);
-		hit->pos = pos.pos, hit->sid = pos.sid;
 	}
 }
 
@@ -551,6 +544,17 @@ void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const
 		g = rb3_dawg_gen(km, q);
 	}
 	sw_core(km, opt, f, g, seq, rst, 0);
+	if (f->ssa) {
+		int64_t rest = opt->max_pos;
+		int32_t k;
+		for (k = 0; k < rst->n; ++k) {
+			rb3_swhit_t *hit = &rst->a[k];
+			int32_t n = rest > 0? rest : 1;
+			hit->pos = RB3_CALLOC(rb3_pos_t, n);
+			hit->n_pos = rb3_ssa_multi(km, f, f->ssa, hit->lo, hit->hi, n, hit->pos);
+			rest -= n;
+		}
+	}
 	rb3_dawg_destroy(km, g); // this doesn't deallocate q
 	if (q) rb3_bwtl_destroy(q);
 }
@@ -567,7 +571,7 @@ void rb3_swrst_free(rb3_swrst_t *rst)
 {
 	int32_t i;
 	for (i = 0; i < rst->n; ++i) {
-		free(rst->a[i].rseq); free(rst->a[i].cigar); free(rst->a[i].cs); free(rst->a[i].qoff);
+		free(rst->a[i].rseq); free(rst->a[i].cigar); free(rst->a[i].cs); free(rst->a[i].qoff); free(rst->a[i].pos);
 	}
 	free(rst->a);
 }
