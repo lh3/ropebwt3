@@ -552,7 +552,7 @@ void rb3_sw(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, int len, const
 			int32_t n = rest > 0? rest : 1;
 			hit->pos = RB3_CALLOC(rb3_pos_t, n);
 			hit->n_pos = rb3_ssa_multi(km, f, f->ssa, hit->lo, hit->hi, n, hit->pos);
-			rest -= n;
+			rest -= hit->n_pos;
 		}
 	}
 	rb3_dawg_destroy(km, g); // this doesn't deallocate q
