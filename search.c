@@ -206,7 +206,7 @@ static void write_paf(kstring_t *out, const rb3_fmi_t *f, const rb3_swhit_t *h, 
 			if (f->sid) {
 				int64_t clen, st, en;
 				pos_stranded(f->sid, &h->pos[k], h->rlen, &clen, &st, &en);
-				rb3_sprintf_lite(out, "%s,%c,%ld;", f->sid->name[sid>>1], "+-"[sid&1]);
+				rb3_sprintf_lite(out, "%s,%c,%ld;", f->sid->name[sid>>1], "+-"[sid&1], st);
 			} else {
 				rb3_sprintf_lite(out, "%ld,%ld;", sid, pos);
 			}
