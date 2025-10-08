@@ -430,6 +430,40 @@ function rb3_cmd_getsnp(args)
 	}
 }
 
+function rb3_cmd_uniqmer(args)
+{
+	let opt = { within_diff: 5 };
+	for (const o of getopt(args, "d:", [])) {
+		if (o.opt == '-d') opt.within_diff = parseInt(o.arg);
+	}
+	if (args.length < 1) {
+		print("Usage: rb3tools.js uniqmer <all.e2e> [kmer.txt]");
+		return 1;
+	}
+	let excl = {};
+	let name = null;
+	for (const line of k8_readline(args[0])) {
+		let t = line.split("\t");
+		if (t[0] == "QS") {
+			name = t[1];
+		} else if (t[0] == "QH") {
+			const cnt = parseInt(t[3]);
+			if (cnt > 0 && cnt < opt.within_diff)
+				excl[name] = 1;
+		}
+	}
+	if (args.length >= 2) {
+		let lineno = 0;
+		for (const line of k8_readline(args[1])) {
+			++lineno;
+			if (excl[lineno] == null) print(line);
+		}
+	} else {
+		for (const key in excl)
+			print(key);
+	}
+}
+
 /****************
  * main functon *
  ****************/
@@ -443,6 +477,7 @@ function main(args)
 		//print("  mapflt         generate mappability filter");
 		print("  mapflt2        generate mappability filter");
 		print("  getsnp         extract SNPs");
+		print("  uniqmer        extract highly unique k-mer");
 		print("  version        print version number");
 		exit(1);
 	}
@@ -452,6 +487,7 @@ function main(args)
 	else if (cmd == "mapflt2") rb3_cmd_mapflt2(args);
 	else if (cmd == "call") rb3_cmd_call(args);
 	else if (cmd == "getsnp") rb3_cmd_getsnp(args);
+	else if (cmd == "uniqmer") rb3_cmd_uniqmer(args);
 	else if (cmd == "version") print(rb3_version);
 	else throw Error("unrecognized command: " + cmd);
 }
