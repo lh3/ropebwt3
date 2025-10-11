@@ -440,27 +440,27 @@ function rb3_cmd_uniqmer(args)
 		print("Usage: rb3tools.js uniqmer <all.e2e> [kmer.txt]");
 		return 1;
 	}
-	let excl = {};
-	let name = null;
+	let excl = new Set();
+	let name = -1;
 	for (const line of k8_readline(args[0])) {
 		let t = line.split("\t");
 		if (t[0] == "QS") {
-			name = t[1];
+			name = parseInt(t[1]);
 		} else if (t[0] == "QH") {
 			const cnt = parseInt(t[3]);
-			if (cnt > 0 && cnt < opt.within_diff)
-				excl[name] = 1;
+			if (cnt > 0 && cnt < opt.within_diff) {
+				if (args.length >= 2)
+					excl.add(name);
+				else print(name);
+			}
 		}
 	}
 	if (args.length >= 2) {
 		let lineno = 0;
 		for (const line of k8_readline(args[1])) {
 			++lineno;
-			if (excl[lineno] == null) print(line);
+			if (excl.has(lineno) == null) print(line);
 		}
-	} else {
-		for (const key in excl)
-			print(key);
 	}
 }
 
