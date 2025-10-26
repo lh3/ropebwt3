@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include "dawg.h"
 #include "kalloc.h"
-#include "libsais16.h" // for libsais16()
+#include "libsais.h" // for libsais()
 #include "io.h" // for rb3_nt6_table[]
 #define kh_packed
 #include "khashl-km.h"
@@ -38,22 +38,21 @@ rb3_bwtl_t *rb3_bwtl_gen(void *km, int len, const uint8_t *seq)
 	b->occ = Kcalloc(km, int32_t, b->n_occ);
 
 	{ // calculate b->bwt
-		uint8_t *s;
-		uint16_t *s16;
-		s16 = Kcalloc(km, uint16_t, len);
+		uint8_t *s, *s8;
+		s8 = Kcalloc(km, uint8_t, len);
 		for (i = 0; i < len; ++i) {
-			s16[i] = rb3_nt6_table[seq[i]];
-			if (s16[i] == 5) s16[i] = 1; // NB: convert ambiguous bases to A
+			s8[i] = rb3_nt6_table[seq[i]];
+			if (s8[i] == 5) s8[i] = 1; // NB: convert ambiguous bases to A
 		}
 		b->sa = Kcalloc(km, int32_t, len + 1);
-		libsais16(s16, &b->sa[1], len, 0, 0);
+		libsais(s8, &b->sa[1], len, 0, 0);
 		b->sa[0] = len;
 		s = Kcalloc(km, uint8_t, len + 1);
 		for (i = 0; i <= len; ++i) {
 			if (b->sa[i] == 0) b->primary = i;
-			else s[i] = s16[b->sa[i] - 1] - 1;
+			else s[i] = s8[b->sa[i] - 1] - 1;
 		}
-		kfree(km, s16);
+		kfree(km, s8);
 		for (i = b->primary; i < len; ++i) s[i] = s[i + 1];
 		for (i = 0; i < len; ++i)
 			b->bwt[i>>4] |= s[i] << ((15 - (i&15)) << 1);
