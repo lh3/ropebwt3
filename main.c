@@ -5,7 +5,7 @@
 #include "io.h"
 #include "ketopt.h"
 
-#define RB3_VERSION "3.9-r280-dirty"
+#define RB3_VERSION "3.10-r281"
 
 int main_build(int argc, char *argv[]);
 int main_merge(int argc, char *argv[]);

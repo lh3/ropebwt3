@@ -1,6 +1,6 @@
 #!/usr/bin/env k8
 
-const rb3_version = "3.9-r259";
+const rb3_version = "3.10-r281";
 
 /**************
  * From k8.js *

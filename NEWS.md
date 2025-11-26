@@ -1,3 +1,18 @@
+Release 3.10-r281 (25 November 2025)
+------------------------------------
+
+Notable changes:
+
+ * New feature: the sw subcommand can output more than one positions with
+   option `-p`
+
+ * Improvement: updated libsais for better generalized SA construction.
+   Slightly lower peak memory and a little faster.
+
+(3.10: 25 November 2025, r281)
+
+
+
 Release 3.9-r259 (30 November 2024)
 -----------------------------------
 
@@ -6,7 +21,7 @@ Notable changes:
  * New feature: with option -p, the build command optionally runs partial
    suffix array construction and BWT merge at the same time.
 
-(3.9 30 November 2024, r259)
+(3.9: 30 November 2024, r259)
 
 
 
