@@ -1,6 +1,6 @@
 #!/usr/bin/env k8
 
-const rb3_version = "3.10-r281";
+const rb3_version = "3.10-r282-dirty";
 
 /**************
  * From k8.js *
@@ -432,15 +432,20 @@ function rb3_cmd_getsnp(args)
 
 function rb3_cmd_uniqmer(args)
 {
-	let opt = { within_diff: 5 };
-	for (const o of getopt(args, "d:", [])) {
+	let opt = { within_diff:5, max_exact:-1, min_exact:-1 };
+	for (const o of getopt(args, "d:e:E:", [])) {
 		if (o.opt == '-d') opt.within_diff = parseInt(o.arg);
+		else if (o.opt == '-e') opt.min_exact = parseInt(o.arg);
+		else if (o.opt == '-E') opt.max_exact = parseInt(o.arg);
 	}
 	if (args.length < 1) {
-		print("Usage: rb3tools.js uniqmer <all.e2e> [kmer.txt]");
+		print("Usage: rb3tools.js uniqmer [options] <all.e2e>");
+		print("Options:");
+		print(`  -d INT     max edit distance [${opt.within_diff}]`);
+		print(`  -e INT     min number of exact matches [0]`);
+		print(`  -E INT     max number of exact matches [inf]`);
 		return 1;
 	}
-	let excl = new Set();
 	let name = -1;
 	for (const line of k8_readline(args[0])) {
 		let t = line.split("\t");
@@ -448,18 +453,15 @@ function rb3_cmd_uniqmer(args)
 			name = parseInt(t[1]);
 		} else if (t[0] == "QH") {
 			const cnt = parseInt(t[3]);
-			if (cnt > 0 && cnt < opt.within_diff) {
-				if (args.length >= 2)
-					excl.add(name);
-				else print(name);
+			let is_excl = false;
+			if (cnt == 0) {
+				const x = parseInt(t[1]);
+				if (opt.max_exact > 0 && x > opt.max_exact) is_excl = true;
+				if (opt.min_exact > 0 && x < opt.min_exact) is_excl = true;
+			} else if (cnt > 0 && cnt < opt.within_diff) {
+				is_excl = true;
 			}
-		}
-	}
-	if (args.length >= 2) {
-		let lineno = 0;
-		for (const line of k8_readline(args[1])) {
-			++lineno;
-			if (excl.has(lineno) == null) print(line);
+			if (is_excl) print(name);
 		}
 	}
 }
