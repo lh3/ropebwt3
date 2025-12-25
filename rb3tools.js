@@ -1,6 +1,6 @@
 #!/usr/bin/env k8
 
-const rb3_version = "3.10-r282-dirty";
+const rb3_version = "3.10-r283-dirty";
 
 /**************
  * From k8.js *
@@ -450,7 +450,7 @@ function rb3_cmd_uniqmer(args)
 	for (const line of k8_readline(args[0])) {
 		let t = line.split("\t");
 		if (t[0] == "QS") {
-			name = parseInt(t[1]);
+			name = t[1];
 		} else if (t[0] == "QH") {
 			const cnt = parseInt(t[3]);
 			let is_excl = false;
