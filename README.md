@@ -11,7 +11,7 @@ echo TGAACTCTACACAACATATTTTGTCACCAAG | ./ropebwt3 build -Ldo idx.fmd -
 echo ACTCTACACAAgATATTTTGTCA | ./ropebwt3 mem -Ll10 idx.fmd -
 
 # Download the prebuilt FM-index for 152 M. tuberculosis genomes
-wget -O- https://zenodo.org/records/12803206/files/mtb152.tar.gz?download=1 | tar -zxf -
+wget -O- https://openhgl.s3.us-east-1.amazonaws.com/misc/mtb/mtb152.tar.gz | tar -zxf -
 
 # Count super-maximal exact matches (no contig positions)
 echo ACCTACAACACCGGTGGCTACAACGTGG  | ./ropebwt3 mem -L mtb152.fmd -
@@ -20,15 +20,13 @@ echo ACCTACAACACCGGTaGGCTACAACGTGG | ./ropebwt3 sw -Lm20 mtb152.fmd -
 # Retrieve R15311, the 46th genome in the collection. 90=(46-1)*2
 ./ropebwt3 get mtb152.fmd 90 > R15311.fa
 
-# Download the index of 472 human long-read assemblies (18GB download size)
-wget -O human472.fmr.gz https://zenodo.org/records/14854401/files/human472.fmr.gz
-wget -O human472.fmd.ssa.gz https://zenodo.org/records/14854401/files/human472.fmd.ssa.gz
-wget -O human472.fmd.len.gz https://zenodo.org/records/14854401/files/human472.fmd.len.gz
-gzip -d human472.fmr.gz human472.fmd.ssa.gz   # or use pigz for parallel decompression
-./ropebwt3 build -i human472.fmr -do human472.fmd   # convert to a faster format
+# Download the index of 579 human long-read assemblies
+wget https://openhgl.s3.us-east-1.amazonaws.com/human/human579/human579.fmd
+wget https://openhgl.s3.us-east-1.amazonaws.com/human/human579/human579.fmd.ssa
+wget https://openhgl.s3.us-east-1.amazonaws.com/human/human579/human579.fmd.len.gz
 
 # Find C4 alleles (the query is on the exon 26 of C4A)
-echo CCAGGACCCCTGTCCAGTGTTAGACAGGAGCATGCAG | ./ropebwt3 sw -eN200 -Lm10 human472.fmd -
+echo CCAGGACCCCTGTCCAGTGTTAGACAGGAGCATGCAG | ./ropebwt3 sw -eN200 -Lm10 human579.fmd -
 ```
 
 ## Table of Contents
@@ -53,7 +51,7 @@ losslessly compress 7.3Tb of common bacterial genomes into a 30GB run-length
 encoded BWT file and report supermaximal exact matches (SMEMs) or local
 alignments with mismatches and gaps.
 
-Prebuilt ropebwt3 indices can be downloaded [from Zenodo][zenodo].
+Prebuilt ropebwt3 indices can be downloaded [from Zenodo][zenodo] or [at AWS][aws].
 
 ## <a name="use"></a>Usage
 
@@ -251,3 +249,4 @@ Ropebwt3 is described in
 [fm-paper]: https://academic.oup.com/bioinformatics/article/28/14/1838/218887
 [atb02]: https://ftp.ebi.ac.uk/pub/databases/AllTheBacteria/Releases/0.2/
 [bwasw]: https://pubmed.ncbi.nlm.nih.gov/20080505/
+[aws]: https://openhgl.s3.us-east-1.amazonaws.com/index.html
