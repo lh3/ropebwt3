@@ -384,6 +384,28 @@ static void sw_core(void *km, const rb3_swopt_t *opt, const rb3_fmi_t *f, const 
 			if (max_min_sc < 0) max_min_sc = 0;
 		}
 
+		// prefetch the rank data of every cell extended below, in two passes:
+		// index entries first, then the blocks they point to
+		if (f->is_fmd) {
+			int32_t pass;
+			for (pass = 0; pass < 2; ++pass) {
+				for (j = 0; j < t->n_pre; ++j) {
+					const sw_row_t *rp = &row[t->pre[j]];
+					for (k = 0; k < rp->n; ++k) {
+						const sw_cell_t *cp = &rp->a[k];
+						if (cp->H + opt->match < max_min_sc) continue;
+						if (pass == 0) {
+							if (cp->lo > 0) rld_prefetch_frame(f->e, cp->lo - 1);
+							rld_prefetch_frame(f->e, cp->hi);
+						} else {
+							if (cp->lo > 0) rld_prefetch_blk(f->e, cp->lo - 1);
+							rld_prefetch_blk(f->e, cp->hi);
+						}
+					}
+				}
+			}
+		}
+
 		// compute H and E
 		for (j = 0; j < t->n_pre; ++j) { // traverse all the predecessors
 			int32_t pid = t->pre[j]; // parent/predecessor ID

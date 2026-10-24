@@ -454,7 +454,9 @@ void rld_rank2a(const rld_t *e, uint64_t k, uint64_t l, uint64_t *ok, uint64_t *
 		rld_rank1a(e, l, ol);
 		return;
 	}
+	rld_prefetch_frame(e, l); // read l's index entry while k is being located
 	y = rld_locate_blk(e, &itr, k-1, ok, &z); // locate the block bracketing k
+	if (y <= l) rld_prefetch_blk(e, l); // l is in a later block; start reading it
 	while (1) { // compute ok[]
 #ifdef _DNA_ONLY
 		len = rld_dec0_fast_dna(e, &itr, &a);
