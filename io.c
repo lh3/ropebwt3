@@ -4,6 +4,10 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <zlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 #include "rb3priv.h"
 #include "io.h"
 #include "kseq.h"
@@ -158,6 +162,32 @@ void rb3_reverse_all(int64_t len, uint8_t *seq)
  * seqlist *
  ***********/
 
+// One line of a .len file holds a name and a length, separated by a space or a
+// tab; anything after them is ignored. Returns the length, or -1 for a line
+// that holds no sequence. The reader and the .sid writer both use it, so they
+// keep the same sequences in the same order.
+static int64_t sid_parse(char *s, char **name)
+{
+	int32_t i;
+	char *p, *q;
+	int64_t len = -1;
+	*name = 0;
+	for (p = q = s, i = 0;; ++p) {
+		if (*p == ' ' || *p == '\t' || *p == 0) {
+			int32_t c = *p;
+			*p = 0;
+			if (i == 0) {
+				*name = q;
+			} else if (i == 1) {
+				len = atol(q);
+			}
+			++i, q = p + 1;
+			if (c == 0 || i == 2) break;
+		}
+	}
+	return i == 2 && len > 0? len : -1;
+}
+
 rb3_sid_t *rb3_sid_read(const char *fn)
 {
 	rb3_sid_t *sl;
@@ -172,24 +202,9 @@ rb3_sid_t *rb3_sid_read(const char *fn)
 	ks = ks_init(fp);
 	sl = RB3_CALLOC(rb3_sid_t, 1);
 	while ((l = ks_getuntil(ks, KS_SEP_LINE, &str, &dret)) >= 0) {
-		int32_t i;
-		char *p, *q, *name = 0;
-		int64_t len = -1;
-		for (p = q = str.s, i = 0;; ++p) {
-			if (*p == ' ' || *p == '\t' || *p == 0) {
-				int32_t c = *p;
-				*p = 0;
-				if (i == 0) {
-					name = q;
-				} else if (i == 1) {
-					len = atol(q);
-				}
-				++i, q = p + 1;
-				if (c == 0 || i == 2) break;
-			}
-		}
-		//fprintf(stderr, "i=%d,name=%s,len=%ld\n", i, name, (long)len);
-		if (i == 2 && len > 0) {
+		char *name;
+		int64_t len = sid_parse(str.s, &name);
+		if (len > 0) {
 			assert(len <= INT32_MAX);
 			RB3_GROW(char*, sl->name, sl->n_seq, m_seq);
 			sl->len = RB3_REALLOC(int32_t, sl->len, m_seq);
@@ -203,13 +218,132 @@ rb3_sid_t *rb3_sid_read(const char *fn)
 	return sl;
 }
 
+/* rb3_sid_dump() writes the names and lengths of a .len file (gzip'd or not)
+ * as a .sid file, which rb3_sid_map() maps instead of parsing. Little-endian,
+ * like the .ssa:
+ *   0    "SID\1" and 4 bytes of 0
+ *   8    n_seq
+ *   16   len[n_seq], 32-bit, then 4 bytes of 0 if n_seq is odd
+ *        off[n_seq+1], 64-bit: name i starts at byte off[i] of the names
+ *        the names, each ending in a NUL byte; off[n_seq] is their total size
+ * It returns the number of sequences, or -1 on a read, write or memory error. */
+int64_t rb3_sid_dump(const char *fn, FILE *fo)
+{
+	static const char magic[8] = { 'S', 'I', 'D', 1, 0, 0, 0, 0 };
+	static const char zero[4] = { 0, 0, 0, 0 };
+	gzFile fp;
+	kstream_t *ks;
+	int32_t l, dret;
+	int zerr;
+	int64_t n = 0, m = 1<<20, ret = -1;
+	uint64_t l_names = 0, m_names = 1<<24;
+	int32_t *len;
+	uint64_t *off;
+	char *names;
+	kstring_t str = {0,0,0};
+
+	fp = fn && strcmp(fn, "-")? gzopen(fn, "r") : gzdopen(0, "r");
+	if (fp == 0) return -1;
+	ks = ks_init(fp);
+	len = RB3_MALLOC(int32_t, m);
+	off = RB3_MALLOC(uint64_t, m + 1);
+	names = RB3_MALLOC(char, m_names);
+	if (len == 0 || off == 0 || names == 0) goto end;
+	while ((l = ks_getuntil(ks, KS_SEP_LINE, &str, &dret)) >= 0) {
+		char *name;
+		int64_t ln = sid_parse(str.s, &name);
+		uint64_t nl;
+		if (ln < 0) continue;
+		assert(ln <= INT32_MAX);
+		nl = strlen(name) + 1;
+		if (n == m) {
+			int32_t *len2;
+			uint64_t *off2;
+			m += m>>1;
+			if ((len2 = RB3_REALLOC(int32_t, len, m)) == 0) goto end;
+			len = len2;
+			if ((off2 = RB3_REALLOC(uint64_t, off, m + 1)) == 0) goto end;
+			off = off2;
+		}
+		if (l_names + nl > m_names) {
+			char *names2;
+			m_names = l_names + nl;
+			m_names += m_names>>1;
+			if ((names2 = RB3_REALLOC(char, names, m_names)) == 0) goto end;
+			names = names2;
+		}
+		len[n] = ln, off[n++] = l_names;
+		memcpy(names + l_names, name, nl);
+		l_names += nl;
+	}
+	gzerror(fp, &zerr);
+	if (zerr != Z_OK) goto end; // a truncated or damaged gzip file
+	off[n] = l_names;
+	if (fwrite(magic, 1, 8, fo) != 8 || fwrite(&n, 8, 1, fo) != 1) goto end;
+	if (n > 0 && fwrite(len, 4, n, fo) != (size_t)n) goto end;
+	if ((n & 1) && fwrite(zero, 1, 4, fo) != 4) goto end;
+	if (fwrite(off, 8, n + 1, fo) != (size_t)(n + 1)) goto end;
+	if (l_names > 0 && fwrite(names, 1, l_names, fo) != l_names) goto end;
+	if (fflush(fo) != 0) goto end;
+	ret = n;
+end:
+	free(len); free(off); free(names); free(str.s);
+	ks_destroy(ks);
+	gzclose(fp);
+	return ret;
+}
+
+/* rb3_sid_map() maps a .sid file read-only. It returns NULL when the file is
+ * missing, too short, or its sizes disagree with its header, as a truncated
+ * copy would. */
+rb3_sid_t *rb3_sid_map(const char *fn)
+{
+	int fd;
+	struct stat st;
+	uint8_t *a;
+	uint64_t n, o_off, o_names, l_names, size;
+	rb3_sid_t *sl;
+
+	if ((fd = open(fn, O_RDONLY)) < 0) return 0;
+	if (fstat(fd, &st) < 0 || st.st_size < 24) {
+		close(fd);
+		return 0;
+	}
+	size = st.st_size;
+	a = (uint8_t*)mmap(0, size, PROT_READ, MAP_PRIVATE, fd, 0);
+	close(fd);
+	if (a == (uint8_t*)MAP_FAILED) return 0;
+	memcpy(&n, a + 8, 8);
+	if (memcmp(a, "SID\1\0\0\0\0", 8) != 0 || n > (size - 24) / 12) goto fail; // a sequence takes 12 bytes or more
+	o_off = 16 + (n * 4 + 7) / 8 * 8;
+	o_names = o_off + (n + 1) * 8;
+	if (o_names > size) goto fail;
+	memcpy(&l_names, a + o_off + n * 8, 8);
+	if (l_names != size - o_names || (l_names > 0 && a[size - 1] != 0)) goto fail;
+	sl = RB3_CALLOC(rb3_sid_t, 1);
+	sl->n_seq = n;
+	sl->len = (int32_t*)(a + 16);
+	sl->off = (const uint64_t*)(a + o_off);
+	sl->names = (const char*)(a + o_names);
+	sl->map = a, sl->map_len = size;
+	return sl;
+fail:
+	munmap(a, size);
+	return 0;
+}
+
 void rb3_sid_destroy(rb3_sid_t *sl)
 {
 	int64_t i;
 	if (sl == 0) return;
-	for (i = 0; i < sl->n_seq; ++i)
-		free(sl->name[i]);
-	free(sl->name); free(sl->len); free(sl);
+	if (sl->map) {
+		munmap(sl->map, sl->map_len);
+	} else {
+		for (i = 0; i < sl->n_seq; ++i)
+			free(sl->name[i]);
+		free(sl->name); free(sl->len);
+	}
+	free(sl);
 }
 
 /**********************

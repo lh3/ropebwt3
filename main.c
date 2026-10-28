@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "rb3priv.h"
 #include "fm-index.h"
@@ -18,6 +19,7 @@ int main_fa2line(int argc, char *argv[]);
 int main_fa2kmer(int argc, char *argv[]);
 int main_plain2fmd(int argc, char *argv[]);
 int main_stat(int argc, char *argv[]);
+int main_sid(int argc, char *argv[]);
 
 static int usage(FILE *fp)
 {
@@ -33,6 +35,7 @@ static int usage(FILE *fp)
 	fprintf(fp, "    merge      merge BWTs\n");
 	fprintf(fp, "    plain2fmd  convert BWT in plain text to FMD\n");
 	fprintf(fp, "    ssa        generate sampled suffix array\n");
+	fprintf(fp, "    sid        write the sequence names in a file that -M maps\n");
 	fprintf(fp, "  Miscellaneous:\n");
 	fprintf(fp, "    get        retrieve the i-th sequence from BWT\n");
 	fprintf(fp, "    stat       basic statistics of BWT\n");
@@ -55,6 +58,7 @@ int main(int argc, char *argv[])
 	else if (strcmp(argv[1], "build") == 0) ret = main_build(argc-1, argv+1);
 	else if (strcmp(argv[1], "merge") == 0) ret = main_merge(argc-1, argv+1);
 	else if (strcmp(argv[1], "ssa") == 0) ret = main_ssa(argc-1, argv+1);
+	else if (strcmp(argv[1], "sid") == 0) ret = main_sid(argc-1, argv+1);
 	else if (strcmp(argv[1], "stat") == 0) ret = main_stat(argc-1, argv+1);
 	else if (strcmp(argv[1], "suffix") == 0) ret = main_suffix(argc-1, argv+1);
 	else if (strcmp(argv[1], "get") == 0) ret = main_get(argc-1, argv+1);
@@ -448,5 +452,24 @@ int main_stat(int argc, char *argv[])
 	printf("%ld T\n", (long)(fmi.acc[5] - fmi.acc[4]));
 	printf("%ld N\n", (long)(fmi.acc[6] - fmi.acc[5]));
 	rb3_fmi_free(&fmi);
+	return 0;
+}
+
+int main_sid(int argc, char *argv[])
+{
+	int64_t n;
+	if (argc != 2) {
+		fprintf(stderr, "Usage: ropebwt3 sid <idx.fmd.len.gz> > <idx.fmd.sid>\n");
+		fprintf(stderr, "Notes: the input may also be uncompressed, or - for stdin. With -M, sw and\n");
+		fprintf(stderr, "       mem -p map <idx.fmd>.sid instead of reading <idx.fmd>.len.gz.\n");
+		return 1;
+	}
+	n = rb3_sid_dump(argv[1], stdout);
+	if (n < 0) { // main() returns 0 whatever a command returns, so exit here
+		fprintf(stderr, "ERROR: failed to write the sequence names of \"%s\"\n", argv[1]);
+		exit(1);
+	}
+	if (rb3_verbose >= 3)
+		fprintf(stderr, "[M::%s] wrote %ld sequence names\n", __func__, (long)n);
 	return 0;
 }

@@ -71,6 +71,11 @@ A full ropebwt3 index consists of three files:
   -f1,2 | gzip`. This file is needed for reporting sequence names and lengths
   in the PAF output.
 
+* `<base>.fmd.sid`: optional binary copy of the names and lengths, generated
+  by `ropebwt3 sid <base>.fmd.len.gz > <base>.fmd.sid`. With `-M`, `sw` and
+  `mem -p` memory-map it instead of reading `<base>.fmd.len.gz`, which takes
+  most of the loading time for an index of millions of sequences.
+
 ### <a name="mem"></a>Finding maximal exact matches
 
 A maximal exact match (MEM) is an exact alignment between the index and a query
@@ -161,7 +166,11 @@ the contig names with `sw`, you need to prepare another file:
 cat input*.fa.gz | seqtk comp | cut -f1,2 | gzip > index.fmd.len.gz
 ```
 If the BWT is built from multiple files, make sure the order in `cat` is
-the same as the order used for BWT construction.
+the same as the order used for BWT construction. For an index of millions of
+sequences, also write the names in the form that `-M` maps:
+```sh
+ropebwt3 sid index.fmd.len.gz > index.fmd.sid
+```
 
 ### <a name="format"></a>Binary BWT file formats
 
