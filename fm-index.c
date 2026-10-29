@@ -608,7 +608,7 @@ int rb3_fmi_load_all(rb3_fmi_t *f, const char *fn, int32_t load_flag)
 		strcat(strcpy(buf, fn), ".ssa");
 		if ((fp = fopen(buf, "r")) != 0) {
 			fclose(fp);
-			f->ssa = rb3_ssa_restore(buf);
+			f->ssa = load_flag & RB3_LOAD_MMAP? rb3_ssa_map(buf) : rb3_ssa_restore(buf); // mapped, so nothing is read or copied
 			if (f->ssa == 0) {
 				if (rb3_verbose >= 1)
 					fprintf(stderr, "ERROR: failed to load sampled suffix array from file \"%s\"\n", buf);
@@ -619,7 +619,7 @@ int rb3_fmi_load_all(rb3_fmi_t *f, const char *fn, int32_t load_flag)
 				f->ssa = 0;
 			}
 			if (rb3_verbose >= 3)
-				fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the sampled suffix array\n", __func__, rb3_realtime(), rb3_percent_cpu());
+				fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the sampled suffix array%s\n", __func__, rb3_realtime(), rb3_percent_cpu(), f->ssa && f->ssa->map? " (mapped)" : "");
 		}
 	}
 	if ((load_flag & RB3_LOAD_SSA) && (load_flag & RB3_LOAD_SID)) {
