@@ -1,6 +1,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
 #include "rb3priv.h"
 #include "fm-index.h"
 #include "kalloc.h"
@@ -83,7 +87,9 @@ rb3_ssa_t *rb3_ssa_gen(const rb3_fmi_t *f, int ssa_shift, int n_threads)
 void rb3_ssa_destroy(rb3_ssa_t *sa)
 {
 	if (sa == 0) return;
-	free(sa->r2i); free(sa->ssa); free(sa);
+	if (sa->map) munmap(sa->map, sa->map_len);
+	else free(sa->r2i), free(sa->ssa);
+	free(sa);
 }
 
 /**************
@@ -95,6 +101,7 @@ int64_t rb3_ssa(const rb3_fmi_t *f, const rb3_ssa_t *sa, int64_t k, int64_t *si)
 	int32_t c, mask = (1<<sa->ss) - 1;
 	int64_t x = 0;
 	int64_t ok[RB3_ASIZE];
+	uint64_t v;
 	*si = -1;
 	if (k >= f->acc[6]) return -1;
 	while (k < f->acc[1] || ((k - f->acc[1]) & mask)) {
@@ -102,13 +109,14 @@ int64_t rb3_ssa(const rb3_fmi_t *f, const rb3_ssa_t *sa, int64_t k, int64_t *si)
 		c = rb3_fmi_rank1a(f, k, ok);
 		k = f->acc[c] + ok[c];
 		if (c == 0) {
-			*si = sa->r2i[k];
+			*si = rb3_ssa_r2i(sa, k);
 			return x - 1;
 		}
 	}
 	k = (k - f->acc[1]) >> sa->ss;
-	*si = sa->ssa[k] & ((1ULL<<sa->ms) - 1);
-	return x + (sa->ssa[k] >> sa->ms);
+	v = rb3_ssa_val(sa, k);
+	*si = v & ((1ULL<<sa->ms) - 1);
+	return x + (v >> sa->ms);
 }
 
 typedef struct {
@@ -142,10 +150,12 @@ static int32_t ssa_add_intv(const rb3_ssa_t *ssa, ssa_aux_t *aux, int64_t lo, in
 	if (aux->n_sa == aux->max_sa) return -1;
 	for (; k < hi; k += 1LL << ssa->ss) {
 		int64_t l = (k - m) >> ssa->ss;
+		uint64_t v;
 		if (k < lo) continue;
 		assert(l < ssa->n_ssa && aux->n_sa < aux->max_sa);
-		aux->sa[aux->n_sa].sid = ssa->ssa[l] & ((1LL << ssa->ms) - 1);
-		aux->sa[aux->n_sa].pos = off + (ssa->ssa[l] >> ssa->ms);
+		v = rb3_ssa_val(ssa, l);
+		aux->sa[aux->n_sa].sid = v & ((1LL << ssa->ms) - 1);
+		aux->sa[aux->n_sa].pos = off + (v >> ssa->ms);
 		aux->n_sa++;
 		if (aux->n_sa == aux->max_sa) return -1;
 		if (lo < k) ssa_add_intv1(aux, lo, k, off);
@@ -177,7 +187,7 @@ int64_t rb3_ssa_multi(void *km, const rb3_fmi_t *f, const rb3_ssa_t *ssa, int64_
 		}
 		rb3_fmi_rank2a(f, x.lo, x.hi, ok, ol);
 		for (l = ok[0]; l < ol[0]; ++l) { // reaching sentinels
-			aux.sa[aux.n_sa].sid = ssa->r2i[l];
+			aux.sa[aux.n_sa].sid = rb3_ssa_r2i(ssa, l);
 			aux.sa[aux.n_sa].pos = x.off;
 			aux.n_sa++;
 			if (aux.n_sa == aux.max_sa) goto end_ssa_multi;
@@ -206,8 +216,13 @@ int rb3_ssa_dump(const rb3_ssa_t *sa, const char *fn)
 	y = sa->ms; fwrite(&y, 4, 1, fp);
 	fwrite(&sa->m, 8, 1, fp);
 	fwrite(&sa->n_ssa, 8, 1, fp);
-	fwrite(sa->r2i, 8, sa->m, fp);
-	fwrite(sa->ssa, 8, sa->n_ssa, fp);
+	if (sa->map) { // the arrays as they are in the mapped file
+		fwrite(sa->r2i_m, 8, sa->m, fp);
+		fwrite(sa->ssa_m, 8, sa->n_ssa, fp);
+	} else {
+		fwrite(sa->r2i, 8, sa->m, fp);
+		fwrite(sa->ssa, 8, sa->n_ssa, fp);
+	}
 	fclose(fp);
 	return 0;
 }
@@ -237,6 +252,49 @@ rb3_ssa_t *rb3_ssa_restore(const char *fn)
 	fread(sa->r2i, 8, sa->m, fp);
 	fread(sa->ssa, 8, sa->n_ssa, fp);
 	fclose(fp);
+	return sa;
+}
+
+/* rb3_ssa_map() maps a .ssa file read-only, as rb3_ssa_dump() wrote it, instead
+ * of reading it into memory. On a RAM disk the pages are the RAM disk's own, so
+ * every process shares one copy and nothing is read at load. It returns NULL
+ * when the file is missing, or its size isn't 28 + 8 * (m + n_ssa) bytes, as a
+ * truncated copy's would not be. */
+rb3_ssa_t *rb3_ssa_map(const char *fn)
+{
+	int fd;
+	struct stat st;
+	uint8_t *a;
+	uint32_t ss, ms;
+	int64_t m, n_ssa;
+	uint64_t n;
+	rb3_ssa_t *sa;
+
+	if ((fd = open(fn, O_RDONLY)) < 0) return 0;
+	if (fstat(fd, &st) < 0 || st.st_size < 28) {
+		close(fd);
+		return 0;
+	}
+	a = (uint8_t*)mmap(0, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	close(fd);
+	if (a == (uint8_t*)MAP_FAILED) return 0;
+	memcpy(&ss, a + 4, 4);
+	memcpy(&ms, a + 8, 4);
+	memcpy(&m, a + 12, 8);
+	memcpy(&n_ssa, a + 20, 8);
+	n = (st.st_size - 28) / 8; // the number of 64-bit entries the file holds
+	// rb3_ssa() masks with (1<<ss) - 1 in an int, and ssa_add_intv() with
+	// (1LL<<ms) - 1, so larger shifts would overflow
+	if (memcmp(a, "SSA\1", 4) != 0 || ss > 30 || ms < 1 || ms > 62 || (st.st_size - 28) % 8 != 0
+		|| m < 0 || n_ssa < 0 || (uint64_t)m > n || (uint64_t)n_ssa != n - m) {
+		munmap(a, st.st_size);
+		return 0;
+	}
+	sa = RB3_CALLOC(rb3_ssa_t, 1);
+	sa->ss = ss, sa->ms = ms, sa->m = m, sa->n_ssa = n_ssa;
+	sa->r2i_m = a + 28;
+	sa->ssa_m = a + 28 + 8 * m;
+	sa->map = a, sa->map_len = st.st_size;
 	return sa;
 }
 

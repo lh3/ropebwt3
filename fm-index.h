@@ -33,7 +33,30 @@ typedef struct {
 	int64_t m, n_ssa; // m: number of sequences/sentinels; n_ssa: size of the ssa[] array below
 	uint64_t *r2i; // rank -> index, of size m; when you reach a sentinel via backward search, r2i[] tells you the sequence ID in [0,m)
 	uint64_t *ssa; // sampled suffix array; of size n_ssa
+	// set only when the .ssa is mapped (rb3_ssa_map()), and r2i and ssa are then
+	// NULL: both arrays as they are in the file, 4 bytes past an 8-byte boundary
+	const uint8_t *r2i_m, *ssa_m;
+	void *map;
+	size_t map_len;
 } rb3_ssa_t;
+
+// r2i[i] and ssa[i], wherever they are; memcpy() reads an unaligned entry of a
+// mapped .ssa, and compiles to one load on arm64 and x86-64
+static inline uint64_t rb3_ssa_r2i(const rb3_ssa_t *sa, int64_t i)
+{
+	uint64_t x;
+	if (sa->map == 0) return sa->r2i[i];
+	memcpy(&x, sa->r2i_m + (i << 3), 8);
+	return x;
+}
+
+static inline uint64_t rb3_ssa_val(const rb3_ssa_t *sa, int64_t i)
+{
+	uint64_t x;
+	if (sa->map == 0) return sa->ssa[i];
+	memcpy(&x, sa->ssa_m + (i << 3), 8);
+	return x;
+}
 
 typedef struct {
 	int64_t sid, pos;
@@ -78,6 +101,7 @@ int64_t rb3_ssa_multi(void *km, const rb3_fmi_t *f, const rb3_ssa_t *ssa, int64_
 void rb3_ssa_destroy(rb3_ssa_t *sa);
 int rb3_ssa_dump(const rb3_ssa_t *sa, const char *fn);
 rb3_ssa_t *rb3_ssa_restore(const char *fn);
+rb3_ssa_t *rb3_ssa_map(const char *fn);
 rb3_ssa_t *rb3_ssa_gen(const rb3_fmi_t *f, int ssa_shift, int n_threads);
 
 int rb3_fmi_load_all(rb3_fmi_t *f, const char *fn, int32_t load_flag);
