@@ -82,6 +82,26 @@ extern "C" {
 
 #define rld_block_type(x) ((uint64_t)(x)>>62)
 
+// prefetch the rank index entry that rld_locate_blk() reads first for position k
+static inline void rld_prefetch_frame(const rld_t *e, uint64_t k)
+{
+	const uint64_t *z = e->frame + (k >> e->ibits) * e->asize1;
+	__builtin_prefetch(z);
+	__builtin_prefetch(z + e->asize);
+}
+
+// prefetch the first small blocks rld_locate_blk() scans for position k; this
+// reads the index entry, so call rld_prefetch_frame() on k some time before
+static inline void rld_prefetch_blk(const rld_t *e, uint64_t k)
+{
+	const uint64_t *z = e->frame + (k >> e->ibits) * e->asize1;
+	const uint64_t *q = e->z[*z >> RLD_LBITS] + (*z & RLD_LMASK);
+	__builtin_prefetch(q);
+	__builtin_prefetch(q + e->ssize);
+	__builtin_prefetch(q + 2 * e->ssize);
+	__builtin_prefetch(q + 3 * e->ssize);
+}
+
 static inline int64_t rld_dec0(const rld_t *e, rlditr_t *itr, int *c)
 {
 	int w;
