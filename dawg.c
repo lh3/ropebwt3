@@ -55,7 +55,7 @@ rb3_bwtl_t *rb3_bwtl_gen(void *km, int len, const uint8_t *seq)
 		kfree(km, s8);
 		for (i = b->primary; i < len; ++i) s[i] = s[i + 1];
 		for (i = 0; i < len; ++i)
-			b->bwt[i>>4] |= s[i] << ((15 - (i&15)) << 1);
+			b->bwt[i>>4] |= (uint32_t)s[i] << ((15 - (i&15)) << 1);
 		kfree(km, s);
 	}
 	{ // calculate b->occ
