@@ -622,7 +622,24 @@ int rb3_fmi_load_all(rb3_fmi_t *f, const char *fn, int32_t load_flag)
 				fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the sampled suffix array\n", __func__, rb3_realtime(), rb3_percent_cpu());
 		}
 	}
-	if ((load_flag & RB3_LOAD_SSA) && (load_flag & RB3_LOAD_SID)) {
+	if ((load_flag & RB3_LOAD_SSA) && (load_flag & RB3_LOAD_SID) && (load_flag & RB3_LOAD_MMAP)) {
+		strcat(strcpy(buf, fn), ".sid"); // written by "ropebwt3 sid"; mapped, so nothing is parsed or copied
+		if ((fp = fopen(buf, "r")) != 0) {
+			fclose(fp);
+			f->sid = rb3_sid_map(buf);
+			if (f->sid == 0) {
+				if (rb3_verbose >= 1)
+					fprintf(stderr, "WARNING: failed to map sequence names and lengths from file \"%s\"; reading the .len.gz instead\n", buf);
+			} else if (f->sid->n_seq * 2 != f->acc[1]) {
+				if (rb3_verbose >= 1)
+					fprintf(stderr, "WARNING: number of sequences do not match between BWT and \"%s\"; reading the .len.gz instead\n", buf);
+				rb3_sid_destroy(f->sid);
+				f->sid = 0;
+			} else if (rb3_verbose >= 3)
+				fprintf(stderr, "[M::%s::%.3f*%.2f] loaded the sequence names and lengths (mapped)\n", __func__, rb3_realtime(), rb3_percent_cpu());
+		}
+	}
+	if ((load_flag & RB3_LOAD_SSA) && (load_flag & RB3_LOAD_SID) && f->sid == 0) {
 		strcat(strcpy(buf, fn), ".len.gz");
 		if ((fp = fopen(buf, "r")) != 0) {
 			fclose(fp);

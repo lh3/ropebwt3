@@ -183,7 +183,7 @@ static void write_paf(kstring_t *out, const rb3_fmi_t *f, const rb3_swhit_t *h, 
 		if (f->sid) { // print with sequence names and lengths
 			int64_t clen, st, en;
 			pos_stranded(f->sid, &h->pos[0], h->rlen, &clen, &st, &en);
-			rb3_sprintf_lite(out, "\t%c\t%s\t%ld\t%ld\t%ld", "+-"[sid&1], f->sid->name[sid>>1], (long)clen, st, en);
+			rb3_sprintf_lite(out, "\t%c\t%s\t%ld\t%ld\t%ld", "+-"[sid&1], rb3_sid_name(f->sid, sid>>1), (long)clen, st, en);
 		} else {
 			rb3_sprintf_lite(out, "\t+\t%ld\t*\t%ld\t%ld", sid, pos, pos + h->rlen); // always on the forward strand
 		}
@@ -207,7 +207,7 @@ static void write_paf(kstring_t *out, const rb3_fmi_t *f, const rb3_swhit_t *h, 
 			if (f->sid) {
 				int64_t clen, st, en;
 				pos_stranded(f->sid, &h->pos[k], h->rlen, &clen, &st, &en);
-				rb3_sprintf_lite(out, "%s,%c,%ld;", f->sid->name[sid>>1], "+-"[sid&1], st);
+				rb3_sprintf_lite(out, "%s,%c,%ld;", rb3_sid_name(f->sid, sid>>1), "+-"[sid&1], st);
 			} else {
 				rb3_sprintf_lite(out, "%ld,%ld;", sid, pos);
 			}
@@ -317,7 +317,7 @@ static void write_per_seq(step_t *t)
 						rb3_pos_t *t = &r->pos[j];
 						int64_t rlen = f->sid->len[t->sid>>1], pos;
 						pos = t->sid&1? rlen - (t->pos + (en - st)) : t->pos;
-						rb3_sprintf_lite(&out, "\t%s:%c:%ld", f->sid->name[t->sid>>1], "+-"[t->sid&1], pos);
+						rb3_sprintf_lite(&out, "\t%s:%c:%ld", rb3_sid_name(f->sid, t->sid>>1), "+-"[t->sid&1], pos);
 					}
 					free(r->pos);
 				}
